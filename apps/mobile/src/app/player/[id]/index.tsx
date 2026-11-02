@@ -3,7 +3,7 @@ import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { DuelRecord, PostView, PublicProfile, ThemeStats } from '@qu1z/shared';
+import { THEMES, getCategory, type DuelRecord, type PostView, type PublicProfile, type ThemeStats } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
 import { PostCard } from '@/components/post-card';
@@ -23,6 +23,9 @@ export default function PlayerScreen() {
   const wall = useApi<{ posts: PostView[] }>(p?.canSeeContent ? `/api/users/${id}/posts` : null);
   const { history } = useProgress();
   const [confirmBlock, setConfirmBlock] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const can = useApi<{ canChallenge: boolean }>(p && !p.relationship.isMe ? `/api/users/${id}/can-challenge` : null);
   const [error, setError] = useState<string | null>(null);
 
   if (profile.error) {
@@ -91,6 +94,9 @@ export default function PlayerScreen() {
                 onPress={onFollow}
               />
             )}
+            {can.data?.canChallenge && (
+              <Button label="Défier" color={Colors.opponent} onPress={() => setChoosing((c) => !c)} />
+            )}
             {rel.followsMe && !rel.blockedByMe && (
               <AppText variant="caption" muted style={{ textAlign: 'center' }}>
                 Te suit
@@ -100,6 +106,37 @@ export default function PlayerScreen() {
         }
       />
       {error && <AppText color={Colors.wrong}>{error}</AppText>}
+      {sent && <AppText color={Colors.correct}>{sent}</AppText>}
+      {choosing && (
+        <Card>
+          <AppText variant="label">Choisis le thème du défi</AppText>
+          {THEMES.map((t) => {
+            const category = getCategory(t.categoryId)!;
+            return (
+              <Pressable
+                key={t.id}
+                accessibilityRole="button"
+                onPress={async () => {
+                  setChoosing(false);
+                  setError(null);
+                  try {
+                    await api('POST', '/api/challenges', { userId: id, themeId: t.id });
+                    setSent(`Défi envoyé à ${p.pseudo} en « ${t.name} ». Le duel commencera dès qu’il l’acceptera.`);
+                  } catch (e) {
+                    setError(errorMessage(e));
+                  }
+                }}
+                style={[styles.option, { borderColor: category.color }]}>
+                <AppText>{category.icon}</AppText>
+                <AppText variant="label" style={{ flex: 1 }}>
+                  {t.name}
+                </AppText>
+                <Ionicons name="flash" size={16} color={category.color} />
+              </Pressable>
+            );
+          })}
+        </Card>
+      )}
 
       {confirmBlock && (
         <Card style={{ borderColor: Colors.wrong }}>
@@ -171,4 +208,5 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   menu: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: Spacing.sm, borderRadius: Radius.pill },
   rivalry: { alignItems: 'center' },
+  option: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderRadius: Radius.sm, padding: Spacing.sm + 4, minHeight: 48 },
 });

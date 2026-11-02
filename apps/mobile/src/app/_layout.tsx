@@ -41,6 +41,8 @@ export default function RootLayout() {
             <Stack.Screen name="chat/[duelId]" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="settings/profile" />
             <Stack.Screen name="settings/blocked" />
+            <Stack.Screen name="settings/notifications" />
+            <Stack.Screen name="announcement/[id]" />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="compose" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>

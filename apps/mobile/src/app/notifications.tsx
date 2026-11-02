@@ -1,42 +1,164 @@
-import { View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { UserSummary } from '@qu1z/shared';
+import type { ChallengeView, NotificationView, UserSummary } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
-import { UserRow } from '@/components/player-row';
-import { SectionHeader } from '@/components/social';
-import { AppText, Button, Card, Screen } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
-import { api, useApi } from '@/net/api';
+import type { IconName } from '@/components/social';
+import { AppText, Avatar, Button, Screen } from '@/components/ui';
+import { Colors, Radius, Spacing } from '@/constants/theme';
+import { api, errorMessage, useApi } from '@/net/api';
+import { avatarColor } from '@/utils/avatar';
+import { notificationText } from '@/utils/notification-text';
+import { timeAgo } from '@/utils/time';
 
-/** Notifications : pour l'instant les demandes d'abonnement (le centre complet arrive au module suivant). */
+/** Icône des notifications sans acteur (progression, classement, système). */
+const ICONS: Partial<Record<NotificationView['type'], { icon: IconName; color: string }>> = {
+  level_up: { icon: 'arrow-up-circle', color: Colors.opponent },
+  theme_level_up: { icon: 'arrow-up-circle', color: Colors.opponent },
+  title_unlocked: { icon: 'ribbon', color: Colors.gold },
+  rank_top100: { icon: 'trophy', color: Colors.gold },
+  rank_top10: { icon: 'trophy', color: Colors.gold },
+  rank_first: { icon: 'trophy', color: Colors.gold },
+  rank_left_top10: { icon: 'trending-down', color: Colors.wrong },
+  duel_finished: { icon: 'flag', color: Colors.player },
+  announcement: { icon: 'megaphone', color: Colors.player },
+};
+
+/** Où mène chaque notification. */
+function open(n: NotificationView): void {
+  const actor = n.actors[0];
+  const d = n.data;
+  switch (n.type) {
+    case 'like':
+    case 'comment':
+    case 'reply':
+    case 'mention':
+      if (typeof d.postId === 'string') router.push({ pathname: '/post/[id]', params: { id: d.postId } });
+      return;
+    case 'theme_level_up':
+    case 'rank_top100':
+    case 'rank_top10':
+    case 'rank_first':
+    case 'rank_lost_first':
+    case 'rank_left_top10':
+      if (typeof d.themeId === 'string') router.push({ pathname: '/theme/[id]', params: { id: d.themeId } });
+      return;
+    case 'level_up':
+    case 'title_unlocked':
+    case 'duel_finished':
+      router.push('/profile');
+      return;
+    case 'announcement':
+      if (typeof d.announcementId === 'string') router.push({ pathname: '/announcement/[id]', params: { id: d.announcementId } });
+      return;
+    case 'challenge_received':
+    case 'rematch_request':
+      router.push('/social');
+      return;
+    default:
+      if (actor) router.push({ pathname: '/player/[id]', params: { id: actor.id } });
+  }
+}
+
 export default function NotificationsScreen() {
-  const requests = useApi<{ requests: { user: UserSummary; createdAt: number }[] }>('/api/me/follow-requests');
-  const pending = requests.data?.requests ?? [];
+  const list = useApi<{ notifications: NotificationView[]; unread: number }>('/api/notifications');
+  const requests = useApi<{ requests: { user: UserSummary }[] }>('/api/me/follow-requests');
+  const challenges = useApi<{ challenges: ChallengeView[] }>('/api/challenges');
+  const [error, setError] = useState<string | null>(null);
+  const notifications = list.data?.notifications ?? [];
+  const pendingRequests = new Set((requests.data?.requests ?? []).map((r) => r.user.id));
+  const pendingChallenges = new Set((challenges.data?.challenges ?? []).filter((c) => c.incoming).map((c) => c.id));
+
+  const act = (method: string, path: string) => {
+    setError(null);
+    api(method, path).catch((e) => setError(errorMessage(e)));
+  };
+
+  const tap = (n: NotificationView) => {
+    if (!n.read) api('POST', `/api/notifications/${n.id}/read`).catch(() => {});
+    open(n);
+  };
+
   return (
     <Screen>
-      <BackButton />
-      <AppText variant="title">Notifications</AppText>
-      <SectionHeader title="Demandes d’abonnement" />
-      {requests.data && pending.length === 0 && <AppText muted>Aucune demande en attente.</AppText>}
-      {pending.map(({ user }) => (
-        <UserRow
-          key={user.id}
-          user={user}
-          subtitle="veut s’abonner à toi"
-          right={
-            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-              <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => api('POST', `/api/me/follow-requests/${user.id}/decline`).catch(() => {})} />
-              <Button label="Accepter" color={Colors.correct} onPress={() => api('POST', `/api/me/follow-requests/${user.id}/accept`).catch(() => {})} />
-            </View>
-          }
-        />
-      ))}
-      <Card>
-        <AppText variant="caption" muted>
-          Le centre de notifications complet (likes, commentaires, mentions, défis, progression, annonces) arrive avec le module suivant.
-        </AppText>
-      </Card>
+      <View style={styles.top}>
+        <BackButton />
+        <Pressable accessibilityRole="button" accessibilityLabel="Réglages des notifications" onPress={() => router.push('/settings/notifications')} style={{ padding: Spacing.sm }}>
+          <Ionicons name="settings-outline" size={22} color={Colors.text} />
+        </Pressable>
+      </View>
+      <View style={styles.header}>
+        <AppText variant="title">Notifications</AppText>
+        {(list.data?.unread ?? 0) > 0 && (
+          <Pressable accessibilityRole="button" onPress={() => act('POST', '/api/notifications/read-all')} style={{ padding: Spacing.xs }}>
+            <AppText variant="caption" color={Colors.opponent}>
+              Tout marquer comme lu
+            </AppText>
+          </Pressable>
+        )}
+      </View>
+      {error && <AppText color={Colors.wrong}>{error}</AppText>}
+      {list.data && notifications.length === 0 && <AppText muted>Aucune notification pour l’instant.</AppText>}
+
+      <View style={styles.list}>
+        {notifications.map((n) => {
+          const actor = n.actors[0];
+          const icon = ICONS[n.type];
+          const requestPending = n.type === 'follow_request' && actor && pendingRequests.has(actor.id);
+          const challengeId = typeof n.data.challengeId === 'string' ? n.data.challengeId : null;
+          const challengePending = (n.type === 'challenge_received' || n.type === 'rematch_request') && challengeId && pendingChallenges.has(challengeId);
+          return (
+            <Pressable key={n.id} accessibilityRole="button" onPress={() => tap(n)} style={styles.row}>
+              {actor ? (
+                <Avatar name={actor.pseudo} color={avatarColor(actor.id)} size={40} />
+              ) : (
+                <View style={[styles.icon, { backgroundColor: icon?.color ?? Colors.surfaceRaised }]}>
+                  <Ionicons name={icon?.icon ?? 'notifications'} size={20} color={Colors.background} />
+                </View>
+              )}
+              <View style={{ flex: 1, gap: 6 }}>
+                <AppText style={!n.read ? { fontWeight: '700' } : undefined}>{notificationText(n)}</AppText>
+                <AppText variant="caption" muted>
+                  {timeAgo(n.updatedAt)}
+                </AppText>
+                {requestPending && (
+                  <View style={styles.actions}>
+                    <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act('POST', `/api/me/follow-requests/${actor!.id}/decline`)} />
+                    <Button label="Accepter" color={Colors.correct} onPress={() => act('POST', `/api/me/follow-requests/${actor!.id}/accept`)} />
+                  </View>
+                )}
+                {challengePending && (
+                  <View style={styles.actions}>
+                    <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act('POST', `/api/challenges/${challengeId}/decline`)} />
+                    <Button label="Jouer" color={Colors.opponent} onPress={() => act('POST', `/api/challenges/${challengeId}/accept`)} />
+                  </View>
+                )}
+              </View>
+              {!n.read && <View accessibilityLabel="Non lue" style={styles.dot} />}
+            </Pressable>
+          );
+        })}
+      </View>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  list: { borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surface },
+  row: {
+    flexDirection: 'row',
+    gap: Spacing.sm + 4,
+    alignItems: 'flex-start',
+    padding: Spacing.sm + 4,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  icon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.player, marginTop: 6 },
+  actions: { flexDirection: 'row', gap: Spacing.sm },
+});

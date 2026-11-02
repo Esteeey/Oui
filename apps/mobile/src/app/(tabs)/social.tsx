@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
-import { getCategory, getTheme, type PublicProfile, type ThemeInfo, type UserSummary } from '@qu1z/shared';
+import { getCategory, getTheme, type ChallengeView, type PublicProfile, type ThemeInfo, type UserSummary } from '@qu1z/shared';
 
 import { UserRow } from '@/components/player-row';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { api, useApi } from '@/net/api';
+import { api, errorMessage, useApi } from '@/net/api';
+import { useState } from 'react';
 import { useGameServer } from '@/state/game-server';
 
 /** Abonnements : demandes reçues, mes listes, thèmes suivis, joueurs bloqués. */
@@ -18,6 +19,14 @@ export default function SocialScreen() {
   const themes = useApi<{ themes: ThemeInfo[] }>(playerId ? '/api/themes' : null);
   const subscribed = (themes.data?.themes ?? []).filter((t) => t.subscribed);
   const pending = requests.data?.requests ?? [];
+  const challenges = useApi<{ challenges: ChallengeView[] }>(playerId ? '/api/challenges' : null);
+  const incoming = (challenges.data?.challenges ?? []).filter((c) => c.incoming);
+  const outgoing = (challenges.data?.challenges ?? []).filter((c) => !c.incoming);
+  const [error, setError] = useState<string | null>(null);
+  const act = (path: string) => {
+    setError(null);
+    api('POST', path).catch((e) => setError(errorMessage(e)));
+  };
 
   const invite = () =>
     Share.share({ message: `Viens me défier sur Qu1z ! Mon pseudo : @${me.data?.pseudo ?? ''}` }).catch(() => {});
@@ -35,6 +44,39 @@ export default function SocialScreen() {
         Social
       </AppText>
       <Button label="Inviter un ami" color={Colors.opponent} onPress={invite} />
+
+      {error && <AppText color={Colors.wrong}>{error}</AppText>}
+      {incoming.length > 0 && (
+        <>
+          <SectionHeader title={`Défis reçus · ${incoming.length}`} />
+          {incoming.map((c) => (
+            <UserRow
+              key={c.id}
+              user={c.from}
+              subtitle={`${c.kind === 'rematch' ? 'Revanche' : 'Défi'} · ${getTheme(c.themeId)?.name ?? ''}`}
+              right={
+                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                  <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/decline`)} />
+                  <Button label="Jouer" color={Colors.opponent} onPress={() => act(`/api/challenges/${c.id}/accept`)} />
+                </View>
+              }
+            />
+          ))}
+        </>
+      )}
+      {outgoing.length > 0 && (
+        <>
+          <SectionHeader title={`Défis envoyés · ${outgoing.length}`} />
+          {outgoing.map((c) => (
+            <UserRow
+              key={c.id}
+              user={c.to}
+              subtitle={`En attente · ${getTheme(c.themeId)?.name ?? ''}`}
+              right={<Button label="Annuler" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/cancel`)} />}
+            />
+          ))}
+        </>
+      )}
 
       {pending.length > 0 && (
         <>

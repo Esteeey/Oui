@@ -87,6 +87,10 @@ export default function ProfileSettingsScreen() {
         <Toggle label="Afficher ma liste d’abonnements" hint="Le nombre d’abonnements reste toujours visible." value={p?.showFollowing ?? true} onChange={(v) => save({ showFollowing: v })} />
       </Card>
 
+      <Pressable accessibilityRole="button" onPress={() => router.push('/settings/notifications')} style={styles.link}>
+        <AppText variant="label">Notifications</AppText>
+        <AppText muted>›</AppText>
+      </Pressable>
       <Pressable accessibilityRole="button" onPress={() => router.push('/settings/blocked')} style={styles.link}>
         <AppText variant="label">Joueurs bloqués</AppText>
         <AppText muted>›</AppText>

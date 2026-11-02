@@ -19,7 +19,7 @@ export default function FeedScreen() {
   const { playerName, history } = useProgress();
   const { playerId } = useGameServer();
   const feed = useApi<{ items: FeedItem[] }>(playerId ? '/api/feed' : null);
-  const requests = useApi<{ requests: unknown[] }>(playerId ? '/api/me/follow-requests' : null);
+  const { unreadNotifications } = useGameServer();
   const quickTheme = history[0]?.themeId ?? THEMES[0].id;
   const items = feed.data?.items ?? [];
 
@@ -32,7 +32,7 @@ export default function FeedScreen() {
         <IconButton
           icon="notifications-outline"
           label="Notifications"
-          badge={requests.data?.requests.length ?? 0}
+          badge={unreadNotifications}
           onPress={() => router.push('/notifications')}
         />
       </View>

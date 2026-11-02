@@ -105,6 +105,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   private: 'Ce profil est privé.',
   hidden: 'Cette liste est masquée.',
   network: 'Serveur injoignable.',
+  challenger_offline: 'Le joueur qui t’a défié n’est pas connecté. Réessaie plus tard.',
+  busy: 'L’un de vous est déjà en duel.',
+  not_connected_by_follow: 'Vous devez être abonnés l’un à l’autre (dans un sens au moins) pour vous défier.',
+  forbidden: 'Action non autorisée.',
 };
 
 export function errorMessage(e: unknown): string {

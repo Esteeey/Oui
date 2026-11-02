@@ -32,7 +32,9 @@ Serveur :
 Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 
 - Comptes invités (jeton gardé sur l'appareil) ; connexion par e-mail et photos de profil à venir.
-- Pas encore de centre de notifications complet, de recherche de joueurs, de messagerie, de groupes ni de modération.
+- **Notifications** : centre complet (likes regroupés, commentaires, mentions, abonnements, progression, classements, défis, annonces), préférences, temps réel. Les notifications push sur téléphone arrivent plus tard.
+- **Défis** entre joueurs liés par un abonnement, revanche après un duel.
+- Pas encore de recherche de joueurs, de messagerie, de groupes ni de modération.
 
 ## Lancer le projet
 

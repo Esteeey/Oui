@@ -3,6 +3,7 @@ import { createContext, use, useEffect, useRef, useState, type ReactNode } from 
 
 import type { ChatMessage, DuelSnapshot, Profile, ServerMessage } from '@qu1z/shared';
 
+import { api, invalidateAll } from '@/net/api';
 import { GameConnection, gameServerUrl, type ConnectionStatus } from '@/net/game-connection';
 
 export interface DuelRequest {
@@ -23,6 +24,8 @@ interface GameServerState {
   chats: Record<string, { messages: ChatMessage[]; canChat: boolean }>;
   /** Dernière demande de duel (pour « Rejouer »). */
   lastRequest: DuelRequest | null;
+  /** Notifications non lues (mises à jour en temps réel). */
+  unreadNotifications: number;
   play: (request: DuelRequest) => void;
   cancelQueue: () => void;
   answer: (choice: number) => void;
@@ -46,6 +49,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const [lastError, setLastError] = useState<string | null>(null);
   const [chats, setChats] = useState<GameServerState['chats']>({});
   const [lastRequest, setLastRequest] = useState<DuelRequest | null>(null);
+  const [unreadNotifications, setUnread] = useState(0);
   const connection = useRef<GameConnection | null>(null);
 
   useEffect(() => {
@@ -54,6 +58,16 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
         case 'welcome':
           setPlayerId(m.playerId);
           setProfile(m.profile);
+          // Rattrapage après (re)connexion : compteur et écrans à jour.
+          setTimeout(() => {
+            api<{ unread: number }>('GET', '/api/notifications').then((r) => setUnread(r.unread)).catch(() => {});
+            invalidateAll();
+          }, 0);
+          break;
+        case 'notification':
+          if (typeof m.unread === 'number') setUnread(m.unread);
+          else api<{ unread: number }>('GET', '/api/notifications').then((r) => setUnread(r.unread)).catch(() => {});
+          invalidateAll();
           break;
         case 'profile':
           setProfile(m.profile);
@@ -95,6 +109,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     lastError,
     chats,
     lastRequest,
+    unreadNotifications,
     play: (request) => {
       setLastError(null);
       setLastRequest(request);

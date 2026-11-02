@@ -14,6 +14,7 @@ import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
+import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 
 const R = {
@@ -40,6 +41,7 @@ export default function ResultsScreen() {
   const game = useGameServer();
   const duel = game.duel;
   const [details, setDetails] = useState(false);
+  const [rematch, setRematch] = useState<string | null>(null);
 
   useEffect(() => {
     if (duel?.phase === 'finished' && duel.result) game.ackResult(duel.duelId);
@@ -136,6 +138,25 @@ export default function ResultsScreen() {
           </View>
 
           <ReplayButton onPress={replay} />
+          {!duel.opponent.isBot && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                api('POST', '/api/challenges', { userId: duel.opponent.id, themeId: duel.themeId, rematchOf: duel.duelId })
+                  .then(() => setRematch(`Revanche proposée à ${duel.opponent.name}.`))
+                  .catch((e) => setRematch(errorMessage(e)))
+              }
+              style={styles.rematch}>
+              <AppText variant="label" color="#FF6B35">
+                Proposer une revanche à {duel.opponent.name}
+              </AppText>
+            </Pressable>
+          )}
+          {rematch && (
+            <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
+              {rematch}
+            </AppText>
+          )}
 
           <View style={styles.secondary}>
             <Pressable
@@ -287,6 +308,7 @@ const styles = StyleSheet.create({
   levelText: { color: R.text, fontSize: 17, fontWeight: '800' },
   track: { height: 16, borderRadius: 999, backgroundColor: '#2A2A2E', overflow: 'hidden' },
   secondary: { flexDirection: 'row', gap: 12 },
+  rematch: { alignItems: 'center', justifyContent: 'center', minHeight: 44, borderWidth: 1.5, borderColor: '#FF6B35', borderRadius: 10 },
   secondaryButton: { flex: 1, height: 54, borderRadius: 10, backgroundColor: '#111113', alignItems: 'center', justifyContent: 'center' },
   detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Spacing.sm },
   detail: { borderTopWidth: 1, borderTopColor: R.line, paddingTop: Spacing.sm, gap: 6 },
