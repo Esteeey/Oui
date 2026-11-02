@@ -6,18 +6,31 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { DuelSnapshot } from '@qu1z/shared';
 
+import { openDatabase, type Database } from '../src/db/database';
+import { Repo } from '../src/repo';
 import { startServer, type GameServer } from '../src/server';
-import { Store } from '../src/store';
 import { FAST, TestClient, sleep } from './helpers';
 
 const THEME = 'geo-capitales';
 let server: GameServer;
+let db: Database | null = null;
 const clients: TestClient[] = [];
 
-async function boot(store?: Store): Promise<GameServer> {
-  server = await startServer(0, { timing: FAST, matchTimeoutMs: 300, ...(store ? { store } : {}) });
+/** Démarre un serveur sur une base PostgreSQL embarquée neuve (ou sur un dossier existant). */
+async function boot(dataDir?: string): Promise<GameServer> {
+  db = await openDatabase(dataDir ? { dataDir } : {});
+  server = await startServer(0, { repo: new Repo(db), timing: FAST, matchTimeoutMs: 300 });
   return server;
 }
+
+async function stop(): Promise<void> {
+  await Promise.all(clients.splice(0).map((c) => c.close()));
+  await server?.close();
+  await db?.close();
+  db = null;
+}
+
+const xpOf = async (id: string) => (await server.game.profile(id)).xp;
 
 async function client(token?: string): Promise<TestClient> {
   const c = await new TestClient(server.port).connect(token);
@@ -57,8 +70,7 @@ async function startPvp(): Promise<{ a: TestClient; b: TestClient; duelId: strin
 const finished = (s: DuelSnapshot) => s.phase === 'finished' && s.result !== null;
 
 afterEach(async () => {
-  await Promise.all(clients.splice(0).map((c) => c.close()));
-  await server?.close();
+  await stop();
 });
 
 describe('récompenses XP (calculées par le serveur)', () => {
@@ -75,8 +87,8 @@ describe('récompenses XP (calculées par le serveur)', () => {
     expect(ra.result!.rewards).toEqual({ finishBonus: 20, victoryBonus: 40, boostBonus: 100, total: 160 });
     expect(rb.result!.outcome).toBe('loss');
     expect(rb.result!.rewards).toEqual({ finishBonus: 20, victoryBonus: 0, boostBonus: 0, total: 20 });
-    expect(server.game.profile(a.playerId).xp).toBe(160);
-    expect(server.game.profile(b.playerId).xp).toBe(20);
+    expect(await xpOf(a.playerId)).toBe(160);
+    expect(await xpOf(b.playerId)).toBe(20);
     expect(ra.result!.accountXpBefore).toBe(0);
     expect(ra.result!.accountXpAfter).toBe(160);
   });
@@ -109,7 +121,7 @@ describe('récompenses XP (calculées par le serveur)', () => {
     expect(ra.result!.rewards.total).toBe(0);
     expect(rb.result!.outcome).toBe('win');
     expect(rb.result!.rewards).toMatchObject({ finishBonus: 20, victoryBonus: 40 });
-    expect(server.game.profile(a.playerId).xp).toBe(0);
+    expect(await xpOf(a.playerId)).toBe(0);
   });
 
   it('récompenses versées une seule fois, même si on redemande', async () => {
@@ -120,19 +132,19 @@ describe('récompenses XP (calculées par le serveur)', () => {
     await a.waitForDuel(finished, 8000, 0);
     stopA();
     stopB();
-    const xp = server.game.profile(a.playerId).xp;
+    const xp = await xpOf(a.playerId);
     const duel = server.game.getDuel(duelId)!;
-    server.game.grantRewards(duel, 0);
-    server.game.grantRewards(duel, 1);
-    expect(server.game.profile(a.playerId).xp).toBe(xp);
-    expect(server.game.store.data.players[a.playerId].rewardedDuels.filter((d) => d === duelId)).toHaveLength(1);
+    // Demandes répétées, y compris simultanées : la base n'accepte qu'un versement.
+    await Promise.all([server.game.grantRewards(duel, 0), server.game.grantRewards(duel, 0), server.game.grantRewards(duel, 1)]);
+    expect(await xpOf(a.playerId)).toBe(xp);
+    expect(await server.game.repo.rewardedCount(duelId, a.playerId)).toBe(1);
     // Reconnexions et accusés de réception répétés : toujours aucun nouveau versement.
     for (let i = 0; i < 3; i++) {
       const again = await client(a.token);
       again.send({ type: 'ackResult', duelId });
       await sleep(20);
     }
-    expect(server.game.profile(a.playerId).xp).toBe(xp);
+    expect(await xpOf(a.playerId)).toBe(xp);
   });
 
   it('le client ne peut ni fixer l’XP ni le temps de réponse', async () => {
@@ -154,7 +166,7 @@ describe('récompenses XP (calculées par le serveur)', () => {
     clearInterval(timer);
     stopB();
     expect(ra.result!.rewards.total).toBe(160);
-    expect(server.game.profile(a.playerId).xp).toBe(160);
+    expect(await xpOf(a.playerId)).toBe(160);
     expect(ra.me.answers.every((x) => x.responseMs > 0)).toBe(true);
   });
 
@@ -276,14 +288,13 @@ describe('déconnexions et reconnexions', () => {
   });
 
   it('redémarrage du serveur : le duel enregistré reprend', async () => {
-    const file = join(mkdtempSync(join(tmpdir(), 'qu1z-')), 'store.json');
-    await boot(new Store(file));
+    const dir = join(mkdtempSync(join(tmpdir(), 'qu1z-')), 'pg');
+    await boot(dir);
     const { b, duelId } = await startPvp();
     await b.waitForDuel((x) => x.phase === 'reading', 4000, 0);
     const token = b.token;
-    await Promise.all(clients.splice(0).map((c) => c.close()));
-    await server.close();
-    await boot(new Store(file));
+    await stop();
+    await boot(dir);
     const b2 = await client(token);
     const back = await b2.waitForDuel(() => true, 2000, 0);
     expect(back.duelId).toBe(duelId);
@@ -321,6 +332,6 @@ describe('duel contre le bot et chat', () => {
     const intruder = await client();
     intruder.send({ type: 'chat', duelId, text: 'spam' });
     await sleep(40);
-    expect(server.game.store.data.chats[duelId]).toHaveLength(1);
+    expect(await server.game.repo.duelChat(duelId)).toHaveLength(1);
   });
 });

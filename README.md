@@ -39,7 +39,6 @@ Limites du prototype :
 
 - Les autres joueurs, le fil, les amis et les notifications sont des **données de démonstration**, signalées dans l'application. En duel, les réponses de l'adversaire sont simulées.
 - Comptes invités (jeton gardé sur l'appareil) ; pas encore de connexion Apple / Google ni de photo de profil.
-- Stockage du serveur dans un fichier JSON (à remplacer par PostgreSQL).
 - Fil, amis et publications restent des données de démonstration locales.
 
 ## Lancer le projet
@@ -50,7 +49,7 @@ Prérequis : Node.js 22 et pnpm.
 pnpm install
 ```
 
-Le serveur de jeu (port 8787, données dans `services/game/data/`) doit tourner pour jouer :
+Le serveur de jeu (port 8787) doit tourner pour jouer. En local, il utilise un PostgreSQL embarqué (dossier `services/game/data/pg`) ; en production, il se connecte à PostgreSQL via la variable `DATABASE_URL`.
 
 ```bash
 pnpm server

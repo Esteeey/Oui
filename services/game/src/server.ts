@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 import type { ClientMessage, ServerMessage } from '@qu1z/shared';
 
+import { createApi } from './api';
 import { Game, type GameOptions } from './game';
 
 const HEARTBEAT_MS = 10_000;
@@ -16,10 +17,10 @@ export interface GameServer {
 }
 
 /**
- * Serveur WebSocket. Chaque connexion commence par `hello` (jeton du compte invité).
+ * Serveur HTTP + WebSocket. Chaque connexion WebSocket commence par `hello` (jeton du compte).
  * Un joueur peut avoir plusieurs connexions ; il est « déconnecté » quand la dernière se ferme.
  */
-export async function startServer(port: number, options: Omit<GameOptions, 'send'> = {}): Promise<GameServer> {
+export async function startServer(port: number, options: Omit<GameOptions, 'send'>): Promise<GameServer> {
   const sockets = new Map<string, Set<WebSocket>>();
 
   const send = (playerId: string, message: ServerMessage) => {
@@ -28,15 +29,17 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
   };
 
   const game = new Game({ ...options, send });
-  const http = createServer((req, res) => {
-    res.writeHead(req.url === '/health' ? 200 : 404, { 'content-type': 'text/plain' });
-    res.end(req.url === '/health' ? 'ok' : 'not found');
-  });
+  await game.restore();
+  const api = createApi(game);
+  const http = createServer((req, res) => void api(req, res));
   const wss = new WebSocketServer({ server: http, maxPayload: 8 * 1024 });
 
   wss.on('connection', (ws) => {
     let playerId: string | null = null;
+    let helloStarted = false;
     let alive = true;
+    // Les messages d'un même client sont traités dans l'ordre de réception.
+    let chain: Promise<void> = Promise.resolve();
     ws.on('pong', () => (alive = true));
     const heartbeat = setInterval(() => {
       if (!alive) return ws.terminate();
@@ -44,25 +47,26 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
       ws.ping();
     }, HEARTBEAT_MS);
 
-    ws.on('message', (raw) => {
-      let msg: ClientMessage;
-      try {
-        msg = JSON.parse(String(raw));
-      } catch {
-        return;
-      }
-      if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') return;
-
+    const handle = async (msg: ClientMessage) => {
       if (msg.type === 'hello') {
-        if (playerId) return;
-        const { player, token } = game.hello(typeof msg.token === 'string' ? msg.token : undefined);
-        playerId = player.id;
-        const set = sockets.get(playerId) ?? new Set();
+        if (helloStarted) return;
+        helloStarted = true;
+        const outcome = await game.hello(typeof msg.token === 'string' ? msg.token : undefined);
+        if ('error' in outcome) {
+          ws.send(JSON.stringify({ type: 'error', code: outcome.error, message: 'Ce compte a été banni.' } satisfies ServerMessage));
+          ws.close();
+          return;
+        }
+        const id = outcome.user.id;
+        playerId = id;
+        const set = sockets.get(id) ?? new Set();
         set.add(ws);
-        sockets.set(playerId, set);
-        ws.send(JSON.stringify({ type: 'welcome', playerId, token, profile: game.profile(playerId) } satisfies ServerMessage));
-        if (set.size === 1) game.setOnline(playerId, true);
-        game.resync(playerId);
+        sockets.set(id, set);
+        ws.send(
+          JSON.stringify({ type: 'welcome', playerId: id, token: outcome.token, profile: await game.profile(id) } satisfies ServerMessage),
+        );
+        if (set.size === 1) game.setOnline(id, true);
+        await game.resync(id);
         return;
       }
       if (!playerId) return;
@@ -86,17 +90,31 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
         default:
           return;
       }
+    };
+
+    ws.on('message', (raw) => {
+      let msg: ClientMessage;
+      try {
+        msg = JSON.parse(String(raw));
+      } catch {
+        return;
+      }
+      if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') return;
+      chain = chain.then(() => handle(msg)).catch((err) => console.error('Message refusé', err));
     });
 
     ws.on('close', () => {
       clearInterval(heartbeat);
-      if (!playerId) return;
-      const set = sockets.get(playerId);
-      set?.delete(ws);
-      if (set && set.size === 0) {
-        sockets.delete(playerId);
-        game.setOnline(playerId, false);
-      }
+      // On attend la fin du traitement en cours (par exemple un `hello` pas encore enregistré).
+      void chain.then(() => {
+        if (!playerId) return;
+        const set = sockets.get(playerId);
+        set?.delete(ws);
+        if (set && set.size === 0) {
+          sockets.delete(playerId);
+          game.setOnline(playerId, false);
+        }
+      });
     });
   });
 
@@ -111,6 +129,7 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
       for (const client of wss.clients) client.terminate();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve) => http.close(() => resolve()));
+      await game.flush();
     },
   };
 }

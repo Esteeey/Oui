@@ -60,7 +60,7 @@ locale pour le développement et les tests, et l'implémentation réelle activé
 
 ## 3. Décisions à valider
 
-1. **Base de données** : PostgreSQL + Drizzle ORM avec migrations versionnées ; PGlite (PostgreSQL embarqué) pour le développement et les tests. Les données actuelles (comptes, duels, résultats) seront migrées depuis le fichier JSON.
+1. **Base de données** : PostgreSQL avec migrations SQL versionnées (`services/game/src/db/migrations`, appliquées une seule fois chacune) et requêtes SQL paramétrées (pas d'ORM : plus simple à relire et à auditer) ; PGlite (PostgreSQL embarqué) pour le développement et les tests. Les données actuelles (comptes, duels, résultats) seront migrées depuis le fichier JSON.
 2. **Comptes et e-mail** : ajout d'une connexion par e-mail (lien magique). Le compte invité reste possible pour jouer, mais **la messagerie, les publications et les groupes exigent un compte avec e-mail vérifié** : c'est ce qui rend le bannissement par e-mail efficace et limite le spam.
 3. **Amis et abonnements** : deux systèmes indépendants, comme demandé. Les amis (réciproques) servent aux défis et au classement entre amis ; les abonnements au fil et à la présence.
 4. **Présence en ligne** : visible seulement en cas d'**abonnement réciproque** (je le suis et il me suit), jamais du seul fait d'une conversation, et jamais en cas de blocage.
@@ -147,3 +147,12 @@ Index sur toutes les clés étrangères et les colonnes de recherche ; contraint
 
 Chaque module se termine par : tests serveur, test de bout en bout dans le navigateur, mise à jour de cette page,
 commit et push, puis un compte rendu (ce qui marche, ce qui reste, ce qui attend une configuration externe).
+
+---
+
+## 7. Avancement
+
+| Module | État | Détail |
+|---|---|---|
+| M0 Fondations | **Terminé** | PostgreSQL (PGlite en local et en test, `DATABASE_URL` en production), migration `001_init.sql`, reprise de l'ancien fichier JSON (`pnpm --filter @qu1z/game-server import-json`), récompenses versées dans une transaction avec clé unique (duel, joueur), rôles (`player`, `moderator`, `admin`) et statut de compte (banni = connexion et API refusées), blocages (API + jamais d'appariement entre joueurs bloqués), limiteur anti-spam configurable, API HTTP authentifiée (`/api/me`, `/api/blocks`). 27 tests serveur + test de bout en bout à deux navigateurs. |
+| M1 Social réel | À faire | |

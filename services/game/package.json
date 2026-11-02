@@ -7,14 +7,18 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "import-json": "tsx src/import-json.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "0.5.14",
     "@qu1z/shared": "workspace:*",
+    "pg": "^8.23.1",
     "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1",
     "tsx": "^4.20.5",
     "typescript": "~6.0.3",
