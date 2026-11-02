@@ -7,11 +7,13 @@ import { AppText, Screen } from '@/components/ui';
 import { BackButton } from '@/components/back-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
+import { formatCount, themeSubscriberCount, useSocial } from '@/state/social';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const category = getCategory(id);
   const { stats } = useProgress();
+  const { subscribedThemes } = useSocial();
   if (!category) return <Redirect href="/" />;
 
   return (
@@ -34,6 +36,10 @@ export default function CategoryScreen() {
               <AppText variant="heading">{theme.name}</AppText>
               <AppText variant="caption" muted>
                 {theme.description}
+              </AppText>
+              <AppText variant="caption" color={category.color}>
+                {formatCount(themeSubscriberCount(theme.id, subscribedThemes))} abonnés
+                {subscribedThemes.includes(theme.id) ? ' · abonné ✓' : ''}
               </AppText>
             </View>
             <View style={[styles.level, { backgroundColor: category.color }]}>

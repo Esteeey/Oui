@@ -10,6 +10,7 @@ Dossier de conception : [`docs/CONCEPTION.md`](docs/CONCEPTION.md)
 ```
 apps/mobile/       application Expo (iOS, Android, Web)
 packages/shared/   règles du duel, barème, cote, progression, catalogue, questions
+content/           outils de contenu (génération des drapeaux)
 docs/              conception
 ```
 
@@ -22,7 +23,8 @@ docs/              conception
 - **Profil** : niveau, titre, statistiques, thèmes avec division, 8 badges, derniers duels. Profils des autres joueurs avec bilan des face-à-face.
 - **Classement** : Monde ou Amis, général ou par thème, par cote (Elo pour le prototype) et divisions.
 - **Duel** complet de 7 questions (10 s par question), résultats comparatifs, XP, cote, revanche.
-- 5 thèmes jouables, 12 questions chacun.
+- 6 thèmes jouables, dont **Drapeaux du monde** en questions illustrées (14 drapeaux dessinés pour Qu1z).
+- Commentaires sous les publications, nombre d'abonnés par thème.
 
 Limites du prototype :
 

@@ -11,7 +11,7 @@ import { DivisionBadge, SectionHeader } from '@/components/social';
 import { AppText, Button, Card, ProgressBar, Screen, Stat } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { useThemeStats } from '@/state/progress';
-import { themePosts, useSocial } from '@/state/social';
+import { formatCount, themePosts, themeSubscriberCount, useSocial } from '@/state/social';
 
 export default function ThemeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -48,6 +48,9 @@ export default function ThemeScreen() {
           onPress={() => toggleThemeSubscription(theme.id)}
           style={{ marginTop: Spacing.sm, alignSelf: 'stretch' }}
         />
+        <AppText variant="caption" muted>
+          {formatCount(themeSubscriberCount(theme.id, subscribedThemes))} abonnés
+        </AppText>
       </View>
 
       <Card>

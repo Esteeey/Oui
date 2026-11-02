@@ -103,6 +103,24 @@ export const INITIAL_POSTS: Post[] = [
   { id: 'p9', authorId: 'malik', target: { kind: 'theme', themeId: 'geo-capitales' }, text: 'Berne, pas Zurich. Je le répète chaque semaine.', at: minutesAgo(2000), likes: 11 },
 ];
 
+export interface Comment {
+  id: string;
+  postId: string;
+  /** `null` = le joueur lui-même. */
+  authorId: string | null;
+  text: string;
+  at: number;
+}
+
+export const INITIAL_COMMENTS: Comment[] = [
+  { id: 'c1', postId: 'p1', authorId: 'theo', text: '« Pulp Fiction », évidemment !', at: minutesAgo(12) },
+  { id: 'c2', postId: 'p1', authorId: 'ines', text: '« Forrest Gump » pour moi.', at: minutesAgo(9) },
+  { id: 'c3', postId: 'p2', authorId: 'lina', text: 'Bravo ! Prochaine étape : Diamant.', at: minutesAgo(25) },
+  { id: 'c4', postId: 'p3', authorId: 'malik', text: 'Je me suis fait avoir la semaine dernière…', at: minutesAgo(60) },
+  { id: 'c5', postId: 'p3', authorId: 'yanis', text: 'Merci pour l’astuce !', at: minutesAgo(45) },
+  { id: 'c6', postId: 'p4', authorId: 'chloe', text: 'Défi accepté.', at: minutesAgo(100) },
+];
+
 export interface DemoNotification {
   id: string;
   icon: 'flash' | 'people' | 'trophy' | 'heart';
@@ -156,4 +174,9 @@ export function demoRecord(playerId: string): { wins: number; draws: number; los
   const wins = Math.round(duels * winRate);
   const draws = Math.round(duels * drawRate);
   return { wins, draws, losses: duels - wins - draws };
+}
+
+/** Nombre d'abonnés de démonstration d'un thème (hors le joueur). */
+export function demoThemeSubscribers(themeId: string): number {
+  return 300 + (hash('subs' + themeId) % 4700);
 }

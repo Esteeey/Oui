@@ -33,6 +33,12 @@ export const THEMES: Theme[] = [
     description: 'Les capitales, y compris les plus piégeuses.',
   },
   {
+    id: 'geo-drapeaux',
+    categoryId: 'geographie',
+    name: 'Drapeaux du monde',
+    description: 'Reconnaître un pays à son drapeau, y compris les sosies.',
+  },
+  {
     id: 'sci-essentiels',
     categoryId: 'sciences',
     name: 'Les essentiels',

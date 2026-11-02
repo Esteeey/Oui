@@ -93,7 +93,7 @@ export function useDuel(themeId: string) {
         later(RULES.introMs, () => dispatch({ type: 'read', index: 0 }));
         break;
       case 'reading':
-        later(readingTimeMs(question.text), () => dispatch({ type: 'answering', at: Date.now() }));
+        later(readingTimeMs(question.text, !!question.image), () => dispatch({ type: 'answering', at: Date.now() }));
         break;
       case 'answering': {
         const plan = botAnswer(question);

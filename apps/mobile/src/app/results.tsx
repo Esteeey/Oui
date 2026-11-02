@@ -4,6 +4,9 @@ import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 
 import { getCategory, getTheme, levelFromXp, totals, type DuelOutcome } from '@qu1z/shared';
 
+import { Image } from 'expo-image';
+
+import { questionImageSource } from '@/game/question-images';
 import { AppText, Avatar, Button, Card, ProgressBar, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { DivisionBadge } from '@/components/social';
@@ -75,9 +78,14 @@ export default function ResultsScreen() {
         return (
           <Animated.View key={q.id} entering={FadeInDown.delay(300 + i * 60).springify()}>
             <Card style={{ gap: 6 }}>
-              <AppText variant="caption" muted>
-                {i + 1}. {q.text}
-              </AppText>
+              <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
+                {questionImageSource(q.image) !== null && (
+                  <Image source={questionImageSource(q.image)!} contentFit="cover" style={styles.thumb} accessibilityLabel="Illustration" />
+                )}
+                <AppText variant="caption" muted style={{ flex: 1 }}>
+                  {i + 1}. {q.text}
+                </AppText>
+              </View>
               <AppText variant="label" color={Colors.correct}>
                 {q.choices[q.correctIndex]}
               </AppText>
@@ -174,4 +182,5 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   actions: { gap: Spacing.sm, marginTop: Spacing.sm },
+  thumb: { width: 54, height: 36, borderRadius: 6 },
 });

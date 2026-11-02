@@ -15,11 +15,14 @@ import {
   type ScoredAnswer,
 } from '@qu1z/shared';
 
+import { Image } from 'expo-image';
+
 import { Countdown } from '@/components/countdown';
 import { AppText, Avatar, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { demoRating, getPlayer } from '@/demo/data';
 import { BOT_NAME } from '@/game/bot';
+import { questionImageSource } from '@/game/question-images';
 import { useDuel } from '@/game/use-duel';
 import { useProgress, useThemeStats } from '@/state/progress';
 import { useSocial } from '@/state/social';
@@ -138,6 +141,14 @@ function DuelScreen({
       </View>
 
       <Animated.View key={`q-${duel.index}`} entering={FadeInDown.springify()} style={styles.questionCard}>
+        {questionImageSource(q.image) !== null && (
+          <Image
+            source={questionImageSource(q.image)!}
+            contentFit="contain"
+            accessibilityLabel="Illustration de la question"
+            style={styles.questionImage}
+          />
+        )}
         <AppText variant="heading" style={styles.questionText}>
           {q.text}
         </AppText>
@@ -288,13 +299,14 @@ const styles = StyleSheet.create({
   questionCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
-    padding: Spacing.lg,
+    padding: Spacing.md,
     minHeight: 150,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
   },
   questionText: { textAlign: 'center', lineHeight: 28 },
+  questionImage: { width: '100%', height: 130, borderRadius: Radius.sm, marginBottom: Spacing.sm },
   choices: { gap: Spacing.sm, minHeight: 4 * 62 + 3 * Spacing.sm },
   choice: {
     minHeight: 62,

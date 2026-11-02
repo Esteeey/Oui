@@ -8,6 +8,8 @@ export const RULES = {
   minReadingMs: 1_000,
   maxReadingMs: 3_000,
   readingMsPerChar: 20,
+  /** Temps de lecture supplémentaire pour regarder une illustration. */
+  imageReadingBonusMs: 1_000,
   /** Affichage de la bonne réponse et du choix de l'adversaire. */
   revealMs: 2_000,
   /** Présentation des deux joueurs avant la première question. */
@@ -20,7 +22,8 @@ export const RULES = {
   streakBonus: 10,
 } as const;
 
-export function readingTimeMs(text: string): number {
+export function readingTimeMs(text: string, hasImage = false): number {
   const ms = RULES.minReadingMs + text.length * RULES.readingMsPerChar;
-  return Math.min(RULES.maxReadingMs, Math.max(RULES.minReadingMs, ms));
+  const base = Math.min(RULES.maxReadingMs, Math.max(RULES.minReadingMs, ms));
+  return hasImage ? base + RULES.imageReadingBonusMs : base;
 }

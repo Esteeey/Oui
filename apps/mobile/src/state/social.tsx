@@ -2,18 +2,22 @@ import { createContext, use, useState, type ReactNode } from 'react';
 
 import {
   INITIAL_CHALLENGES,
+  INITIAL_COMMENTS,
   INITIAL_FOLLOWING,
   INITIAL_FRIENDS,
   INITIAL_POSTS,
   INITIAL_REQUESTS,
   INITIAL_THEME_SUBSCRIPTIONS,
+  demoThemeSubscribers,
   NOTIFICATIONS,
   type Challenge,
+  type Comment,
   type Post,
   type PostTarget,
 } from '@/demo/data';
 
 export const MAX_POST_LENGTH = 280;
+export const MAX_COMMENT_LENGTH = 200;
 
 interface SocialState {
   friends: string[];
@@ -24,6 +28,7 @@ interface SocialState {
   /** Thèmes suivis : leurs publications arrivent dans l'accueil, et on peut y publier. */
   subscribedThemes: string[];
   posts: Post[];
+  comments: Comment[];
   liked: Set<string>;
   unreadNotifications: number;
   acceptRequest: (id: string) => void;
@@ -34,6 +39,8 @@ interface SocialState {
   toggleThemeSubscription: (themeId: string) => void;
   /** Publie au nom du joueur. Refuse un thème non suivi ou un texte vide. */
   publish: (target: PostTarget, text: string) => boolean;
+  /** Commente une publication au nom du joueur. */
+  addComment: (postId: string, text: string) => boolean;
   completeChallenge: (id: string) => void;
   toggleLike: (postId: string) => void;
   markNotificationsRead: () => void;
@@ -53,6 +60,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [following, setFollowing] = useState(INITIAL_FOLLOWING);
   const [subscribedThemes, setSubscribedThemes] = useState(INITIAL_THEME_SUBSCRIPTIONS);
   const [posts, setPosts] = useState(INITIAL_POSTS);
+  const [comments, setComments] = useState(INITIAL_COMMENTS);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [unreadNotifications, setUnread] = useState(NOTIFICATIONS.length);
 
@@ -63,6 +71,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     following,
     subscribedThemes,
     posts,
+    comments,
     liked,
     unreadNotifications,
     acceptRequest: (id) => {
@@ -82,6 +91,12 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         { id: `me-${Date.now()}`, authorId: null, target, text: clean, at: Date.now(), likes: 0 },
         ...p,
       ]);
+      return true;
+    },
+    addComment: (postId, text) => {
+      const clean = text.trim().slice(0, MAX_COMMENT_LENGTH);
+      if (!clean || !posts.some((p) => p.id === postId)) return false;
+      setComments((c) => [...c, { id: `mc-${Date.now()}`, postId, authorId: null, text: clean, at: Date.now() }]);
       return true;
     },
     completeChallenge: (id) => setChallenges((c) => c.filter((x) => x.id !== id)),
@@ -124,4 +139,17 @@ export function homePosts(posts: Post[], following: string[], subscribedThemes: 
     if (p.target.kind === 'profile') return following.includes(p.authorId);
     return subscribedThemes.includes(p.target.themeId);
   });
+}
+
+export function commentsOf(comments: Comment[], postId: string): Comment[] {
+  return comments.filter((c) => c.postId === postId).sort((a, b) => a.at - b.at);
+}
+
+/** Nombre d'abonnés d'un thème, joueur compris s'il y est abonné. */
+export function themeSubscriberCount(themeId: string, subscribedThemes: string[]): number {
+  return demoThemeSubscribers(themeId) + (subscribedThemes.includes(themeId) ? 1 : 0);
+}
+
+export function formatCount(n: number): string {
+  return n.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
 }

@@ -167,6 +167,7 @@ Quand aucun adversaire n'est disponible, plutôt qu'un robot inventé, on rejoue
 - **Volume** : au lancement, 2 thèmes par catégorie (32 thèmes, 300 questions minimum chacun), puis plusieurs nouveaux thèmes par semaine pour atteindre des centaines.
 - **Marques et franchises** (Marvel, Disney, constructeurs, maisons de luxe…) : on peut poser des questions à leur sujet, mais **sans utiliser leurs logos, affiches ou images officielles**. Les visuels des thèmes sont des illustrations originales.
 - **Format d'une question** : énoncé, 4 propositions, bonne réponse, image facultative, difficulté, source, auteur.
+- **Questions illustrées** : une image au-dessus de l'énoncé (clé d'image embarquée ou adresse `https://` servie par le serveur), avec 1 s de lecture en plus. Les images doivent être créées par Qu1z, libres de droits ou sous licence, avec le crédit enregistré. Prototype : thème « Drapeaux du monde » (14 drapeaux dessinés pour Qu1z).
 - **Difficulté calibrée** : chaque question a une difficulté mesurée à partir des taux de bonnes réponses et des temps. Un duel mélange les difficultés (par exemple 2 faciles, 3 moyennes, 2 difficiles), adaptées au niveau moyen des deux joueurs.
 - **Rotation** : un joueur ne revoit pas une question avant d'avoir épuisé une bonne partie du thème.
 - **Signalement** : « question incorrecte » ou « ambiguë » depuis l'écran de résultats, avec une file de modération.
@@ -208,7 +209,8 @@ Quand aucun adversaire n'est disponible, plutôt qu'un robot inventé, on rejoue
 
 - On **suit** un joueur depuis son profil (« Suivre »), sans qu'il ait besoin d'accepter. L'**ami** reste une relation réciproque, utile pour les défis et le classement entre amis.
 - On **s'abonne** à un thème depuis sa page. L'abonnement donne le droit de publier dans son fil.
-- Publication : texte de 280 caractères maximum, « Bravo » (j'aime). À venir : commentaires, images, signalement, modération.
+- Publication : texte de 280 caractères maximum, « Bravo » (j'aime), commentaires (200 caractères). À venir : images, signalement, modération.
+- Chaque thème affiche son nombre d'abonnés (page du thème, catégorie, Explorer).
 
 **Autres fonctions sociales** :
 

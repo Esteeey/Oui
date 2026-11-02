@@ -10,6 +10,7 @@ import { SectionHeader } from '@/components/social';
 import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
+import { formatCount, themeSubscriberCount, useSocial } from '@/state/social';
 
 function normalize(text: string): string {
   return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -95,6 +96,8 @@ export default function ExploreScreen() {
 function ThemeRow({ themeId, level }: { themeId: string; level: number }) {
   const theme = THEMES.find((t) => t.id === themeId)!;
   const category = getCategory(theme.categoryId)!;
+  const { subscribedThemes } = useSocial();
+  const subscribed = subscribedThemes.includes(theme.id);
   return (
     <Pressable
       accessibilityRole="button"
@@ -104,7 +107,8 @@ function ThemeRow({ themeId, level }: { themeId: string; level: number }) {
       <View style={{ flex: 1 }}>
         <AppText variant="label">{theme.name}</AppText>
         <AppText variant="caption" muted>
-          {category.name}
+          {category.name} · {formatCount(themeSubscriberCount(theme.id, subscribedThemes))} abonnés
+          {subscribed ? ' · abonné' : ''}
         </AppText>
       </View>
       <AppText variant="caption" color={category.color}>

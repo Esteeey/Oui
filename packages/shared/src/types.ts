@@ -41,6 +41,11 @@ export interface Question {
   /** `[bonne réponse, leurre, leurre, leurre]` — mélangées au moment du duel. */
   choices: [string, string, string, string];
   difficulty: Difficulty;
+  /**
+   * Illustration facultative : une clé d'image embarquée dans l'application
+   * (ex. `flags/japon`) ou une adresse `https://` servie par le serveur.
+   */
+  image?: string;
 }
 
 /** Question préparée pour un duel : propositions mélangées. */
@@ -50,6 +55,7 @@ export interface DuelQuestion {
   choices: string[];
   correctIndex: number;
   difficulty: Difficulty;
+  image?: string;
 }
 
 export interface PlayerAnswer {

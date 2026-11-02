@@ -119,3 +119,13 @@ describe('cote', () => {
     expect(DIVISIONS).toHaveLength(6);
   });
 });
+
+describe('questions illustrées', () => {
+  it('garde l’illustration dans le duel préparé', () => {
+    const duel = prepareDuel(questionsOf('geo-drapeaux'), 5);
+    expect(duel.every((q) => q.image?.startsWith('flags/'))).toBe(true);
+  });
+  it('ajoute du temps de lecture pour une image', () => {
+    expect(readingTimeMs('Court', true)).toBe(readingTimeMs('Court') + RULES.imageReadingBonusMs);
+  });
+});

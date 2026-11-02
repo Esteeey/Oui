@@ -42,6 +42,7 @@ export function prepareDuel(pool: readonly Question[], seed: number): DuelQuesti
       choices: order.map((i) => q.choices[i]),
       correctIndex: order.indexOf(0),
       difficulty: q.difficulty,
+      ...(q.image ? { image: q.image } : {}),
     };
   });
 }

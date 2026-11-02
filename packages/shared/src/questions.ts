@@ -92,9 +92,41 @@ const sportsJo = build('sports-jo', [
   ['Quel nageur détient le record du nombre de médailles d\'or olympiques ?', 'Michael Phelps', 'Mark Spitz', 'Ian Thorpe', 'Léon Marchand', 2],
 ]);
 
+/** Questions illustrées : [clé d'image, bonne réponse, leurre, leurre, leurre, difficulté]. */
+type ImageRow = [string, string, string, string, string, Difficulty];
+
+function buildIllustrated(themeId: string, text: string, rows: ImageRow[]): Question[] {
+  return rows.map(([image, a, b, c, d, difficulty], i) => ({
+    id: `${themeId}-${String(i + 1).padStart(3, '0')}`,
+    themeId,
+    text,
+    choices: [a, b, c, d],
+    difficulty,
+    image,
+  }));
+}
+
+const geoDrapeaux = buildIllustrated('geo-drapeaux', 'À quel pays appartient ce drapeau ?', [
+  ['flags/japon', 'Japon', 'Bangladesh', 'Corée du Sud', 'Chine', 1],
+  ['flags/bangladesh', 'Bangladesh', 'Japon', 'Laos', 'Palaos', 3],
+  ['flags/suede', 'Suède', 'Finlande', 'Norvège', 'Danemark', 2],
+  ['flags/finlande', 'Finlande', 'Suède', 'Islande', 'Grèce', 2],
+  ['flags/danemark', 'Danemark', 'Suisse', 'Norvège', 'Islande', 2],
+  ['flags/suisse', 'Suisse', 'Danemark', 'Autriche', 'Turquie', 1],
+  ['flags/ukraine', 'Ukraine', 'Suède', 'Roumanie', 'Kazakhstan', 1],
+  ['flags/pologne', 'Pologne', 'Indonésie', 'Monaco', 'Autriche', 3],
+  ['flags/allemagne', 'Allemagne', 'Belgique', 'Espagne', 'Autriche', 1],
+  ['flags/autriche', 'Autriche', 'Lettonie', 'Pologne', 'Danemark', 2],
+  ['flags/belgique', 'Belgique', 'Allemagne', 'Roumanie', 'Tchad', 2],
+  ['flags/irlande', 'Irlande', "Côte d'Ivoire", 'Italie', 'Inde', 3],
+  ['flags/italie', 'Italie', 'Mexique', 'Irlande', 'Hongrie', 1],
+  ['flags/grece', 'Grèce', 'Israël', 'Uruguay', 'Finlande', 2],
+]);
+
 export const QUESTIONS: Question[] = [
   ...cgMelange,
   ...geoCapitales,
+  ...geoDrapeaux,
   ...sciEssentiels,
   ...cineGrandsFilms,
   ...sportsJo,
