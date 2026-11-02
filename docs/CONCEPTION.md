@@ -55,11 +55,10 @@ Séparer **XP** (on progresse toujours) et **cote** (on mérite sa place) est la
 | Bonus de rapidité | jusqu'à 40 points, proportionnels au temps restant (arrondi au point) |
 | Mauvaise réponse ou temps écoulé | 0 |
 | **Série** : à partir de la 3ᵉ bonne réponse consécutive | +10 par question |
-| **Mise** (une fois par duel, questions 2 à 7) | voir ci-dessous |
 
-**La Mise** (nouveauté) : pendant la phase de lecture, avant de voir les propositions, un joueur peut « miser » sur la question. Bonne réponse : base + rapidité ×2. Mauvaise réponse : −50 points. L'adversaire voit qu'une mise a été posée. Cela ajoute une décision tactique (« ce thème, je le connais ») sans changer le principe du duel.
+Score maximal théorique : 7 × 100 + 5 × 10 (série) = **750 points**.
 
-Score maximal théorique : 7 × 100 + 5 × 10 (série) + 100 (mise) = **850 points**.
+> 📌 **À ajouter plus tard : la Mise.** Idée validée, prévue en phase 2 (voir 8 et 9). Détail en annexe A.
 
 **Départage en cas d'égalité** : le plus grand nombre de bonnes réponses, puis le temps de réponse total le plus court. Si tout est égal, c'est un match nul.
 
@@ -115,7 +114,7 @@ Quand aucun adversaire n'est disponible, plutôt qu'un robot inventé, on rejoue
 - Depuis un profil, un ami ou l'écran de résultats : « Défier », puis choix du thème (ou « surprise »).
 - Si l'ami est en ligne : invitation en direct (30 s pour accepter) puis duel en direct.
 - Sinon : duel différé automatique.
-- **Défi personnalisé** : choix du thème, avec ou sans Mise, partie amicale (sans cote) ou comptant pour l'historique de la rivalité.
+- **Défi personnalisé** : choix du thème, partie amicale (sans cote) ou comptant pour l'historique de la rivalité.
 - **Lien de défi** partageable (messagerie, réseaux) : un nouveau joueur qui l'ouvre joue directement le duel après une inscription rapide.
 
 ### 3.6 Défi du jour (nouveauté)
@@ -188,7 +187,7 @@ Quand aucun adversaire n'est disponible, plutôt qu'un robot inventé, on rejoue
 - **Niveau global**, qui débloque fonctionnalités et cosmétiques.
 - **Cote et division par thème**, plus une **cote globale** calculée sur les thèmes les plus joués.
 - **Saisons** de 6 semaines : la cote se rapproche de la moyenne en début de saison, des récompenses sont données à la fin selon la division atteinte.
-- **Badges** : par exemple premier sans-faute, 10 victoires d'affilée, 50 thèmes essayés, revanche gagnée, Mise réussie sur la dernière question.
+- **Badges** : par exemple premier sans-faute, 10 victoires d'affilée, 50 thèmes essayés, revanche gagnée.
 - **Objectifs quotidiens et hebdomadaires** (« Gagne 3 duels en Sciences », « Joue 2 thèmes nouveaux ») qui rapportent de l'XP.
 
 ### 4.4 Classements
@@ -224,7 +223,7 @@ Recommandation : **aucun avantage payant en jeu** (pas d'aide à la réponse à 
 
 1. Écran d'accueil : « Joue », sans inscription obligatoire (compte invité).
 2. Choix de 3 thèmes favoris parmi une sélection.
-3. **Premier duel guidé** contre un Fantôme facile, avec des bulles d'explication au premier passage (chrono, points, Mise).
+3. **Premier duel guidé** contre un Fantôme facile, avec des bulles d'explication au premier passage (chrono, points).
 4. Résultats, avec l'XP gagnée bien mise en valeur.
 5. Invitation à créer un compte (Apple, Google ou e-mail) pour sauvegarder sa progression, puis choix du pseudo et de l'avatar.
 
@@ -380,7 +379,7 @@ Principes de **stabilité et d'équité** :
 | `question_stats` | nombre de réponses, taux de réussite, temps moyen |
 | `matches` | mode, thème, joueurs, statut, dates, vainqueur, seed |
 | `match_questions` | les 7 questions d'un duel, dans l'ordre |
-| `match_answers` | joueur, question, choix, temps de réponse (mesuré par le serveur), points, mise |
+| `match_answers` | joueur, question, choix, temps de réponse (mesuré par le serveur), points (+ mise en phase 2) |
 | `ghost_runs` | parties enregistrées réutilisables comme Fantômes |
 | `theme_progress` | joueur × thème : XP, niveau, cote, déviation, division, statistiques |
 | `friendships`, `blocks` | relations entre joueurs |
@@ -431,6 +430,7 @@ Les **classements** sont calculés en direct dans Redis (sorted sets), et des in
 ### Phase 2 — Compétition et engagement
 
 - Défi du jour, saisons, tournois hebdomadaires.
+- **La Mise** (voir annexe A).
 - Badges, objectifs quotidiens et hebdomadaires, titres.
 - Rivalités, fil d'activité, cartes de partage, liens de défi.
 - Plus de 100 thèmes.
@@ -449,7 +449,22 @@ Les **classements** sont calculés en direct dans Redis (sorted sets), et des in
 1. **Nom** du jeu (« Qu1z » est provisoire, nom final à choisir plus tard).
 2. ~~Plateformes~~ : **décidé** — une seule base de code Expo. D'abord testée sur le Web et sur téléphone (sans passer par les stores), puis publiée sur l'App Store et Google Play une fois le duel au point.
 3. **Langue** : français uniquement au lancement ?
-4. **Barème** : la Mise est-elle retenue ?
+4. ~~Barème~~ : **décidé** — la Mise est validée mais ajoutée plus tard (phase 2, annexe A).
 5. **Hébergement** et budget (serveurs, base de données).
 6. **Modèle économique**.
 7. **Contenu** : qui rédige et relit les questions ? (catégories : **décidé**, voir 4.1)
+
+---
+
+## Annexe A — La Mise (à ajouter en phase 2)
+
+Idée validée, mise de côté pour ne pas alourdir la première version.
+
+- **Quand** : une fois par duel, sur les questions 2 à 7.
+- **Comment** : pendant la lecture de la question, **avant de voir les 4 propositions**, le joueur appuie sur « Miser ». C'est un pari : « ce sujet, je le connais ».
+- **Bonne réponse** : les points de la question (base + rapidité) sont doublés, jusqu'à 200 au lieu de 100.
+- **Mauvaise réponse ou temps écoulé** : −50 points.
+- **Visibilité** : l'adversaire voit qu'une mise a été posée (pas sur quelle réponse).
+- **Intérêt** : permet de remonter au score et rend les fins de duel plus tendues.
+- **Score maximal** avec la Mise : 850 points au lieu de 750.
+- **À prévoir** : un badge « Mise gagnante sur la dernière question », une option « avec ou sans Mise » dans les défis entre amis, et une colonne `wager` dans `match_answers`.
