@@ -38,7 +38,9 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="duel/[themeId]" options={{ gestureEnabled: false, animation: 'fade' }} />
             <Stack.Screen name="results" options={{ gestureEnabled: false, animation: 'fade_from_bottom' }} />
-            <Stack.Screen name="chat/[duelId]" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="messages/index" />
+            <Stack.Screen name="messages/[id]" />
+            <Stack.Screen name="messages/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="settings/profile" />
             <Stack.Screen name="settings/blocked" />
             <Stack.Screen name="settings/notifications" />

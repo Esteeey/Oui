@@ -32,6 +32,7 @@ export default function FeedScreen() {
         </AppText>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
           <SearchButton />
+          <IconButton icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/messages')} />
           <IconButton
             icon="notifications-outline"
             label="Notifications"

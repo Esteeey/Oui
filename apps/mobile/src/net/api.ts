@@ -109,6 +109,11 @@ export const ERROR_MESSAGES: Record<string, string> = {
   busy: 'L’un de vous est déjà en duel.',
   not_connected_by_follow: 'Vous devez être abonnés l’un à l’autre (dans un sens au moins) pour vous défier.',
   forbidden: 'Action non autorisée.',
+  already_requested: 'Tu as déjà envoyé une demande à ce joueur.',
+  request_waiting_for_you: 'Ce joueur t’a déjà écrit : accepte sa demande dans tes messages.',
+  too_many_requests: 'Trop de demandes envoyées à ce joueur ce mois-ci.',
+  invalid_reply: 'Impossible de répondre à ce message.',
+  invalid_emoji: 'Réaction invalide.',
 };
 
 export function errorMessage(e: unknown): string {

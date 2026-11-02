@@ -94,6 +94,14 @@ export default function PlayerScreen() {
                 onPress={onFollow}
               />
             )}
+            {!rel.blockedByMe && (
+              <Button
+                label="Message"
+                variant="outline"
+                color={Colors.text}
+                onPress={() => router.push({ pathname: '/messages/new', params: { userId: id } })}
+              />
+            )}
             {can.data?.canChallenge && (
               <Button label="Défier" color={Colors.opponent} onPress={() => setChoosing((c) => !c)} />
             )}

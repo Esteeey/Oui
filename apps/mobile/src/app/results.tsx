@@ -162,9 +162,10 @@ export default function ResultsScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Discuter avec l’adversaire"
-              onPress={() => router.push({ pathname: '/chat/[duelId]', params: { duelId: duel.duelId } })}
+              disabled={duel.opponent.isBot}
+              onPress={() => router.push({ pathname: '/messages/new', params: { userId: duel.opponent.id } })}
               style={styles.secondaryButton}>
-              <Ionicons name="chatbubble-ellipses" size={28} color={R.text} />
+              <Ionicons name="chatbubble-ellipses" size={28} color={duel.opponent.isBot ? '#52525B' : R.text} />
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} style={styles.secondaryButton}>
               <Ionicons name="share-social" size={28} color={R.text} />

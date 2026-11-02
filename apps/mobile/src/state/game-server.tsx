@@ -1,7 +1,7 @@
 import { router, usePathname } from 'expo-router';
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { ChatMessage, DuelSnapshot, Profile, ServerMessage } from '@qu1z/shared';
+import type { DuelSnapshot, Profile, ServerMessage } from '@qu1z/shared';
 
 import { api, invalidateAll } from '@/net/api';
 import { GameConnection, gameServerUrl, type ConnectionStatus } from '@/net/game-connection';
@@ -21,7 +21,6 @@ interface GameServerState {
   clockOffset: number;
   queued: { themeId: string; since: number } | null;
   lastError: string | null;
-  chats: Record<string, { messages: ChatMessage[]; canChat: boolean }>;
   /** Dernière demande de duel (pour « Rejouer »). */
   lastRequest: DuelRequest | null;
   /** Notifications non lues (mises à jour en temps réel). */
@@ -31,8 +30,6 @@ interface GameServerState {
   answer: (choice: number) => void;
   forfeit: () => void;
   ackResult: (duelId: string) => void;
-  sendChat: (duelId: string, text: string) => void;
-  loadChat: (duelId: string) => void;
   retry: () => void;
 }
 
@@ -47,7 +44,6 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const [clockOffset, setClockOffset] = useState(0);
   const [queued, setQueued] = useState<GameServerState['queued']>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [chats, setChats] = useState<GameServerState['chats']>({});
   const [lastRequest, setLastRequest] = useState<DuelRequest | null>(null);
   const [unreadNotifications, setUnread] = useState(0);
   const connection = useRef<GameConnection | null>(null);
@@ -83,8 +79,9 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
           setClockOffset(m.snapshot.serverNow - Date.now());
           setDuel(m.snapshot);
           break;
-        case 'chat':
-          setChats((c) => ({ ...c, [m.duelId]: { messages: m.messages, canChat: m.canChat } }));
+        case 'messages':
+          // Nouveau message, réaction, lecture ou demande : les écrans de messagerie se rechargent.
+          invalidateAll();
           break;
         case 'error':
           setLastError(m.message);
@@ -107,7 +104,6 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     clockOffset,
     queued,
     lastError,
-    chats,
     lastRequest,
     unreadNotifications,
     play: (request) => {
@@ -125,8 +121,6 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     },
     forfeit: () => duel && send({ type: 'forfeit', duelId: duel.duelId }),
     ackResult: (duelId) => send({ type: 'ackResult', duelId }),
-    sendChat: (duelId, text) => send({ type: 'chat', duelId, text }),
-    loadChat: (duelId) => send({ type: 'getChat', duelId }),
     retry: () => connection.current?.reconnectNow(),
   };
 
