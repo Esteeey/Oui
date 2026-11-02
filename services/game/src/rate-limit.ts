@@ -29,6 +29,7 @@ export const DEFAULT_LIMITS: Limits = {
   comment: { max: 30, windowMs: MINUTE },
   like: { max: 120, windowMs: MINUTE },
   challenge: { max: 20, windowMs: MINUTE },
+  search: { max: 120, windowMs: MINUTE },
 };
 
 export class RateLimiter {

@@ -5,6 +5,7 @@ import { THEMES } from '@qu1z/shared';
 import { randomUUID } from 'node:crypto';
 
 import type { Challenges } from './challenges';
+import type { Discovery } from './discovery';
 import type { Game } from './game';
 import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
@@ -42,7 +43,7 @@ type Handler = (ctx: { userId: string; params: string[]; query: URLSearchParams;
  * API HTTP. Authentification : `Authorization: Bearer <jeton>`.
  * Chaque route vérifie elle-même les droits (blocages, confidentialité) : rien ne repose sur l'interface.
  */
-export function createApi(game: Game, social: Social, notifier: Notifier, challenges: Challenges) {
+export function createApi(game: Game, social: Social, notifier: Notifier, challenges: Challenges, discovery: Discovery) {
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
@@ -115,6 +116,16 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
       const b = await body();
       return social.addComment(userId, uuid(params[0]), b.text, b.parentId ? uuid(b.parentId) : undefined);
     }],
+
+    // Recherche globale, mentions, Découvrir
+    ['GET', /^\/api\/search$/, async ({ userId, query }) => {
+      if (!game.limiter.allow('search', userId)) throw new SocialError(429, 'rate_limited');
+      return discovery.search(userId, query.get('q') ?? '');
+    }],
+    ['GET', /^\/api\/search\/mentions$/, async ({ userId, query }) => ({
+      users: await discovery.mentionSuggestions(userId, query.get('q') ?? ''),
+    })],
+    ['GET', /^\/api\/discover$/, async ({ userId }) => ({ users: await discovery.discover(userId) })],
 
     // Notifications
     ['GET', /^\/api\/notifications$/, async ({ userId }) => ({
