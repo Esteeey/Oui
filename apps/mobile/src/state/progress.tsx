@@ -1,10 +1,11 @@
 import { createContext, use, useState, type ReactNode } from 'react';
 
-import type { DuelOutcome, DuelQuestion, ScoredAnswer } from '@qu1z/shared';
+import { INITIAL_RATING, type DuelOutcome, type DuelQuestion, type ScoredAnswer } from '@qu1z/shared';
 
 /** Statistiques d'un joueur dans un thème. */
 export interface ThemeStats {
   xp: number;
+  rating: number;
   duels: number;
   wins: number;
   draws: number;
@@ -14,7 +15,11 @@ export interface ThemeStats {
 }
 
 export interface DuelRecord {
+  id: string;
+  playedAt: number;
   themeId: string;
+  /** Joueur de démonstration affronté, ou `null` pour le bot d'entraînement. */
+  opponentId: string | null;
   opponentName: string;
   questions: DuelQuestion[];
   player: ScoredAnswer[];
@@ -22,18 +27,21 @@ export interface DuelRecord {
   outcome: DuelOutcome;
   xpBefore: number;
   xpGained: number;
+  ratingBefore: number;
+  ratingDelta: number;
 }
 
 interface ProgressState {
   playerName: string;
   stats: Record<string, ThemeStats>;
+  history: DuelRecord[];
   lastDuel: DuelRecord | null;
-  lastThemeId: string | null;
   recordDuel: (record: DuelRecord) => void;
 }
 
 export const EMPTY_STATS: ThemeStats = {
   xp: 0,
+  rating: INITIAL_RATING,
   duels: 0,
   wins: 0,
   draws: 0,
@@ -50,10 +58,10 @@ const ProgressContext = createContext<ProgressState | null>(null);
  */
 export function ProgressProvider({ children }: { children: ReactNode }) {
   const [stats, setStats] = useState<Record<string, ThemeStats>>({});
-  const [lastDuel, setLastDuel] = useState<DuelRecord | null>(null);
+  const [history, setHistory] = useState<DuelRecord[]>([]);
 
   const recordDuel = (record: DuelRecord) => {
-    setLastDuel(record);
+    setHistory((h) => [record, ...h]);
     setStats((prev) => {
       const s = prev[record.themeId] ?? EMPTY_STATS;
       const correctAnswers = record.player.filter((a) => a.correct);
@@ -61,6 +69,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         ...prev,
         [record.themeId]: {
           xp: s.xp + record.xpGained,
+          rating: s.rating + record.ratingDelta,
           duels: s.duels + 1,
           wins: s.wins + (record.outcome === 'win' ? 1 : 0),
           draws: s.draws + (record.outcome === 'draw' ? 1 : 0),
@@ -75,13 +84,7 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
 
   return (
     <ProgressContext
-      value={{
-        playerName: 'Invité',
-        stats,
-        lastDuel,
-        lastThemeId: lastDuel?.themeId ?? null,
-        recordDuel,
-      }}>
+      value={{ playerName: 'Invité', stats, history, lastDuel: history[0] ?? null, recordDuel }}>
       {children}
     </ProgressContext>
   );
@@ -99,4 +102,24 @@ export function useThemeStats(themeId: string): ThemeStats {
 
 export function totalXp(stats: Record<string, ThemeStats>): number {
   return Object.values(stats).reduce((t, s) => t + s.xp, 0);
+}
+
+/** Cote globale : moyenne des 3 meilleurs thèmes joués. */
+export function globalRating(stats: Record<string, ThemeStats>): number {
+  const ratings = Object.values(stats)
+    .map((s) => s.rating)
+    .sort((a, b) => b - a)
+    .slice(0, 3);
+  if (ratings.length === 0) return INITIAL_RATING;
+  return Math.round(ratings.reduce((t, r) => t + r, 0) / ratings.length);
+}
+
+export function bestWinStreak(history: DuelRecord[]): number {
+  let best = 0;
+  let current = 0;
+  for (const duel of [...history].reverse()) {
+    current = duel.outcome === 'win' ? current + 1 : 0;
+    best = Math.max(best, current);
+  }
+  return best;
 }

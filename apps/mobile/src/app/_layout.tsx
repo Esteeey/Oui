@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 
 import { Colors } from '@/constants/theme';
 import { ProgressProvider } from '@/state/progress';
+import { SocialProvider } from '@/state/social';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -28,16 +29,20 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={navigationTheme}>
       <ProgressProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: Colors.background },
-            animation: 'slide_from_right',
-          }}>
-          <Stack.Screen name="duel/[themeId]" options={{ gestureEnabled: false, animation: 'fade' }} />
-          <Stack.Screen name="results" options={{ gestureEnabled: false, animation: 'fade_from_bottom' }} />
-        </Stack>
+        <SocialProvider>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: Colors.background },
+              animation: 'slide_from_right',
+            }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="duel/[themeId]" options={{ gestureEnabled: false, animation: 'fade' }} />
+            <Stack.Screen name="results" options={{ gestureEnabled: false, animation: 'fade_from_bottom' }} />
+            <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
+          </Stack>
+        </SocialProvider>
       </ProgressProvider>
     </ThemeProvider>
   );

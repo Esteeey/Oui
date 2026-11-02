@@ -6,6 +6,8 @@ import { getCategory, getTheme, levelFromXp, totals, type DuelOutcome } from '@q
 
 import { AppText, Avatar, Button, Card, ProgressBar, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
+import { DivisionBadge } from '@/components/social';
+import { getPlayer } from '@/demo/data';
 import { useProgress } from '@/state/progress';
 
 const HEADLINE: Record<DuelOutcome, { text: string; color: string }> = {
@@ -25,6 +27,8 @@ export default function ResultsScreen() {
   const before = levelFromXp(lastDuel.xpBefore);
   const after = levelFromXp(lastDuel.xpBefore + lastDuel.xpGained);
   const headline = HEADLINE[lastDuel.outcome];
+  const opponentColor = (lastDuel.opponentId && getPlayer(lastDuel.opponentId)?.color) || Colors.opponent;
+  const ratingAfter = lastDuel.ratingBefore + lastDuel.ratingDelta;
 
   return (
     <Screen>
@@ -42,7 +46,7 @@ export default function ResultsScreen() {
         <AppText variant="heading" muted>
           –
         </AppText>
-        <Side name={lastDuel.opponentName} color={Colors.opponent} points={them.points} correct={them.correct} />
+        <Side name={lastDuel.opponentName} color={opponentColor} points={them.points} correct={them.correct} />
       </Card>
 
       <Animated.View entering={FadeInDown.delay(200).springify()}>
@@ -54,6 +58,13 @@ export default function ResultsScreen() {
             </AppText>
           </View>
           <ProgressBar progress={after.progress} color={category.color} />
+          <View style={styles.xpRow}>
+            <AppText variant="label" color={lastDuel.ratingDelta >= 0 ? Colors.correct : Colors.wrong}>
+              {lastDuel.ratingDelta >= 0 ? '▲ +' : '▼ '}
+              {lastDuel.ratingDelta} cote
+            </AppText>
+            <DivisionBadge rating={ratingAfter} />
+          </View>
         </Card>
       </Animated.View>
 
@@ -72,7 +83,7 @@ export default function ResultsScreen() {
               </AppText>
               <View style={styles.answerRow}>
                 <AnswerPill color={Colors.player} correct={mine.correct} points={mine.points} ms={mine.responseMs} answered={mine.choice !== null} />
-                <AnswerPill color={Colors.opponent} correct={theirs.correct} points={theirs.points} ms={theirs.responseMs} answered={theirs.choice !== null} />
+                <AnswerPill color={opponentColor} correct={theirs.correct} points={theirs.points} ms={theirs.responseMs} answered={theirs.choice !== null} />
               </View>
             </Card>
           </Animated.View>
@@ -82,8 +93,21 @@ export default function ResultsScreen() {
       <View style={styles.actions}>
         <Button
           label="Revanche"
-          onPress={() => router.replace({ pathname: '/duel/[themeId]', params: { themeId: theme.id } })}
+          onPress={() =>
+            router.replace({
+              pathname: '/duel/[themeId]',
+              params: lastDuel.opponentId ? { themeId: theme.id, opponent: lastDuel.opponentId } : { themeId: theme.id },
+            })
+          }
         />
+        {lastDuel.opponentId && (
+          <Button
+            label={`Voir le profil de ${lastDuel.opponentName}`}
+            variant="outline"
+            color={opponentColor}
+            onPress={() => router.push({ pathname: '/player/[id]', params: { id: lastDuel.opponentId! } })}
+          />
+        )}
         <Button label="Retour à l'accueil" variant="outline" color={Colors.text} onPress={() => router.dismissTo('/')} />
       </View>
     </Screen>

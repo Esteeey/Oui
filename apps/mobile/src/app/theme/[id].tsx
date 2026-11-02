@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
+import { DivisionBadge } from '@/components/social';
 import { AppText, Button, Card, ProgressBar, Screen, Stat } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { useThemeStats } from '@/state/progress';
@@ -46,6 +47,7 @@ export default function ThemeScreen() {
         <AppText variant="caption" muted>
           {level.current} / {level.needed} XP avant le niveau {level.level + 1}
         </AppText>
+        <DivisionBadge rating={stats.rating} />
       </Card>
 
       <Card style={styles.stats}>

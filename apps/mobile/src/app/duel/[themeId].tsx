@@ -5,8 +5,10 @@ import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-rea
 
 import {
   RULES,
+  INITIAL_RATING,
   duelOutcome,
   duelXp,
+  ratingDelta,
   getCategory,
   getTheme,
   questionsOf,
@@ -16,18 +18,38 @@ import {
 import { Countdown } from '@/components/countdown';
 import { AppText, Avatar, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { demoRating, getPlayer } from '@/demo/data';
 import { BOT_NAME } from '@/game/bot';
 import { useDuel } from '@/game/use-duel';
 import { useProgress, useThemeStats } from '@/state/progress';
+import { useSocial } from '@/state/social';
 
 export default function DuelRoute() {
-  const { themeId } = useLocalSearchParams<{ themeId: string }>();
+  const { themeId, opponent, challenge } = useLocalSearchParams<{
+    themeId: string;
+    opponent?: string;
+    challenge?: string;
+  }>();
   const theme = getTheme(themeId);
   if (!theme || questionsOf(theme.id).length < RULES.questionsPerDuel) return <Redirect href="/" />;
-  return <DuelScreen themeId={theme.id} />;
+  return <DuelScreen themeId={theme.id} opponentId={opponent ?? null} challengeId={challenge ?? null} />;
 }
 
-function DuelScreen({ themeId }: { themeId: string }) {
+function DuelScreen({
+  themeId,
+  opponentId,
+  challengeId,
+}: {
+  themeId: string;
+  /** Joueur de démonstration défié (ses réponses sont simulées), ou `null` pour le bot. */
+  opponentId: string | null;
+  challengeId: string | null;
+}) {
+  const opponentPlayer = opponentId ? getPlayer(opponentId) : undefined;
+  const opponentName = opponentPlayer?.name ?? BOT_NAME;
+  const opponentColor = opponentPlayer?.color ?? Colors.opponent;
+  const opponentRating = opponentPlayer ? demoRating(opponentPlayer.id, themeId) : INITIAL_RATING;
+  const { completeChallenge } = useSocial();
   const theme = getTheme(themeId)!;
   const category = getCategory(theme.categoryId)!;
   const { playerName, recordDuel } = useProgress();
@@ -39,15 +61,21 @@ function DuelScreen({ themeId }: { themeId: string }) {
     if (duel.phase !== 'finished' || saved.current) return;
     saved.current = true;
     const outcome = duelOutcome(duel.playerTotals, duel.opponentTotals);
+    if (challengeId) completeChallenge(challengeId);
     recordDuel({
+      id: `duel-${Date.now()}`,
+      playedAt: Date.now(),
       themeId,
-      opponentName: BOT_NAME,
+      opponentId: opponentPlayer?.id ?? null,
+      opponentName,
       questions: duel.questions,
       player: duel.player,
       opponent: duel.opponent,
       outcome,
       xpBefore: stats.xp,
       xpGained: duelXp(outcome, duel.playerTotals.correct, duel.questions.length),
+      ratingBefore: stats.rating,
+      ratingDelta: ratingDelta(stats.rating, opponentRating, outcome),
     });
     router.replace('/results');
   });
@@ -65,8 +93,13 @@ function DuelScreen({ themeId }: { themeId: string }) {
           </AppText>
         </Animated.View>
         <Animated.View entering={FadeInUp.delay(150).springify()} style={styles.introPlayer}>
-          <Avatar name="B" color={Colors.opponent} size={96} />
-          <AppText variant="heading">{BOT_NAME}</AppText>
+          <Avatar name={opponentName} color={opponentColor} size={96} />
+          <AppText variant="heading">{opponentName}</AppText>
+          {opponentPlayer && (
+            <AppText variant="caption" muted>
+              Adversaire de démo · réponses simulées
+            </AppText>
+          )}
         </Animated.View>
         <Animated.View entering={FadeIn.delay(600)} style={{ alignItems: 'center', gap: 4 }}>
           <AppText variant="caption" color={category.color}>
@@ -95,7 +128,7 @@ function DuelScreen({ themeId }: { themeId: string }) {
           </AppText>
         </View>
         <PlayerScore
-          name={BOT_NAME}
+          name={opponentName}
           color={Colors.opponent}
           total={duel.opponentTotals.points}
           answers={duel.opponent}

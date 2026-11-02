@@ -40,15 +40,18 @@ export function AppText({
 export function Screen({
   children,
   scroll = true,
+  inTabs = false,
   style,
 }: {
   children: ReactNode;
   scroll?: boolean;
+  /** Écran affiché dans un onglet : la barre d'onglets gère déjà le bas de l'écran. */
+  inTabs?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const content = <View style={[styles.content, style]}>{children}</View>;
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={inTabs ? ['top'] : ['top', 'bottom']}>
       {scroll ? (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {content}

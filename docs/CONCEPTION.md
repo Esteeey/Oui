@@ -211,7 +211,21 @@ Quand aucun adversaire n'est disponible, plutôt qu'un robot inventé, on rejoue
 Défi reçu, tour à jouer en duel différé (avec rappel avant expiration), ami en ligne, Fantôme qui a gagné, fin de tournoi, série du défi du jour menacée.
 Elles sont réglables par type, avec une limite quotidienne pour ne pas saturer le joueur.
 
-### 4.7 Modèle économique (à décider)
+### 4.7 Navigation de l'application
+
+Cinq onglets en bas de l'écran :
+
+| Onglet | Contenu |
+|---|---|
+| **Fil** | Bouton « Jouer », défis reçus, fil d'actualité (duels, sans-faute, niveaux, divisions, badges des amis et du joueur) avec « Bravo » et « Défier ». Cloche des notifications en haut. |
+| **Explorer** | Recherche de thèmes, « Tes thèmes », catalogue des 16 catégories. |
+| **Classement** | Monde ou Amis, général ou par thème, par cote avec divisions. |
+| **Social** | Inviter un ami, défis reçus, demandes d'amis, liste d'amis (en ligne ou non), suggestions. |
+| **Profil** | Avatar, titre, niveau, statistiques, thèmes, badges, derniers duels. |
+
+Écrans hors onglets : catégorie, thème, profil d'un autre joueur (défier, ajouter, bilan des face-à-face), duel, résultats, notifications.
+
+### 4.8 Modèle économique (à décider)
 
 Recommandation : **aucun avantage payant en jeu** (pas d'aide à la réponse à acheter). Revenus possibles : cosmétiques (avatars, cadres, animations de victoire), abonnement optionnel (sans publicité, statistiques avancées, thèmes en avant-première), publicité discrète en version gratuite.
 

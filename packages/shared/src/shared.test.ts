@@ -100,3 +100,22 @@ describe('progression', () => {
     expect(levelFromXp(10_000_000).level).toBe(100);
   });
 });
+
+import { DIVISIONS, divisionFor, ratingDelta } from './rating';
+
+describe('cote', () => {
+  it('fait gagner 16 points contre un adversaire de même cote', () => {
+    expect(ratingDelta(1000, 1000, 'win')).toBe(16);
+    expect(ratingDelta(1000, 1000, 'loss')).toBe(-16);
+    expect(ratingDelta(1000, 1000, 'draw')).toBe(0);
+  });
+  it('récompense davantage une victoire contre plus fort', () => {
+    expect(ratingDelta(1000, 1300, 'win')).toBeGreaterThan(ratingDelta(1300, 1000, 'win'));
+  });
+  it('place la cote dans la bonne division', () => {
+    expect(divisionFor(1000).name).toBe('Bronze');
+    expect(divisionFor(1250).name).toBe('Or');
+    expect(divisionFor(2000).name).toBe('Maître');
+    expect(DIVISIONS).toHaveLength(6);
+  });
+});
