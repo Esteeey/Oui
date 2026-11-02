@@ -38,6 +38,8 @@ export interface Profile {
   name: string;
   /** XP totale du compte. */
   xp: number;
+  /** Photo de profil (chemin `/media/…` ou URL absolue). */
+  avatar: string | null;
   stats: Record<string, ThemeStats>;
   history: DuelRecord[];
 }

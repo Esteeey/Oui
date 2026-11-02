@@ -31,12 +31,13 @@ Serveur :
 
 Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 
-- Comptes invités (jeton gardé sur l'appareil) ; connexion par e-mail et photos de profil à venir.
+- Comptes invités (jeton gardé sur l'appareil) ; connexion par e-mail à venir.
 - **Notifications** : centre complet (likes regroupés, commentaires, mentions, abonnements, progression, classements, défis, annonces), préférences, temps réel. Les notifications push sur téléphone arrivent plus tard.
 - **Défis** entre joueurs liés par un abonnement, revanche après un duel.
 - **Recherche** de joueurs et de thèmes depuis tous les onglets, page **Découvrir des joueurs**, suggestions pendant la saisie d'une mention.
 - **Messagerie privée** : demandes de message, conversations texte, réponses, réactions, Envoyé / Lu, présence (abonnés mutuels), épinglage.
-- Pas encore de photos dans les messages, de groupes ni de modération.
+- **Médias** : photo de profil, photos dans les messages et les publications (galerie ou appareil photo), 12 stickers originaux, GIF (avec une clé GIPHY ou Tenor). Images vérifiées, nettoyées (EXIF, position) et redimensionnées par le serveur.
+- Pas encore de groupes ni de modération.
 
 ## Lancer le projet
 
@@ -51,6 +52,14 @@ Le serveur de jeu (port 8787) doit tourner pour jouer. En local, il utilise un P
 ```bash
 pnpm server
 ```
+
+Médias : en local, les images sont rangées dans `services/game/data/media` et servies par le serveur sous `/media/…`. Variables facultatives :
+
+| Variable | Rôle |
+| --- | --- |
+| `GIPHY_API_KEY` ou `TENOR_API_KEY` | Active les GIF dans la messagerie (sinon « Les GIF arrivent bientôt »). |
+| `QU1Z_MEDIA_DIR` | Dossier des images en local (par défaut `data/media`). |
+| `MEDIA_PUBLIC_URL` | Adresse publique des images (CDN) quand elles sont servies par un stockage objet. |
 
 Sur un téléphone, l'application doit connaître l'adresse de l'ordinateur sur le réseau local, par exemple :
 

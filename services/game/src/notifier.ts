@@ -12,6 +12,7 @@ import {
 } from '@qu1z/shared';
 
 import type { Database, Queryable } from './db/database';
+import { mediaUrl } from './media';
 
 /** Acteurs distincts conservés par notification regroupée (le compteur reste exact jusque-là). */
 const MAX_ACTORS = 200;
@@ -139,14 +140,14 @@ export class Notifier {
     const actorIds = [...new Set(rows.flatMap((r) => r.actor_ids))];
     // Acteurs visibles : jamais un joueur bloqué (dans un sens ou l'autre) ni banni.
     const actors = actorIds.length
-      ? await this.db.query<{ id: string; pseudo: string; equipped_title: string | null; xp: number }>(
-          `SELECT u.id, p.pseudo, p.equipped_title, u.xp FROM users u JOIN profiles p ON p.user_id = u.id
+      ? await this.db.query<{ id: string; pseudo: string; equipped_title: string | null; xp: number; avatar_key: string | null }>(
+          `SELECT u.id, p.pseudo, p.equipped_title, u.xp, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key FROM users u JOIN profiles p ON p.user_id = u.id
            WHERE u.id = ANY($2::uuid[]) AND u.status <> 'banned'
              AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = $1 AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = $1))`,
           [userId, actorIds],
         )
       : [];
-    const byId = new Map(actors.map((a) => [a.id, { id: a.id, pseudo: a.pseudo, title: a.equipped_title, level: levelFromXp(a.xp).level }]));
+    const byId = new Map(actors.map((a) => [a.id, { id: a.id, pseudo: a.pseudo, title: a.equipped_title, level: levelFromXp(a.xp).level, avatar: mediaUrl(a.avatar_key) }]));
     const out: NotificationView[] = [];
     for (const r of rows) {
       const visible = r.actor_ids.map((id) => byId.get(id)).filter((a): a is NonNullable<typeof a> => !!a);

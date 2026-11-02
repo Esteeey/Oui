@@ -31,6 +31,8 @@ export const DEFAULT_LIMITS: Limits = {
   challenge: { max: 20, windowMs: MINUTE },
   search: { max: 120, windowMs: MINUTE },
   message: { max: 60, windowMs: MINUTE },
+  upload: { max: 30, windowMs: 10 * MINUTE },
+  gifSearch: { max: 60, windowMs: MINUTE },
 };
 
 export class RateLimiter {

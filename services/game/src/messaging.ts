@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  isSticker,
   MAX_FIRST_MESSAGE_LENGTH,
   MAX_MESSAGE_LENGTH,
   levelFromXp,
+  type Attachment,
   type ConversationDetail,
   type ConversationSummary,
   type MessageRequestView,
@@ -14,8 +16,11 @@ import {
 } from '@qu1z/shared';
 
 import type { Database, Queryable } from './db/database';
+import { validateGif, type GifProvider } from './gifs';
+import { mediaView, type Media } from './media';
 import type { RateLimiter } from './rate-limit';
 import { SocialError } from './social';
+import { mediaUrl } from './media';
 
 /** Au plus 3 demandes vers la même personne sur 30 jours (anti-spam). */
 const MAX_REQUESTS_PER_TARGET = 3;
@@ -33,9 +38,42 @@ interface SummaryRow {
   pseudo: string;
   equipped_title: string | null;
   xp: number;
+  avatar_key: string | null;
 }
 
-const summary = (r: SummaryRow): UserSummary => ({ id: r.id, pseudo: r.pseudo, title: r.equipped_title, level: levelFromXp(r.xp).level });
+export interface MessageContent {
+  text?: unknown;
+  mediaId?: string;
+  gif?: unknown;
+  stickerId?: unknown;
+  replyToId?: string;
+}
+
+function attachmentOf(r: {
+  kind: MessageView['kind'];
+  gif: { id: string; url: string; width: number; height: number } | string | null;
+  sticker_id: string | null;
+  media_id: string | null;
+  storage_key: string | null;
+  width: number | null;
+  height: number | null;
+  animated: boolean | null;
+}): Attachment | null {
+  if (r.kind === 'image' && r.media_id && r.storage_key) {
+    return { kind: 'image', media: mediaView({ id: r.media_id, storage_key: r.storage_key, width: r.width!, height: r.height!, animated: !!r.animated }) };
+  }
+  if (r.kind === 'gif' && r.gif) return { kind: 'gif', gif: typeof r.gif === 'string' ? JSON.parse(r.gif) : r.gif };
+  if (r.kind === 'sticker' && isSticker(r.sticker_id)) return { kind: 'sticker', stickerId: r.sticker_id };
+  return null;
+}
+
+const summary = (r: SummaryRow): UserSummary => ({
+  id: r.id,
+  pseudo: r.pseudo,
+  title: r.equipped_title,
+  level: levelFromXp(r.xp).level,
+  avatar: mediaUrl(r.avatar_key),
+});
 
 /**
  * Messagerie privée : demandes de message, conversations, messages texte, réponses, réactions,
@@ -48,6 +86,8 @@ export class Messaging {
     private readonly limiter: RateLimiter,
     private readonly isOnline: (userId: string) => boolean,
     private readonly send: (userId: string, message: ServerMessage) => void,
+    private readonly media: Media,
+    private readonly gifs: GifProvider | null,
   ) {}
 
   private limit(action: string, userId: string): void {
@@ -60,7 +100,7 @@ export class Messaging {
 
   private async user(id: string): Promise<UserSummary | null> {
     const [r] = await this.db.query<SummaryRow>(
-      "SELECT u.id, p.pseudo, p.equipped_title, u.xp FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 AND u.status <> 'banned'",
+      `SELECT u.id, p.pseudo, p.equipped_title, u.xp, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 AND u.status <> 'banned'`,
       [id],
     );
     return r ? summary(r) : null;
@@ -119,10 +159,12 @@ export class Messaging {
       to_pseudo: string;
       to_title: string | null;
       to_xp: number;
+      from_avatar: string | null;
+      to_avatar: string | null;
     }>(
       `SELECT r.id, r.first_message, r.created_at, r.from_id, r.to_id,
-              pf.pseudo AS from_pseudo, pf.equipped_title AS from_title, uf.xp AS from_xp,
-              pt.pseudo AS to_pseudo, pt.equipped_title AS to_title, ut.xp AS to_xp
+              pf.pseudo AS from_pseudo, pf.equipped_title AS from_title, uf.xp AS from_xp, (SELECT storage_key FROM media WHERE id = pf.avatar_media_id AND removed_by_moderation_at IS NULL) AS from_avatar,
+              pt.pseudo AS to_pseudo, pt.equipped_title AS to_title, ut.xp AS to_xp, (SELECT storage_key FROM media WHERE id = pt.avatar_media_id AND removed_by_moderation_at IS NULL) AS to_avatar
        FROM message_requests r
        JOIN users uf ON uf.id = r.from_id JOIN profiles pf ON pf.user_id = r.from_id
        JOIN users ut ON ut.id = r.to_id JOIN profiles pt ON pt.user_id = r.to_id
@@ -133,8 +175,8 @@ export class Messaging {
     );
     return rows.map((r) => ({
       id: r.id,
-      from: summary({ id: r.from_id, pseudo: r.from_pseudo, equipped_title: r.from_title, xp: r.from_xp }),
-      to: summary({ id: r.to_id, pseudo: r.to_pseudo, equipped_title: r.to_title, xp: r.to_xp }),
+      from: summary({ id: r.from_id, pseudo: r.from_pseudo, equipped_title: r.from_title, xp: r.from_xp, avatar_key: r.from_avatar }),
+      to: summary({ id: r.to_id, pseudo: r.to_pseudo, equipped_title: r.to_title, xp: r.to_xp, avatar_key: r.to_avatar }),
       firstMessage: r.first_message,
       createdAt: new Date(r.created_at).getTime(),
       incoming: r.to_id === viewer,
@@ -279,15 +321,25 @@ export class Messaging {
       kind: MessageView['kind'];
       text: string | null;
       created_at: Date;
+      gif: { id: string; url: string; width: number; height: number } | null;
+      sticker_id: string | null;
+      media_id: string | null;
+      storage_key: string | null;
+      width: number | null;
+      height: number | null;
+      animated: boolean | null;
       reply_id: string | null;
       reply_sender: string | null;
       reply_pseudo: string | null;
+      reply_kind: string | null;
       reply_text: string | null;
     }>(
-      `SELECT x.id, x.seq, x.sender_id, x.kind, x.text, x.created_at,
-              r.id AS reply_id, r.sender_id AS reply_sender, rp.pseudo AS reply_pseudo,
+      `SELECT x.id, x.seq, x.sender_id, x.kind, x.text, x.created_at, x.gif, x.sticker_id,
+              md.id AS media_id, md.storage_key, md.width, md.height, md.animated,
+              r.id AS reply_id, r.sender_id AS reply_sender, rp.pseudo AS reply_pseudo, r.kind AS reply_kind,
               CASE WHEN r.removed_by_moderation_at IS NULL THEN r.text ELSE NULL END AS reply_text
        FROM messages x LEFT JOIN messages r ON r.id = x.reply_to_id LEFT JOIN profiles rp ON rp.user_id = r.sender_id
+       LEFT JOIN media md ON md.id = x.media_id AND md.removed_by_moderation_at IS NULL
        WHERE x.conversation_id = $1 AND x.removed_by_moderation_at IS NULL
          AND ($2::timestamptz IS NULL OR x.created_at > $2)
          AND ($3::bigint IS NULL OR x.seq < $3)
@@ -317,8 +369,11 @@ export class Messaging {
         senderId: r.sender_id,
         kind: r.kind,
         text: r.text,
+        attachment: attachmentOf(r),
         createdAt: new Date(r.created_at).getTime(),
-        replyTo: r.reply_id ? { id: r.reply_id, senderId: r.reply_sender, senderPseudo: r.reply_pseudo, text: r.reply_text } : null,
+        replyTo: r.reply_id
+          ? { id: r.reply_id, senderId: r.reply_sender, senderPseudo: r.reply_pseudo, kind: r.reply_kind ?? 'text', text: r.reply_text }
+          : null,
         reactions: [...byEmoji.entries()].map(([emoji, userIds]) => ({ emoji, userIds })),
         status: r.sender_id === viewer ? (Number(r.seq) <= readUpto ? 'read' : 'sent') : null,
       };
@@ -341,23 +396,36 @@ export class Messaging {
     };
   }
 
-  /** Envoyer un message texte (réponse facultative à un message de la même conversation). */
-  async sendMessage(viewer: string, conversationId: string, rawText: unknown, replyToId?: string): Promise<MessageView> {
+  /**
+   * Envoyer un message : texte, photo déjà envoyée (`mediaId`), GIF du catalogue (`gif`) ou sticker (`stickerId`).
+   * Une photo peut être accompagnée d'une légende. Réponse facultative à un message de la même conversation.
+   */
+  async sendMessage(viewer: string, conversationId: string, content: MessageContent): Promise<MessageView> {
     await this.membership(viewer, conversationId);
-    const text = String(rawText ?? '').trim();
-    if (!text || text.length > MAX_MESSAGE_LENGTH) throw new SocialError(400, 'invalid_text');
+    const text = content.text === undefined || content.text === null ? '' : String(content.text).trim();
+    if (text.length > MAX_MESSAGE_LENGTH) throw new SocialError(400, 'invalid_text');
+    const kinds = [content.mediaId, content.gif, content.stickerId].filter((x) => x !== undefined && x !== null);
+    if (kinds.length > 1) throw new SocialError(400, 'invalid_message');
+    const kind: MessageView['kind'] = content.mediaId ? 'image' : content.gif ? 'gif' : content.stickerId ? 'sticker' : 'text';
+    if (kind === 'text' && !text) throw new SocialError(400, 'invalid_text');
+    // Seule une photo peut porter une légende ; un GIF ou un sticker est envoyé seul.
+    if ((kind === 'gif' || kind === 'sticker') && text) throw new SocialError(400, 'invalid_message');
+    if (kind === 'sticker' && !isSticker(content.stickerId)) throw new SocialError(400, 'invalid_sticker');
+    const gif = kind === 'gif' ? validateGif(this.gifs, content.gif) : null;
     const others = await this.otherMembers(conversationId, viewer);
     for (const o of others) if (await this.blocked(viewer, o)) throw new SocialError(403, 'blocked');
     this.limit('message', viewer);
     const id = randomUUID();
     await this.db.transaction(async (tx) => {
-      if (replyToId) {
-        const ok = await tx.query('SELECT 1 FROM messages WHERE id = $1 AND conversation_id = $2', [replyToId, conversationId]);
+      if (content.replyToId) {
+        const ok = await tx.query('SELECT 1 FROM messages WHERE id = $1 AND conversation_id = $2', [content.replyToId, conversationId]);
         if (!ok.length) throw new SocialError(400, 'invalid_reply');
       }
+      const media = kind === 'image' ? await this.media.attach(tx, viewer, String(content.mediaId), 'message') : null;
       const [{ seq }] = await tx.query<{ seq: string }>(
-        "INSERT INTO messages (id, conversation_id, sender_id, kind, text, reply_to_id) VALUES ($1, $2, $3, 'text', $4, $5) RETURNING seq",
-        [id, conversationId, viewer, text, replyToId ?? null],
+        `INSERT INTO messages (id, conversation_id, sender_id, kind, text, reply_to_id, media_id, gif, sticker_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING seq`,
+        [id, conversationId, viewer, kind, text || null, content.replyToId ?? null, media?.id ?? null, gif ? JSON.stringify(gif) : null, kind === 'sticker' ? content.stickerId : null],
       );
       await tx.query('UPDATE conversations SET last_message_at = now() WHERE id = $1', [conversationId]);
       // Mon propre message est lu par moi ; ma boîte la réaffiche si je l'avais supprimée.

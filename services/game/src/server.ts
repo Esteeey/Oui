@@ -9,6 +9,8 @@ import { Game, type GameOptions } from './game';
 import { Challenges } from './challenges';
 import { Discovery } from './discovery';
 import { Messaging } from './messaging';
+import { gifProviderFromEnv, type GifProvider } from './gifs';
+import { Media, MemoryStore, type MediaStore } from './media';
 import { Notifier } from './notifier';
 import { Social } from './social';
 
@@ -21,6 +23,7 @@ export interface GameServer {
   challenges: Challenges;
   discovery: Discovery;
   messaging: Messaging;
+  media: Media;
   http: Server;
   port: number;
   close: () => Promise<void>;
@@ -30,7 +33,17 @@ export interface GameServer {
  * Serveur HTTP + WebSocket. Chaque connexion WebSocket commence par `hello` (jeton du compte).
  * Un joueur peut avoir plusieurs connexions ; il est « déconnecté » quand la dernière se ferme.
  */
-export async function startServer(port: number, options: Omit<GameOptions, 'send'>): Promise<GameServer> {
+export interface ServerOptions extends Omit<GameOptions, 'send'> {
+  /** Stockage des médias (par défaut : en mémoire ; `index.ts` utilise le disque ou un stockage objet). */
+  mediaStore?: MediaStore;
+  /** Catalogue de GIF (par défaut : GIPHY_API_KEY ou TENOR_API_KEY ; sinon aucun). */
+  gifs?: GifProvider | null;
+}
+
+/** Nettoyage des médias jamais rattachés. */
+const ORPHAN_SWEEP_MS = 60 * 60 * 1000;
+
+export async function startServer(port: number, options: ServerOptions): Promise<GameServer> {
   const sockets = new Map<string, Set<WebSocket>>();
 
   const send = (playerId: string, message: ServerMessage) => {
@@ -42,11 +55,15 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
   await game.restore();
   const notifier = new Notifier(game.repo.db, send);
   game.notifier = notifier;
-  const social = new Social(game.repo.db, game.limiter, notifier);
+  const media = new Media(game.repo.db, options.mediaStore ?? new MemoryStore(), game.limiter);
+  const gifs = options.gifs === undefined ? gifProviderFromEnv() : options.gifs;
+  const social = new Social(game.repo.db, game.limiter, notifier, media);
   const challenges = new Challenges(game.repo.db, game, notifier);
   const discovery = new Discovery(game.repo.db);
-  const messaging = new Messaging(game.repo.db, game.limiter, (id) => game.isOnline(id), send);
-  const api = createApi(game, social, notifier, challenges, discovery, messaging);
+  const messaging = new Messaging(game.repo.db, game.limiter, (id) => game.isOnline(id), send, media, gifs);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs);
+  const sweep = setInterval(() => void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err)), ORPHAN_SWEEP_MS);
+  sweep.unref();
   const http = createServer((req, res) => void api(req, res));
   const wss = new WebSocketServer({ server: http, maxPayload: 8 * 1024 });
 
@@ -139,9 +156,11 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
     challenges,
     discovery,
     messaging,
+    media,
     http,
     port: typeof address === 'object' && address ? address.port : port,
     close: async () => {
+      clearInterval(sweep);
       game.dispose();
       for (const client of wss.clients) client.terminate();
       await new Promise<void>((resolve) => wss.close(() => resolve()));

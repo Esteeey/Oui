@@ -106,6 +106,11 @@ export class Game {
     return this.repo.profile(playerId);
   }
 
+  /** Renvoie le profil à jour à toutes les connexions du joueur (pseudo, photo…). */
+  async pushProfile(playerId: string): Promise<void> {
+    this.send(playerId, { type: 'profile', profile: await this.profile(playerId) });
+  }
+
   isOnline(playerId: string): boolean {
     return this.online.has(playerId);
   }

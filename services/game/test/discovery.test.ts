@@ -136,7 +136,7 @@ describe('Découvrir', () => {
     expect(list).toHaveLength(12);
     const shown = new Set(list.map((u) => u.id));
     for (const excluded of [me.id, ids[0], ids[1], ids[2], ids[3]]) expect(shown.has(excluded)).toBe(false);
-    expect(Object.keys(list[0]).sort()).toEqual(['id', 'level', 'pseudo', 'title']);
+    expect(Object.keys(list[0]).sort()).toEqual(['avatar', 'id', 'level', 'pseudo', 'title']);
   });
 
   it('mélange personnalisé et hasard ; les thèmes en commun comptent', async () => {

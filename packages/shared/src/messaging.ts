@@ -1,3 +1,4 @@
+import type { Attachment } from './media';
 import type { UserSummary } from './social';
 
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -29,8 +30,10 @@ export interface MessageView {
   senderId: string | null;
   kind: 'text' | 'image' | 'gif' | 'sticker' | 'system';
   text: string | null;
+  /** Photo, GIF ou sticker (messages `image`, `gif`, `sticker`). */
+  attachment: Attachment | null;
   createdAt: number;
-  replyTo: { id: string; senderId: string | null; senderPseudo: string | null; text: string | null } | null;
+  replyTo: { id: string; senderId: string | null; senderPseudo: string | null; kind: string; text: string | null } | null;
   reactions: { emoji: string; userIds: string[] }[];
   /** Pour mes messages seulement : « envoyé » ou « lu » (pas de « distribué »). */
   status: 'sent' | 'read' | null;

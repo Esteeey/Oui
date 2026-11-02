@@ -12,3 +12,4 @@ export * from './protocol';
 export * from './social';
 export * from './notifications';
 export * from './messaging';
+export * from './media';

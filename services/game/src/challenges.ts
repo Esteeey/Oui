@@ -6,6 +6,7 @@ import type { Database } from './db/database';
 import type { Game } from './game';
 import type { Notifier } from './notifier';
 import { SocialError } from './social';
+import { mediaUrl } from './media';
 
 /** Un défi en attente expire au bout de 24 h. */
 const EXPIRY = "interval '24 hours'";
@@ -106,9 +107,11 @@ export class Challenges {
       to_pseudo: string;
       to_title: string | null;
       to_xp: number;
+      from_avatar: string | null;
+      to_avatar: string | null;
     }>(
-      `SELECT c.*, pf.pseudo AS from_pseudo, pf.equipped_title AS from_title, uf.xp AS from_xp,
-              pt.pseudo AS to_pseudo, pt.equipped_title AS to_title, ut.xp AS to_xp
+      `SELECT c.*, pf.pseudo AS from_pseudo, pf.equipped_title AS from_title, uf.xp AS from_xp, (SELECT storage_key FROM media WHERE id = pf.avatar_media_id AND removed_by_moderation_at IS NULL) AS from_avatar,
+              pt.pseudo AS to_pseudo, pt.equipped_title AS to_title, ut.xp AS to_xp, (SELECT storage_key FROM media WHERE id = pt.avatar_media_id AND removed_by_moderation_at IS NULL) AS to_avatar
        FROM challenges c
        JOIN users uf ON uf.id = c.from_id JOIN profiles pf ON pf.user_id = c.from_id
        JOIN users ut ON ut.id = c.to_id JOIN profiles pt ON pt.user_id = c.to_id
@@ -120,8 +123,8 @@ export class Challenges {
     );
     return rows.map((r) => ({
       id: r.id,
-      from: { id: r.from_id, pseudo: r.from_pseudo, title: r.from_title, level: levelFromXp(r.from_xp).level },
-      to: { id: r.to_id, pseudo: r.to_pseudo, title: r.to_title, level: levelFromXp(r.to_xp).level },
+      from: { id: r.from_id, pseudo: r.from_pseudo, title: r.from_title, level: levelFromXp(r.from_xp).level, avatar: mediaUrl(r.from_avatar) },
+      to: { id: r.to_id, pseudo: r.to_pseudo, title: r.to_title, level: levelFromXp(r.to_xp).level, avatar: mediaUrl(r.to_avatar) },
       themeId: r.theme_id,
       kind: r.kind,
       status: r.status,

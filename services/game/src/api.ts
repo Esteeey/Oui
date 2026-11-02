@@ -1,11 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { THEMES } from '@qu1z/shared';
+import { MEDIA_MAX_BYTES, THEMES } from '@qu1z/shared';
 
 import { randomUUID } from 'node:crypto';
 
 import type { Challenges } from './challenges';
 import type { Discovery } from './discovery';
+import type { GifProvider } from './gifs';
+import type { Media } from './media';
 import type { Messaging } from './messaging';
 import type { Game } from './game';
 import type { Notifier } from './notifier';
@@ -33,18 +35,47 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   return parsed;
 }
 
+/** Corps binaire (envoi d'image). La taille est vérifiée pendant la lecture, sans tout charger d'abord. */
+async function readRaw(req: IncomingMessage): Promise<Buffer> {
+  const declared = Number(req.headers['content-length']);
+  if (declared > MEDIA_MAX_BYTES) throw new SocialError(413, 'too_large');
+  let size = 0;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MEDIA_MAX_BYTES) throw new SocialError(413, 'too_large');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 function uuid(value: unknown): string {
   if (typeof value !== 'string' || !UUID.test(value)) throw new SocialError(400, 'invalid_id');
   return value;
 }
 
-type Handler = (ctx: { userId: string; params: string[]; query: URLSearchParams; body: () => Promise<Record<string, unknown>> }) => Promise<unknown>;
+type Handler = (ctx: {
+  userId: string;
+  params: string[];
+  query: URLSearchParams;
+  body: () => Promise<Record<string, unknown>>;
+  raw: () => Promise<Buffer>;
+}) => Promise<unknown>;
 
 /**
  * API HTTP. Authentification : `Authorization: Bearer <jeton>`.
  * Chaque route vérifie elle-même les droits (blocages, confidentialité) : rien ne repose sur l'interface.
  */
-export function createApi(game: Game, social: Social, notifier: Notifier, challenges: Challenges, discovery: Discovery, messaging: Messaging) {
+export function createApi(
+  game: Game,
+  social: Social,
+  notifier: Notifier,
+  challenges: Challenges,
+  discovery: Discovery,
+  messaging: Messaging,
+  media: Media,
+  gifs: GifProvider | null,
+) {
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
@@ -53,13 +84,40 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
 
     // Profils
     ['GET', /^\/api\/users\/([^/]+)$/, async ({ userId, params }) => social.profile(userId, uuid(params[0]))],
-    ['PATCH', /^\/api\/me\/profile$/, async ({ userId, body }) => social.updateProfile(userId, await body())],
+    ['PATCH', /^\/api\/me\/profile$/, async ({ userId, body }) => {
+      const result = await social.updateProfile(userId, await body());
+      await game.pushProfile(userId);
+      return result;
+    }],
     ['GET', /^\/api\/users\/([^/]+)\/stats$/, async ({ userId, params }) => {
       const target = uuid(params[0]);
       const profile = await social.profile(userId, target);
       if (!profile.canSeeContent) throw new SocialError(403, 'private');
       const p = await game.profile(target);
       return { stats: p.stats, history: p.history.slice(0, 10) };
+    }],
+
+    // Médias : le fichier est envoyé brut (corps de la requête), puis rattaché par son id.
+    ['POST', /^\/api\/media$/, async ({ userId, query, raw }) => {
+      const purpose = query.get('purpose') === 'post' ? 'post' : 'message';
+      return media.upload(userId, purpose, await raw());
+    }],
+    ['POST', /^\/api\/me\/avatar$/, async ({ userId, raw }) => {
+      const uploaded = await media.upload(userId, 'avatar', await raw());
+      const result = await media.setAvatar(userId, uploaded.id);
+      await game.pushProfile(userId);
+      return result;
+    }],
+    ['DELETE', /^\/api\/me\/avatar$/, async ({ userId }) => {
+      const result = await media.setAvatar(userId, null);
+      await game.pushProfile(userId);
+      return result;
+    }],
+    ['GET', /^\/api\/gifs$/, async ({ userId, query }) => {
+      if (!gifs) return { available: false, gifs: [] };
+      if (!game.limiter.allow('gifSearch', userId)) throw new SocialError(429, 'rate_limited');
+      const q = (query.get('q') ?? '').trim().slice(0, 50);
+      return { available: true, provider: gifs.name, gifs: q ? await gifs.search(q, 24) : await gifs.trending(24) };
     }],
 
     // Abonnements
@@ -108,7 +166,7 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
       const b = await body();
       const target =
         b.target === 'theme' ? { kind: 'theme' as const, themeId: String(b.themeId ?? '') } : { kind: 'profile' as const };
-      return social.createPost(userId, target, b.text);
+      return social.createPost(userId, target, b.text, b.mediaId ? uuid(b.mediaId) : undefined);
     }],
     ['GET', /^\/api\/posts\/([^/]+)$/, async ({ userId, params }) => social.post(userId, uuid(params[0]))],
     ['PUT', /^\/api\/posts\/([^/]+)\/like$/, async ({ userId, params }) => social.setLike(userId, uuid(params[0]), true)],
@@ -145,7 +203,13 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
       messaging.conversation(userId, uuid(params[0]), Number(query.get('before')) || undefined)],
     ['POST', /^\/api\/messages\/([^/]+)$/, async ({ userId, params, body }) => {
       const b = await body();
-      return messaging.sendMessage(userId, uuid(params[0]), b.text, b.replyToId ? uuid(b.replyToId) : undefined);
+      return messaging.sendMessage(userId, uuid(params[0]), {
+        text: b.text,
+        mediaId: b.mediaId ? uuid(b.mediaId) : undefined,
+        gif: b.gif ?? undefined,
+        stickerId: b.stickerId ?? undefined,
+        replyToId: b.replyToId ? uuid(b.replyToId) : undefined,
+      });
     }],
     ['POST', /^\/api\/messages\/([^/]+)\/read$/, async ({ userId, params }) => messaging.markRead(userId, uuid(params[0]))],
     ['PUT', /^\/api\/messages\/([^/]+)\/pin$/, async ({ userId, params }) => messaging.setPinned(userId, uuid(params[0]), true)],
@@ -217,6 +281,19 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
     res.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     if (req.method === 'OPTIONS') return void res.writeHead(204).end();
     if (url.pathname === '/health') return json(res, 200, { ok: true });
+    // Fichiers des médias (adresses impossibles à deviner). En production, servis par le CDN du stockage objet.
+    if (req.method === 'GET' && url.pathname.startsWith('/media/')) {
+      const file = await media.store.get(url.pathname.slice('/media/'.length)).catch(() => null);
+      if (!file) return json(res, 404, { error: 'not_found' });
+      res.writeHead(200, {
+        'content-type': file.contentType,
+        'content-length': file.data.length,
+        'cache-control': 'public, max-age=31536000, immutable',
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'",
+      });
+      return void res.end(file.data);
+    }
     if (!url.pathname.startsWith('/api/')) return json(res, 404, { error: 'not_found' });
 
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
@@ -233,6 +310,7 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
           params: match.slice(1).map(decodeURIComponent),
           query: url.searchParams,
           body: () => readBody(req),
+          raw: () => readRaw(req),
         });
         return json(res, 200, result ?? { ok: true });
       } catch (err) {

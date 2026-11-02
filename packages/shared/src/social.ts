@@ -1,3 +1,5 @@
+import type { MediaView } from './media';
+
 /** Données sociales échangées entre le serveur et l'application (API HTTP). */
 
 /** Pseudo : 3 à 20 caractères, lettres (accents compris), chiffres, `_`, `.`, `-`, sans espace. */
@@ -23,6 +25,8 @@ export interface UserSummary {
   title: string | null;
   /** Niveau global (affiché dans certaines listes seulement). */
   level: number;
+  /** Photo de profil (chemin `/media/…` ou URL absolue), sinon initiale sur fond coloré. */
+  avatar: string | null;
 }
 
 export interface Relationship {
@@ -59,6 +63,8 @@ export interface PostView {
   author: UserSummary;
   target: PostTarget;
   text: string;
+  /** Photo jointe (facultative ; le texte peut alors être vide). */
+  media: MediaView | null;
   createdAt: number;
   likes: number;
   likedByMe: boolean;

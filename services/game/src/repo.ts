@@ -4,6 +4,7 @@ import { INITIAL_RATING, type DuelRecord, type DuelResult, type Profile, type Th
 
 import type { Database, Queryable } from './db/database';
 import type { DuelState } from './duel';
+import { mediaUrl } from './media';
 
 export type Role = 'player' | 'moderator' | 'admin';
 export type AccountStatus = 'active' | 'suspended' | 'banned';
@@ -95,8 +96,8 @@ export class Repo {
   }
 
   async profile(id: string): Promise<Profile> {
-    const [user] = await this.db.query<{ xp: number; pseudo: string }>(
-      'SELECT u.xp, p.pseudo FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1',
+    const [user] = await this.db.query<{ xp: number; pseudo: string; avatar_key: string | null }>(
+      `SELECT u.xp, p.pseudo, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1`,
       [id],
     );
     const stats = await this.db.query<StatsRow>('SELECT * FROM theme_stats WHERE user_id = $1', [id]);
@@ -108,6 +109,7 @@ export class Repo {
       id,
       name: user?.pseudo ?? '?',
       xp: user?.xp ?? 0,
+      avatar: mediaUrl(user?.avatar_key),
       stats: Object.fromEntries(stats.map((s) => [s.theme_id, toStats(s)])),
       history: history.map((h) => h.result.record),
     };

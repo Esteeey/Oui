@@ -24,6 +24,7 @@ import {
 import type { Database, Queryable } from './db/database';
 import type { Notifier } from './notifier';
 import type { RateLimiter } from './rate-limit';
+import { mediaUrl, mediaView, type Media } from './media';
 
 /** Erreur métier renvoyée telle quelle par l'API (code HTTP + code lisible). */
 export class SocialError extends Error {
@@ -42,12 +43,13 @@ interface SummaryRow {
   pseudo: string;
   equipped_title: string | null;
   xp: number;
+  avatar_key: string | null;
 }
 
-const SUMMARY_COLUMNS = 'u.id, p.pseudo, p.equipped_title, u.xp';
+const SUMMARY_COLUMNS = `u.id, p.pseudo, p.equipped_title, u.xp, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key`;
 
 function summary(r: SummaryRow): UserSummary {
-  return { id: r.id, pseudo: r.pseudo, title: r.equipped_title, level: levelFromXp(r.xp).level };
+  return { id: r.id, pseudo: r.pseudo, title: r.equipped_title, level: levelFromXp(r.xp).level, avatar: mediaUrl(r.avatar_key) };
 }
 
 /** Aucun blocage dans un sens ou dans l'autre entre `viewer` et la colonne `other`. */
@@ -72,6 +74,7 @@ export class Social {
     private readonly db: Database,
     private readonly limiter: RateLimiter,
     private readonly notifier?: Notifier,
+    private readonly media?: Media,
   ) {}
 
   /** Les notifications ne doivent jamais faire échouer l'action qui les déclenche. */
@@ -370,9 +373,11 @@ export class Social {
 
   // ---- Publications ------------------------------------------------------------------------
 
-  async createPost(viewer: string, target: PostTarget, rawText: unknown): Promise<PostView> {
+  /** Publication : texte, photo (déjà envoyée), ou les deux. */
+  async createPost(viewer: string, target: PostTarget, rawText: unknown, mediaId?: string): Promise<PostView> {
     const text = String(rawText ?? '').trim();
-    if (!text || text.length > MAX_POST_LENGTH) throw new SocialError(400, 'invalid_text');
+    if ((!text && !mediaId) || text.length > MAX_POST_LENGTH) throw new SocialError(400, 'invalid_text');
+    if (mediaId && !this.media) throw new SocialError(503, 'media_unavailable');
     this.limit('post', viewer);
     const id = randomUUID();
     let mentioned: { id: string }[] = [];
@@ -382,12 +387,14 @@ export class Social {
         const sub = await tx.query('SELECT 1 FROM theme_subscriptions WHERE user_id = $1 AND theme_id = $2', [viewer, target.themeId]);
         if (!sub.length) throw new SocialError(403, 'not_subscribed');
       }
-      await tx.query('INSERT INTO posts (id, author_id, target, theme_id, text) VALUES ($1, $2, $3, $4, $5)', [
+      const media = mediaId ? await this.media!.attach(tx, viewer, mediaId, 'post') : null;
+      await tx.query('INSERT INTO posts (id, author_id, target, theme_id, text, media_id) VALUES ($1, $2, $3, $4, $5, $6)', [
         id,
         viewer,
         target.kind,
         target.kind === 'theme' ? target.themeId : null,
         text,
+        media?.id ?? null,
       ]);
       mentioned = await this.resolveMentions(viewer, text, tx);
       await this.saveMentions(tx, 'post', id, viewer, mentioned);
@@ -400,13 +407,29 @@ export class Social {
 
   private async postViews(viewer: string, where: string, params: unknown[], before?: number): Promise<PostView[]> {
     const rows = await this.db.query<
-      SummaryRow & { post_id: string; target: 'profile' | 'theme'; theme_id: string | null; text: string; created_at: Date; likes: number; liked: boolean; comments: number }
+      SummaryRow & {
+        post_id: string;
+        target: 'profile' | 'theme';
+        theme_id: string | null;
+        text: string;
+        created_at: Date;
+        likes: number;
+        liked: boolean;
+        comments: number;
+        media_id: string | null;
+        media_key: string | null;
+        media_width: number | null;
+        media_height: number | null;
+        media_animated: boolean | null;
+      }
     >(
       `SELECT po.id AS post_id, po.target, po.theme_id, po.text, po.created_at, ${SUMMARY_COLUMNS},
+         md.id AS media_id, md.storage_key AS media_key, md.width AS media_width, md.height AS media_height, md.animated AS media_animated,
          (SELECT count(*)::int FROM post_likes l WHERE l.post_id = po.id) AS likes,
          EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id = po.id AND l.user_id = $1) AS liked,
          (SELECT count(*)::int FROM comments c WHERE c.post_id = po.id AND c.removed_at IS NULL AND ${notBlocked('c.author_id')}) AS comments
        FROM posts po JOIN users u ON u.id = po.author_id JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN media md ON md.id = po.media_id AND md.removed_by_moderation_at IS NULL
        WHERE po.removed_at IS NULL AND u.status <> 'banned' AND ${canSee('po.author_id')} AND (${where})
          AND ($${params.length + 2}::timestamptz IS NULL OR po.created_at < $${params.length + 2})
        ORDER BY po.created_at DESC, po.id DESC LIMIT ${PAGE}`,
@@ -418,6 +441,10 @@ export class Social {
       author: summary(r),
       target: r.target === 'theme' ? { kind: 'theme', themeId: r.theme_id! } : { kind: 'profile' },
       text: r.text,
+      media:
+        r.media_id && r.media_key
+          ? mediaView({ id: r.media_id, storage_key: r.media_key, width: r.media_width!, height: r.media_height!, animated: !!r.media_animated })
+          : null,
       createdAt: new Date(r.created_at).getTime(),
       likes: r.likes,
       likedByMe: r.liked,

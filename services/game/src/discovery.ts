@@ -1,6 +1,7 @@
 import { CATEGORIES, THEMES, levelFromXp, type UserSummary } from '@qu1z/shared';
 
 import type { Database, Queryable } from './db/database';
+import { mediaUrl } from './media';
 
 /** Taille de la liste Découvrir et équilibre entre suggestions personnalisées et découvertes au hasard. */
 export const DISCOVER = {
@@ -27,9 +28,16 @@ interface Row {
   pseudo: string;
   equipped_title: string | null;
   xp: number;
+  avatar_key: string | null;
 }
 
-const toSummary = (r: Row): UserSummary => ({ id: r.id, pseudo: r.pseudo, title: r.equipped_title, level: levelFromXp(r.xp).level });
+const toSummary = (r: Row): UserSummary => ({
+  id: r.id,
+  pseudo: r.pseudo,
+  title: r.equipped_title,
+  level: levelFromXp(r.xp).level,
+  avatar: mediaUrl(r.avatar_key),
+});
 
 function normalize(text: string): string {
   return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -56,7 +64,7 @@ export class Discovery {
     const q = String(raw ?? '').trim().slice(0, MAX_QUERY);
     if (!q) return { players: [], themes: [] };
     const players = await this.db.query<Row>(
-      `SELECT u.id, p.pseudo, p.equipped_title, u.xp FROM users u JOIN profiles p ON p.user_id = u.id
+      `SELECT u.id, p.pseudo, p.equipped_title, u.xp, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key FROM users u JOIN profiles p ON p.user_id = u.id
        WHERE u.status <> 'banned' AND ${notBlocked('u.id')}
          AND lower(p.pseudo) LIKE '%' || lower($2) || '%' ESCAPE '\\'
        ORDER BY (lower(p.pseudo) = lower($3)) DESC, (lower(p.pseudo) LIKE lower($2) || '%' ESCAPE '\\') DESC,
@@ -77,7 +85,7 @@ export class Discovery {
     const q = String(raw ?? '').trim().replace(/^@/, '').slice(0, 20);
     if (!q) return [];
     const rows = await this.db.query<Row>(
-      `SELECT u.id, p.pseudo, p.equipped_title, u.xp FROM users u JOIN profiles p ON p.user_id = u.id
+      `SELECT u.id, p.pseudo, p.equipped_title, u.xp, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key FROM users u JOIN profiles p ON p.user_id = u.id
        WHERE u.id <> $1 AND u.status <> 'banned' AND ${notBlocked('u.id')}
          AND lower(p.pseudo) LIKE lower($2) || '%' ESCAPE '\\'
        ORDER BY EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = $1 AND f.followee_id = u.id) DESC,
@@ -124,7 +132,7 @@ export class Discovery {
       if (n < DISCOVER.size) await this.fill(tx, viewer, 'random', DISCOVER.size - n);
 
       const rows = await tx.query<Row & { kind: string }>(
-        `SELECT u.id, p.pseudo, p.equipped_title, u.xp, ds.kind FROM discover_suggestions ds
+        `SELECT u.id, p.pseudo, p.equipped_title, u.xp, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key, ds.kind FROM discover_suggestions ds
          JOIN users u ON u.id = ds.suggested_id JOIN profiles p ON p.user_id = u.id
          WHERE ds.user_id = $1 ORDER BY ds.added_at DESC, ds.suggested_id`,
         [viewer],
