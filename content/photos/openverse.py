@@ -44,8 +44,15 @@ def fetch(url: str, attempts: int = 5) -> bytes:
             time.sleep(PAUSE_S)
             return data
         except urllib.error.HTTPError as err:
-            if err.code in (429, 503) and attempt < attempts - 1:
+            if err.code in (429, 502, 503, 504) and attempt < attempts - 1:
                 print(f"  limite atteinte ({err.code}), pause {delay} s", flush=True)
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise
+        except (TimeoutError, urllib.error.URLError) as err:
+            if attempt < attempts - 1:
+                print(f"  pas de réponse ({err}), pause {delay} s", flush=True)
                 time.sleep(delay)
                 delay *= 2
                 continue
