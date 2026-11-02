@@ -1,7 +1,7 @@
-# Ouiz — Dossier de conception
+# Qu1z — Dossier de conception
 
 > Plateforme sociale et compétitive de culture générale, centrée sur le duel 1 contre 1.
-> **Ouiz** est un nom de travail (Oui + quiz), à valider (vérifier la disponibilité de la marque).
+> **Qu1z** est un nom de travail. Le nom final sera choisi plus tard (vérifier la disponibilité de la marque).
 > Identité, code, questions et ressources : 100 % originaux.
 
 ---
@@ -47,7 +47,7 @@ Séparer **XP** (on progresse toujours) et **cote** (on mérite sa place) est la
 2. **Réponse** : les 4 propositions apparaissent et un chrono de **10 s** démarre.
 3. **Révélation** : dès que les deux joueurs ont répondu (ou à la fin du chrono), la bonne réponse et le choix de l'adversaire s'affichent pendant 2 s.
 
-**Barème Ouiz** (propre au jeu)
+**Barème Qu1z** (propre au jeu)
 
 | Élément | Points |
 |---|---|
@@ -147,7 +147,26 @@ Quand aucun adversaire n'est disponible, plutôt qu'un robot inventé, on rejoue
 
 - **Catalogue** : catégories, recherche, filtres (populaires, nouveaux, tendance, mes favoris), et « thèmes proches » sur chaque page de thème.
 - **Page de thème** : niveau du joueur, division, statistiques, top 10, amis qui y jouent, bouton Jouer, bouton Favori.
-- **Volume** : 30 à 40 thèmes au lancement (300 questions minimum par thème), puis plusieurs nouveaux thèmes par semaine pour atteindre des centaines.
+- **Catégories retenues** (16) :
+  1. Culture générale
+  2. Cinéma
+  3. Séries TV
+  4. Jeux vidéo
+  5. Sports
+  6. Musique
+  7. Histoire
+  8. Géographie
+  9. Sciences
+  10. Automobile
+  11. Gastronomie
+  12. Animaux et nature
+  13. Technologie et informatique
+  14. Mode et luxe
+  15. Littérature et bandes dessinées
+  16. Culture pop (Marvel, DC, Disney, mangas…)
+- **Thèmes** : chaque catégorie contient plusieurs thèmes plus précis. Par exemple, Sports : Football, Tennis, Formule 1, JO ; Cinéma : Films des années 90, Réalisateurs, Répliques cultes.
+- **Volume** : au lancement, 2 thèmes par catégorie (32 thèmes, 300 questions minimum chacun), puis plusieurs nouveaux thèmes par semaine pour atteindre des centaines.
+- **Marques et franchises** (Marvel, Disney, constructeurs, maisons de luxe…) : on peut poser des questions à leur sujet, mais **sans utiliser leurs logos, affiches ou images officielles**. Les visuels des thèmes sont des illustrations originales.
 - **Format d'une question** : énoncé, 4 propositions, bonne réponse, image facultative, difficulté, source, auteur.
 - **Difficulté calibrée** : chaque question a une difficulté mesurée à partir des taux de bonnes réponses et des temps. Un duel mélange les difficultés (par exemple 2 faciles, 3 moyennes, 2 difficiles), adaptées au niveau moyen des deux joueurs.
 - **Rotation** : un joueur ne revoit pas une question avant d'avoir épuisé une bonne partie du thème.
@@ -427,10 +446,10 @@ Les **classements** sont calculés en direct dans Redis (sorted sets), et des in
 
 ## 9. Décisions à valider
 
-1. **Nom** du jeu (« Ouiz » est provisoire).
-2. **Plateformes** : appli mobile et Web dès le départ (recommandé, avec Expo) ou Web seul pour commencer.
+1. **Nom** du jeu (« Qu1z » est provisoire, nom final à choisir plus tard).
+2. ~~Plateformes~~ : **décidé** — une seule base de code Expo. D'abord testée sur le Web et sur téléphone (sans passer par les stores), puis publiée sur l'App Store et Google Play une fois le duel au point.
 3. **Langue** : français uniquement au lancement ?
 4. **Barème** : la Mise est-elle retenue ?
 5. **Hébergement** et budget (serveurs, base de données).
 6. **Modèle économique**.
-7. **Contenu** : qui rédige et relit les questions, et quelles catégories prioritaires ?
+7. **Contenu** : qui rédige et relit les questions ? (catégories : **décidé**, voir 4.1)
