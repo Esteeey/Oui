@@ -1,53 +1,57 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { getCategory, getTheme } from '@qu1z/shared';
+import { getCategory, getTheme, type PostView } from '@qu1z/shared';
 
+import { RichText } from '@/components/rich-text';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { getPlayer, type Post } from '@/demo/data';
-import { useProgress } from '@/state/progress';
-import { commentsOf, useSocial } from '@/state/social';
+import { api } from '@/net/api';
+import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
 
-/**
- * Publication écrite. `showTheme` affiche le thème d'une publication de thème
- * (inutile dans le fil du thème lui-même).
- */
+/** Publication réelle (servie par l'API, déjà filtrée par les blocages et la confidentialité). */
 export function PostCard({
   post,
   showTheme = true,
   linkToDetail = true,
 }: {
-  post: Post;
+  post: PostView;
   showTheme?: boolean;
   /** Le bouton commentaires ouvre la page de la publication (désactivé sur cette page). */
   linkToDetail?: boolean;
 }) {
-  const { playerName } = useProgress();
-  const { liked, toggleLike, comments } = useSocial();
-  const commentCount = commentsOf(comments, post.id).length;
-  const openDetail = () => router.push({ pathname: '/post/[id]', params: { id: post.id } });
-  const author = post.authorId ? getPlayer(post.authorId) : undefined;
-  const name = author?.name ?? playerName;
-  const color = author?.color ?? Colors.player;
+  // Affichage immédiat du « Bravo », confirmé par le serveur.
+  const [liked, setLiked] = useState<boolean | null>(null);
+  const isLiked = liked ?? post.likedByMe;
+  const likes = post.likes + (liked === null ? 0 : (liked ? 1 : 0) - (post.likedByMe ? 1 : 0));
   const theme = post.target.kind === 'theme' ? getTheme(post.target.themeId) : undefined;
   const category = theme ? getCategory(theme.categoryId) : undefined;
-  const isLiked = liked.has(post.id);
+  const openAuthor = () => router.push({ pathname: '/player/[id]', params: { id: post.author.id } });
 
-  const openAuthor = () =>
-    author ? router.push({ pathname: '/player/[id]', params: { id: author.id } }) : router.push('/profile');
+  const toggleLike = () => {
+    const next = !isLiked;
+    setLiked(next);
+    api(next ? 'PUT' : 'DELETE', `/api/posts/${post.id}/like`).catch(() => setLiked(null));
+  };
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${name}`} onPress={openAuthor}>
-          <Avatar name={name} color={color} size={42} />
+        <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${post.author.pseudo}`} onPress={openAuthor}>
+          <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} size={42} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
           <AppText variant="label" onPress={openAuthor}>
-            {post.authorId ? name : `${name} (toi)`}
+            {post.author.pseudo}
+            {post.author.title ? (
+              <AppText variant="caption" color={Colors.gold}>
+                {'  '}
+                {post.author.title}
+              </AppText>
+            ) : null}
           </AppText>
           <View style={styles.meta}>
             {showTheme && theme && category && (
@@ -62,30 +66,30 @@ export function PostCard({
             )}
             <AppText variant="caption" muted>
               {showTheme && post.target.kind === 'profile' ? 'Sur son mur · ' : showTheme && theme ? '· ' : ''}
-              {timeAgo(post.at)}
+              {timeAgo(post.createdAt)}
             </AppText>
           </View>
         </View>
       </View>
 
-      <AppText style={{ lineHeight: 23 }}>{post.text}</AppText>
+      <RichText text={post.text} mentions={post.mentions} style={{ lineHeight: 23 }} />
 
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => toggleLike(post.id)} style={styles.like}>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>
           <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={20} color={isLiked ? Colors.player : Colors.textMuted} />
           <AppText variant="caption" muted>
-            Bravo · {post.likes + (isLiked ? 1 : 0)}
+            Bravo · {likes}
           </AppText>
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${commentCount} commentaires`}
+          accessibilityLabel={`${post.comments} commentaires`}
           disabled={!linkToDetail}
-          onPress={openDetail}
-          style={styles.like}>
+          onPress={() => router.push({ pathname: '/post/[id]', params: { id: post.id } })}
+          style={styles.action}>
           <Ionicons name="chatbubble-outline" size={19} color={Colors.textMuted} />
           <AppText variant="caption" muted>
-            {commentCount === 0 ? 'Commenter' : `${commentCount} commentaire${commentCount > 1 ? 's' : ''}`}
+            {post.comments === 0 ? 'Commenter' : `${post.comments} commentaire${post.comments > 1 ? 's' : ''}`}
           </AppText>
         </Pressable>
       </View>
@@ -106,5 +110,5 @@ const styles = StyleSheet.create({
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   themeChip: { borderWidth: 1, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 1 },
   actions: { flexDirection: 'row', gap: Spacing.lg },
-  like: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
 });

@@ -1,75 +1,113 @@
-import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { MAX_COMMENT_LENGTH, type CommentView, type PostView } from '@qu1z/shared';
+
 import { BackButton } from '@/components/back-button';
 import { PostCard } from '@/components/post-card';
+import { RichText } from '@/components/rich-text';
 import { SectionHeader } from '@/components/social';
 import { AppText, Avatar, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { getPlayer } from '@/demo/data';
-import { useProgress } from '@/state/progress';
-import { MAX_COMMENT_LENGTH, commentsOf, useSocial } from '@/state/social';
+import { api, errorMessage, useApi } from '@/net/api';
+import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
 
-/** Une publication et ses commentaires. */
+/** Une publication, ses commentaires et les réponses (un niveau). */
 export default function PostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { posts, comments, addComment } = useSocial();
-  const { playerName } = useProgress();
+  const post = useApi<PostView>(`/api/posts/${id}`);
+  const thread = useApi<{ comments: CommentView[] }>(`/api/posts/${id}/comments`);
   const [text, setText] = useState('');
-  const post = posts.find((p) => p.id === id);
-  if (!post) return <Redirect href="/" />;
-  const thread = commentsOf(comments, post.id);
+  const [replyTo, setReplyTo] = useState<CommentView | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const send = () => {
-    if (addComment(post.id, text)) setText('');
+  if (post.error) {
+    return (
+      <Screen>
+        <BackButton />
+        <AppText muted>Cette publication n’est pas disponible.</AppText>
+      </Screen>
+    );
+  }
+
+  const comments = thread.data?.comments ?? [];
+  const roots = comments.filter((c) => !c.parentId);
+  const repliesOf = (rootId: string) => comments.filter((c) => c.parentId === rootId);
+
+  const send = async () => {
+    if (!text.trim()) return;
+    setError(null);
+    try {
+      await api('POST', `/api/posts/${id}/comments`, { text, ...(replyTo ? { parentId: replyTo.id } : {}) });
+      setText('');
+      setReplyTo(null);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
   };
+
+  const renderComment = (c: CommentView, isReply: boolean) => (
+    <View key={c.id} style={[styles.comment, isReply && { marginLeft: 40 }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Profil de ${c.author.pseudo}`}
+        onPress={() => router.push({ pathname: '/player/[id]', params: { id: c.author.id } })}>
+        <Avatar name={c.author.pseudo} color={avatarColor(c.author.id)} size={32} />
+      </Pressable>
+      <View style={{ flex: 1, gap: 4 }}>
+        <View style={styles.bubble}>
+          <AppText variant="caption">
+            {c.author.pseudo}{' '}
+            <AppText variant="caption" muted>
+              · {timeAgo(c.createdAt)}
+            </AppText>
+          </AppText>
+          <RichText text={c.text} mentions={c.mentions} />
+        </View>
+        <Pressable accessibilityRole="button" onPress={() => setReplyTo(c)} style={{ alignSelf: 'flex-start', padding: 4 }}>
+          <AppText variant="caption" muted>
+            Répondre
+          </AppText>
+        </Pressable>
+      </View>
+    </View>
+  );
 
   return (
     <Screen>
       <BackButton />
-      <PostCard post={post} linkToDetail={false} />
+      {post.data && <PostCard post={post.data} linkToDetail={false} />}
 
-      <SectionHeader title={`Commentaires · ${thread.length}`} />
-      {thread.map((c) => {
-        const author = c.authorId ? getPlayer(c.authorId) : undefined;
-        const name = author?.name ?? playerName;
-        return (
-          <View key={c.id} style={styles.comment}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Profil de ${name}`}
-              onPress={() =>
-                author ? router.push({ pathname: '/player/[id]', params: { id: author.id } }) : router.push('/profile')
-              }>
-              <Avatar name={name} color={author?.color ?? Colors.player} size={32} />
-            </Pressable>
-            <View style={styles.bubble}>
-              <AppText variant="caption">
-                {author ? name : `${name} (toi)`}{' '}
-                <AppText variant="caption" muted>
-                  · {timeAgo(c.at)}
-                </AppText>
-              </AppText>
-              <AppText>{c.text}</AppText>
-            </View>
-          </View>
-        );
-      })}
-      {thread.length === 0 && <AppText muted>Sois le premier à commenter.</AppText>}
+      <SectionHeader title={`Commentaires · ${comments.length}`} />
+      {roots.map((c) => (
+        <View key={c.id} style={{ gap: Spacing.sm }}>
+          {renderComment(c, false)}
+          {repliesOf(c.id).map((r) => renderComment(r, true))}
+        </View>
+      ))}
+      {thread.data && comments.length === 0 && <AppText muted>Sois le premier à commenter.</AppText>}
 
       <View style={styles.input}>
+        {replyTo && (
+          <Pressable accessibilityRole="button" onPress={() => setReplyTo(null)}>
+            <AppText variant="caption" color={Colors.opponent}>
+              Réponse à {replyTo.author.pseudo} · annuler
+            </AppText>
+          </Pressable>
+        )}
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Écrire un commentaire…"
+          placeholder={replyTo ? `Répondre à ${replyTo.author.pseudo}…` : 'Écrire un commentaire…'}
           placeholderTextColor={Colors.textMuted}
           maxLength={MAX_COMMENT_LENGTH}
           multiline
           accessibilityLabel="Écrire un commentaire"
           style={styles.field}
         />
+        {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
         <Button label="Envoyer" onPress={send} disabled={!text.trim()} />
       </View>
     </Screen>
@@ -78,21 +116,7 @@ export default function PostScreen() {
 
 const styles = StyleSheet.create({
   comment: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
-  bubble: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.sm + 4,
-    paddingVertical: Spacing.sm,
-    gap: 2,
-  },
-  input: {
-    gap: Spacing.sm,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.sm + 4,
-  },
+  bubble: { backgroundColor: Colors.surface, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 4, paddingVertical: Spacing.sm, gap: 2 },
+  input: { gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm + 4 },
   field: { color: Colors.text, fontSize: 16, minHeight: 44, textAlignVertical: 'top' },
 });

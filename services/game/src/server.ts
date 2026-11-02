@@ -77,7 +77,7 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
       const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
       switch (msg.type) {
         case 'play':
-          return game.play(playerId, str(msg.themeId), msg.mode === 'pvp' ? 'pvp' : 'bot', str(msg.opponentId) || undefined);
+          return game.play(playerId, str(msg.themeId), msg.mode === 'pvp' ? 'pvp' : 'bot');
         case 'cancelQueue':
           return game.cancelQueue(playerId);
         case 'answer':

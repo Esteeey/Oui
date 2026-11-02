@@ -8,7 +8,6 @@ import { GameConnection, gameServerUrl, type ConnectionStatus } from '@/net/game
 export interface DuelRequest {
   themeId: string;
   mode: 'bot' | 'pvp';
-  opponentId?: string;
 }
 
 interface GameServerState {

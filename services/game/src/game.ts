@@ -2,7 +2,6 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
 import {
   BOT_NAME,
-  DEMO_OPPONENTS,
   INITIAL_RATING,
   RULES,
   computeRewards,
@@ -141,7 +140,7 @@ export class Game {
 
   // ---- Matchmaking -------------------------------------------------------------------------
 
-  async play(playerId: string, themeId: string, mode: 'bot' | 'pvp', opponentId?: string): Promise<void> {
+  async play(playerId: string, themeId: string, mode: 'bot' | 'pvp'): Promise<void> {
     const activeId = this.active.get(playerId);
     if (activeId) return this.pushTo(playerId, this.duels.get(activeId)!);
     if (!getTheme(themeId) || questionsOf(themeId).length < RULES.questionsPerDuel) {
@@ -153,7 +152,7 @@ export class Game {
       return;
     }
     this.cancelQueue(playerId);
-    if (mode === 'bot') return this.startBotDuel(playerId, themeId, opponentId);
+    if (mode === 'bot') return this.startBotDuel(playerId, themeId);
 
     const waiting = this.queue.get(themeId);
     if (waiting && waiting.playerId !== playerId && !(await this.repo.isBlockedEitherWay(waiting.playerId, playerId))) {
@@ -198,12 +197,11 @@ export class Game {
     };
   }
 
-  private async startBotDuel(playerId: string, themeId: string, opponentId?: string): Promise<void> {
-    const demo = opponentId ? DEMO_OPPONENTS[opponentId] : undefined;
+  private async startBotDuel(playerId: string, themeId: string): Promise<void> {
     const bot: Participant = {
-      playerId: demo ? `bot:${opponentId}` : 'bot',
-      name: demo?.name ?? BOT_NAME,
-      color: demo?.color ?? null,
+      playerId: 'bot',
+      name: BOT_NAME,
+      color: null,
       isBot: true,
       rating: INITIAL_RATING,
       connected: true,
@@ -349,7 +347,7 @@ export class Game {
         id: s.id,
         playedAt: s.endedAt ?? this.now(),
         themeId: s.themeId,
-        opponentId: other.isBot ? (other.playerId.startsWith('bot:') ? other.playerId.slice(4) : null) : other.playerId,
+        opponentId: other.isBot ? null : other.playerId,
         opponentName: other.name,
         opponentIsBot: other.isBot,
         questions: duel.revealedQuestions(),

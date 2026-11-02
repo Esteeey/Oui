@@ -1,50 +1,42 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
+
+import type { UserSummary } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
-import { DemoNote } from '@/components/social';
-import { AppText, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
-import { NOTIFICATIONS } from '@/demo/data';
-import { useSocial } from '@/state/social';
+import { UserRow } from '@/components/player-row';
+import { SectionHeader } from '@/components/social';
+import { AppText, Button, Card, Screen } from '@/components/ui';
+import { Colors, Spacing } from '@/constants/theme';
+import { api, useApi } from '@/net/api';
 
-const ICON_COLOR = { flash: Colors.opponent, people: Colors.player, trophy: Colors.gold, heart: Colors.wrong } as const;
-
+/** Notifications : pour l'instant les demandes d'abonnement (le centre complet arrive au module suivant). */
 export default function NotificationsScreen() {
-  const { markNotificationsRead } = useSocial();
-  useEffect(() => {
-    markNotificationsRead();
-  }, [markNotificationsRead]);
-
+  const requests = useApi<{ requests: { user: UserSummary; createdAt: number }[] }>('/api/me/follow-requests');
+  const pending = requests.data?.requests ?? [];
   return (
     <Screen>
       <BackButton />
       <AppText variant="title">Notifications</AppText>
-      {NOTIFICATIONS.map((n) => (
-        <View key={n.id} style={styles.row}>
-          <View style={[styles.icon, { backgroundColor: ICON_COLOR[n.icon] }]}>
-            <Ionicons name={n.icon} size={18} color={Colors.background} />
-          </View>
-          <AppText style={{ flex: 1 }}>{n.text}</AppText>
-          <AppText variant="caption" muted>
-            {n.ago}
-          </AppText>
-        </View>
+      <SectionHeader title="Demandes d’abonnement" />
+      {requests.data && pending.length === 0 && <AppText muted>Aucune demande en attente.</AppText>}
+      {pending.map(({ user }) => (
+        <UserRow
+          key={user.id}
+          user={user}
+          subtitle="veut s’abonner à toi"
+          right={
+            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+              <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => api('POST', `/api/me/follow-requests/${user.id}/decline`).catch(() => {})} />
+              <Button label="Accepter" color={Colors.correct} onPress={() => api('POST', `/api/me/follow-requests/${user.id}/accept`).catch(() => {})} />
+            </View>
+          }
+        />
       ))}
-      <DemoNote>Notifications de démonstration.</DemoNote>
+      <Card>
+        <AppText variant="caption" muted>
+          Le centre de notifications complet (likes, commentaires, mentions, défis, progression, annonces) arrive avec le module suivant.
+        </AppText>
+      </Card>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm + 4,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    padding: Spacing.sm + 4,
-  },
-  icon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-});

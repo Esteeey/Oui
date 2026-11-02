@@ -1,7 +1,7 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel } from '@qu1z/shared';
+import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel, type PostView, type ThemeInfo } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
 import { Composer } from '@/components/composer';
@@ -12,18 +12,23 @@ import { DivisionBadge, SectionHeader } from '@/components/social';
 import { AppText, Button, Card, ProgressBar, Screen, Stat } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { useThemeStats } from '@/state/progress';
-import { formatCount, themePosts, themeSubscriberCount, useSocial } from '@/state/social';
+import { api, useApi } from '@/net/api';
+import { formatCount } from '@/utils/format';
 
 export default function ThemeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = getTheme(id);
   const stats = useThemeStats(id);
-  const { posts, subscribedThemes, toggleThemeSubscription } = useSocial();
+  const info = useApi<{ themes: ThemeInfo[] }>('/api/themes');
+  const posts = useApi<{ posts: PostView[] }>(theme ? `/api/themes/${theme.id}/posts` : null);
   if (!theme) return <Redirect href="/" />;
   const category = getCategory(theme.categoryId)!;
   const level = levelFromXp(stats.xp);
-  const subscribed = subscribedThemes.includes(theme.id);
-  const feed = themePosts(posts, theme.id);
+  const themeInfo = info.data?.themes.find((t) => t.themeId === theme.id);
+  const subscribed = themeInfo?.subscribed ?? false;
+  const feed = posts.data?.posts ?? [];
+  const toggleSubscription = () =>
+    api(subscribed ? 'DELETE' : 'PUT', `/api/themes/${theme.id}/subscription`).catch(() => {});
 
   const precision = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0;
   const avgTime = stats.correct ? (stats.totalCorrectResponseMs / stats.correct / 1000).toFixed(1) : '–';
@@ -48,11 +53,11 @@ export default function ThemeScreen() {
           label={subscribed ? 'Abonné ✓' : "S'abonner au thème"}
           variant={subscribed ? 'outline' : 'solid'}
           color={subscribed ? Colors.textMuted : category.color}
-          onPress={() => toggleThemeSubscription(theme.id)}
+          onPress={toggleSubscription}
           style={{ marginTop: Spacing.sm, alignSelf: 'stretch' }}
         />
         <AppText variant="caption" muted>
-          {formatCount(themeSubscriberCount(theme.id, subscribedThemes))} abonnés
+          {themeInfo ? `${formatCount(themeInfo.subscribers)} abonné${themeInfo.subscribers > 1 ? 's' : ''}` : ''}
         </AppText>
       </View>
 

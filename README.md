@@ -15,31 +15,24 @@ content/           outils de contenu (génération des drapeaux)
 docs/              conception
 ```
 
-## État actuel (prototype)
+## État actuel
 
-- **5 onglets** : Fil d'actualité, Explorer, Classement, Social, Profil, plus les notifications.
-- **Fil d'accueil** : publications des personnes suivies et des thèmes auxquels on est abonné, activité de jeu, défis reçus, « Bravo ». Bouton « Quoi de neuf ? » pour publier.
-- **Murs et fils de thème** : chaque joueur a son mur (lui seul y publie) ; chaque thème a son fil, où publient ses abonnés.
-- **Social** : amis, demandes d'amis (accepter / refuser), défis reçus, invitation par partage.
-- **Profil** : niveau, titre, statistiques, thèmes avec division, 8 badges, derniers duels. Profils des autres joueurs avec bilan des face-à-face.
-- **Classement** : Monde ou Amis, général ou par thème, par cote (Elo pour le prototype) et divisions.
-- **Duel** complet de 7 questions (10 s par question), résultats comparatifs, XP, cote, revanche.
-- 6 thèmes jouables, dont **Drapeaux du monde** en questions illustrées (14 drapeaux dessinés pour Qu1z).
-- Commentaires sous les publications, nombre d'abonnés par thème.
+- **5 onglets** : Fil d'actualité, Explorer, Classement, Social, Profil.
+- **Duel** : classé entre joueurs réels (bot après 10 s sans adversaire) ou d'entraînement contre le bot ; 7 questions, chrono 10 s ; page Résultats (bonus, niveau, Rejouer, Chat, Partager).
+- **Social réel (serveur)** : profils (pseudo, bio, titre, profil privé, listes masquables), abonnements et demandes, abonnements aux thèmes, publications sur son mur ou dans un thème, commentaires et réponses, « Bravo », mentions @pseudo, fil d'accueil, classements, blocage.
+- 6 thèmes jouables, dont **Drapeaux du monde** en questions illustrées.
 
-Serveur de jeu :
+Serveur :
 
 - Le serveur fait autorité : questions, chrono, réponses, scores, résultat et **XP** (le client n'envoie que ses choix).
-- Duel classé entre deux joueurs réels (matchmaking par thème, bot au bout de 10 s), ou duel contre le bot.
 - Une déconnexion ne met jamais le duel en pause ; à la reconnexion (ou réouverture de l'app), le joueur retrouve son duel ou ses résultats.
-- Récompenses : bonus fin +20 (présent à la fin), bonus victoire +40, bonus boost (10 XP par bonne réponse, +30 si sans-faute) ; abandon = 0 XP ; versement unique par duel.
-- Page Résultats : couverture du thème, bandeau VICTOIRE / PERDU, joueurs (soi toujours à gauche), tableau des bonus, barre de niveau, Rejouer, Chat, Partager.
+- Récompenses : bonus fin +20, victoire +40, boost (10 XP par bonne réponse, +30 si sans-faute) ; abandon = 0 XP ; versement unique garanti par la base.
+- Blocages et confidentialité vérifiés dans chaque requête ; limites anti-spam configurables.
 
-Limites du prototype :
+Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 
-- Les autres joueurs, le fil, les amis et les notifications sont des **données de démonstration**, signalées dans l'application. En duel, les réponses de l'adversaire sont simulées.
-- Comptes invités (jeton gardé sur l'appareil) ; pas encore de connexion Apple / Google ni de photo de profil.
-- Fil, amis et publications restent des données de démonstration locales.
+- Comptes invités (jeton gardé sur l'appareil) ; connexion par e-mail et photos de profil à venir.
+- Pas encore de centre de notifications complet, de recherche de joueurs, de messagerie, de groupes ni de modération.
 
 ## Lancer le projet
 

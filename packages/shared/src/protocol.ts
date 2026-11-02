@@ -18,7 +18,7 @@ export interface DuelRecord {
   id: string;
   playedAt: number;
   themeId: string;
-  /** Adversaire de démonstration, id d'un joueur réel, ou `null` pour le bot. */
+  /** Id du joueur réel affronté, ou `null` pour le bot. */
   opponentId: string | null;
   opponentName: string;
   opponentIsBot: boolean;
@@ -102,7 +102,7 @@ export interface ChatMessage {
 
 export type ClientMessage =
   | { type: 'hello'; token?: string }
-  | { type: 'play'; themeId: string; mode: 'bot' | 'pvp'; opponentId?: string }
+  | { type: 'play'; themeId: string; mode: 'bot' | 'pvp' }
   | { type: 'cancelQueue' }
   | { type: 'answer'; duelId: string; index: number; choice: number }
   | { type: 'forfeit'; duelId: string }

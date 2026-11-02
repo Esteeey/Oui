@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { getCategory, getTheme, levelFromXp, titleForLevel } from '@qu1z/shared';
+import { getCategory, getTheme, levelFromXp, titleForLevel, type PublicProfile } from '@qu1z/shared';
 
 import { DivisionBadge, SectionHeader } from '@/components/social';
 import { AppText, Avatar, Card, ProgressBar, Stat } from '@/components/ui';
@@ -19,14 +19,15 @@ export interface ShowcaseTheme {
 export function ProfileHeader({
   name,
   color,
-  country,
+  title,
   bio,
   xp,
   actions,
 }: {
   name: string;
   color: string;
-  country: string;
+  /** Titre équipé par le joueur (sinon, le titre de son niveau). */
+  title?: string | null;
   bio?: string;
   xp: number;
   actions?: ReactNode;
@@ -35,11 +36,9 @@ export function ProfileHeader({
   return (
     <View style={styles.header}>
       <Avatar name={name} color={color} size={96} />
-      <AppText variant="title">
-        {country} {name}
-      </AppText>
+      <AppText variant="title">{name}</AppText>
       <AppText variant="label" color={Colors.gold}>
-        {titleForLevel(level.level)} · Niveau {level.level}
+        {title ?? titleForLevel(level.level)} · Niveau {level.level}
       </AppText>
       {bio ? (
         <AppText muted style={{ textAlign: 'center' }}>
@@ -53,6 +52,29 @@ export function ProfileHeader({
         </AppText>
       </View>
       {actions}
+    </View>
+  );
+}
+
+/** Compteurs d'abonnés et d'abonnements (toujours visibles) ; les listes s'ouvrent si elles sont visibles. */
+export function FollowCounts({ profile }: { profile: PublicProfile }) {
+  const item = (label: string, value: number, which: 'followers' | 'following', canOpen: boolean) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !canOpen }}
+      disabled={!canOpen}
+      onPress={() => router.push({ pathname: '/player/[id]/[list]', params: { id: profile.id, list: which } })}
+      style={styles.count}>
+      <AppText variant="heading">{value}</AppText>
+      <AppText variant="caption" muted>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+  return (
+    <View style={styles.counts}>
+      {item(profile.followers > 1 ? 'Abonnés' : 'Abonné', profile.followers, 'followers', profile.canSeeFollowers)}
+      {item(profile.following > 1 ? 'Abonnements' : 'Abonnement', profile.following, 'following', profile.canSeeFollowing)}
     </View>
   );
 }
@@ -169,6 +191,8 @@ export function BadgesGrid({ badges }: { badges: Badge[] }) {
 
 const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm },
+  counts: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xl },
+  count: { alignItems: 'center', paddingHorizontal: Spacing.sm, minHeight: 44, justifyContent: 'center' },
   theme: {
     flexDirection: 'row',
     alignItems: 'center',

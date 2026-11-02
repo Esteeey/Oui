@@ -1,55 +1,27 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { THEMES, getCategory, getTheme, levelFromXp } from '@qu1z/shared';
+import { THEMES, getTheme, type FeedItem } from '@qu1z/shared';
 
-import { FeedCard, type FeedEntry } from '@/components/feed-card';
+import { ActivityCard } from '@/components/feed-card';
 import { PostCard } from '@/components/post-card';
-import { DemoNote, IconButton, SectionHeader } from '@/components/social';
+import { IconButton, SectionHeader } from '@/components/social';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { FEED, getPlayer, type Post } from '@/demo/data';
-import { useProgress, type DuelRecord } from '@/state/progress';
-import { homePosts, useSocial } from '@/state/social';
-
-/** Transforme les duels du joueur en publications du fil. */
-function ownEntries(history: DuelRecord[], name: string): FeedEntry[] {
-  return history.flatMap((duel) => {
-    const base = { playerId: null, name, color: Colors.player, themeId: duel.themeId, at: duel.playedAt, likes: 0 };
-    const entries: FeedEntry[] = [];
-    const before = levelFromXp(duel.xpBefore).level;
-    const after = levelFromXp(duel.xpBefore + duel.xpGained).level;
-    if (after > before) entries.push({ ...base, id: `${duel.id}-lvl`, event: { kind: 'level', level: after } });
-    if (duel.player.every((a) => a.correct)) entries.push({ ...base, id: `${duel.id}-perfect`, event: { kind: 'perfect' } });
-    else if (duel.outcome === 'win') {
-      const me = duel.player.reduce((t, a) => t + a.points, 0);
-      const them = duel.opponent.reduce((t, a) => t + a.points, 0);
-      entries.push({ ...base, id: `${duel.id}-win`, event: { kind: 'win', opponent: duel.opponentName, score: me, opponentScore: them } });
-    }
-    return entries;
-  });
-}
+import { useApi } from '@/net/api';
+import { useGameServer } from '@/state/game-server';
+import { useProgress } from '@/state/progress';
+import { avatarColor } from '@/utils/avatar';
 
 export default function FeedScreen() {
   const { playerName, history } = useProgress();
-  const { challenges, liked, toggleLike, unreadNotifications, posts, following, subscribedThemes } = useSocial();
-
+  const { playerId } = useGameServer();
+  const feed = useApi<{ items: FeedItem[] }>(playerId ? '/api/feed' : null);
+  const requests = useApi<{ requests: unknown[] }>(playerId ? '/api/me/follow-requests' : null);
   const quickTheme = history[0]?.themeId ?? THEMES[0].id;
-  // Accueil : publications et activité des personnes suivies, publications des thèmes suivis, et les miennes.
-  const activity: FeedEntry[] = [
-    ...ownEntries(history, 'Toi'),
-    ...FEED.filter((item) => following.includes(item.playerId)).map((item) => {
-      const player = getPlayer(item.playerId)!;
-      return { ...item, name: player.name, color: player.color };
-    }),
-  ];
-  type TimelineItem = { kind: 'post'; at: number; post: Post } | { kind: 'activity'; at: number; entry: FeedEntry };
-  const timeline: TimelineItem[] = [
-    ...homePosts(posts, following, subscribedThemes).map((post) => ({ kind: 'post' as const, at: post.at, post })),
-    ...activity.map((entry) => ({ kind: 'activity' as const, at: entry.at, entry })),
-  ].sort((a, b) => b.at - a.at);
+  const items = feed.data?.items ?? [];
 
   return (
     <Screen inTabs>
@@ -60,7 +32,7 @@ export default function FeedScreen() {
         <IconButton
           icon="notifications-outline"
           label="Notifications"
-          badge={unreadNotifications}
+          badge={requests.data?.requests.length ?? 0}
           onPress={() => router.push('/notifications')}
         />
       </View>
@@ -74,76 +46,36 @@ export default function FeedScreen() {
         </View>
         <Button
           label="Jouer"
-          onPress={() => router.push({ pathname: '/duel/[themeId]', params: { themeId: quickTheme } })}
+          onPress={() => router.push({ pathname: '/duel/[themeId]', params: { themeId: quickTheme, mode: 'pvp' } })}
         />
       </Card>
 
-      {challenges.length > 0 && (
-        <>
-          <SectionHeader title="Défis reçus" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.sm }}>
-            {challenges.map((c) => {
-              const from = getPlayer(c.fromId)!;
-              const theme = getTheme(c.themeId)!;
-              const category = getCategory(theme.categoryId)!;
-              return (
-                <Pressable
-                  key={c.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/duel/[themeId]',
-                      params: { themeId: c.themeId, opponent: c.fromId, challenge: c.id },
-                    })
-                  }
-                  style={[styles.challenge, { borderColor: category.color }]}>
-                  <Avatar name={from.name} color={from.color} size={40} />
-                  <AppText variant="label">{from.name}</AppText>
-                  <AppText variant="caption" color={category.color} numberOfLines={1}>
-                    {category.icon} {theme.name}
-                  </AppText>
-                  <View style={styles.accept}>
-                    <Ionicons name="flash" size={14} color={Colors.background} />
-                    <AppText variant="caption" color={Colors.background}>
-                      Relever
-                    </AppText>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </>
-      )}
-
       <SectionHeader title="Fil d'actualité" />
       <Pressable accessibilityRole="button" onPress={() => router.push('/compose')} style={styles.compose}>
-        <Avatar name={playerName} color={Colors.player} size={36} />
+        <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.player} size={36} />
         <AppText muted style={{ flex: 1 }}>
           Quoi de neuf ?
         </AppText>
         <Ionicons name="create-outline" size={22} color={Colors.player} />
       </Pressable>
-      <DemoNote>
-        Tu vois ici les publications des personnes que tu suis et des thèmes auxquels tu es abonné ({subscribedThemes.length}). Les autres joueurs sont fictifs.
-      </DemoNote>
-      {timeline.map((item, i) => (
+
+      {feed.error && <AppText color={Colors.wrong}>Impossible de charger le fil. Vérifie ta connexion.</AppText>}
+      {items.map((item, i) => (
         <Animated.View
-          key={item.kind === 'post' ? item.post.id : item.entry.id}
-          entering={FadeInDown.delay(Math.min(i, 6) * 50).springify()}>
-          {item.kind === 'post' ? (
-            <PostCard post={item.post} />
-          ) : (
-            <FeedCard entry={item.entry} liked={liked.has(item.entry.id)} onLike={() => toggleLike(item.entry.id)} />
-          )}
+          key={item.kind === 'post' ? item.post.id : item.activity.id}
+          entering={FadeInDown.delay(Math.min(i, 6) * 40).springify()}>
+          {item.kind === 'post' ? <PostCard post={item.post} /> : <ActivityCard activity={item.activity} />}
         </Animated.View>
       ))}
-      {timeline.length === 0 && (
-        <AppText muted style={{ textAlign: 'center' }}>
-          Suis des joueurs ou abonne-toi à des thèmes pour remplir ton fil.
-        </AppText>
+      {feed.data && items.length === 0 && (
+        <Card style={{ alignItems: 'center', gap: Spacing.sm }}>
+          <AppText variant="heading">Ton fil est vide</AppText>
+          <AppText muted style={{ textAlign: 'center' }}>
+            Abonne-toi à des thèmes et suis des joueurs (depuis les classements, les duels ou les publications) pour remplir ton fil.
+          </AppText>
+          <Button label="Explorer les thèmes" variant="outline" color={Colors.text} onPress={() => router.push('/explore')} />
+        </Card>
       )}
-      <AppText variant="caption" muted style={{ textAlign: 'center' }}>
-        {playerName}, tu es à jour !
-      </AppText>
     </Screen>
   );
 }
@@ -151,15 +83,6 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing.sm },
   play: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderColor: Colors.player },
-  challenge: {
-    width: 150,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    borderWidth: 2,
-    padding: Spacing.sm + 4,
-    gap: 6,
-    alignItems: 'flex-start',
-  },
   compose: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -170,15 +93,5 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.sm + 4,
-  },
-  accept: {
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'center',
-    backgroundColor: Colors.opponent,
-    borderRadius: Radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginTop: 2,
   },
 });

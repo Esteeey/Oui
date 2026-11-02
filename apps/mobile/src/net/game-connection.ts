@@ -4,6 +4,7 @@ import { AppState, Platform } from 'react-native';
 import type { ClientMessage, ServerMessage } from '@qu1z/shared';
 
 const TOKEN_KEY = 'qu1z.token';
+
 const MAX_BACKOFF_MS = 8_000;
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';

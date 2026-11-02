@@ -4,7 +4,8 @@ import { Platform } from 'react-native';
 
 import type { IconName } from '@/components/social';
 import { Colors } from '@/constants/theme';
-import { useSocial } from '@/state/social';
+import { useApi } from '@/net/api';
+import { useGameServer } from '@/state/game-server';
 
 const TABS: { name: string; title: string; icon: IconName; iconActive: IconName }[] = [
   { name: 'index', title: 'Fil', icon: 'home-outline', iconActive: 'home' },
@@ -15,8 +16,9 @@ const TABS: { name: string; title: string; icon: IconName; iconActive: IconName 
 ];
 
 export default function TabsLayout() {
-  const { requests, challenges } = useSocial();
-  const socialBadge = requests.length + challenges.length;
+  const { playerId } = useGameServer();
+  const requests = useApi<{ requests: unknown[] }>(playerId ? '/api/me/follow-requests' : null);
+  const socialBadge = requests.data?.requests.length ?? 0;
 
   return (
     <Tabs

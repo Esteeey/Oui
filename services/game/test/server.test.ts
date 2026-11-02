@@ -306,11 +306,11 @@ describe('duel contre le bot et chat', () => {
   it('le bot répond tout seul et le duel se termine avec les récompenses', async () => {
     await boot();
     const a = await client();
-    a.send({ type: 'play', themeId: THEME, mode: 'bot', opponentId: 'lina' });
+    a.send({ type: 'play', themeId: THEME, mode: 'bot' });
     const stop = autoPlay(a, right);
     const r = await a.waitForDuel(finished, 8000, 0);
     stop();
-    expect(r.opponent.name).toBe('Lina');
+    expect(r.opponent.name).toBe("Bot d'entraînement");
     expect(r.opponent.isBot).toBe(true);
     expect(r.result!.rewards.finishBonus).toBe(20);
   });

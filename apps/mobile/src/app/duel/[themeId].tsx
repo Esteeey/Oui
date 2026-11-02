@@ -12,7 +12,6 @@ import { AppText, Avatar, Button } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
-import { useSocial } from '@/state/social';
 
 /** Couleurs de l'écran de duel (fond noir, boutons clairs). */
 const D = {
@@ -27,12 +26,11 @@ const D = {
   track: '#2A2A2E',
 };
 
-type Params = { themeId: string; mode?: string; opponent?: string; challenge?: string; resume?: string };
+type Params = { themeId: string; mode?: string; resume?: string };
 
 export default function DuelRoute() {
   const params = useLocalSearchParams<Params>();
   const game = useGameServer();
-  const { completeChallenge } = useSocial();
   // Un duel terminé déjà affiché avant d'ouvrir cet écran n'est pas « le nôtre ».
   const staleDuelId = useRef(game.duel?.phase === 'finished' ? game.duel.duelId : null);
   const requested = useRef(false);
@@ -51,17 +49,13 @@ export default function DuelRoute() {
     game.play({
       themeId: params.themeId,
       mode: params.mode === 'pvp' ? 'pvp' : 'bot',
-      ...(params.opponent ? { opponentId: params.opponent } : {}),
     });
   }, [game, params]);
 
   // Fin du duel : direction les résultats.
   useEffect(() => {
-    if (live?.phase === 'finished' && live.result) {
-      if (params.challenge) completeChallenge(params.challenge);
-      router.replace('/results');
-    }
-  }, [live, params.challenge, completeChallenge]);
+    if (live?.phase === 'finished' && live.result) router.replace('/results');
+  }, [live]);
 
   if (!live || live.phase === 'finished') {
     return <Waiting themeId={params.themeId} />;

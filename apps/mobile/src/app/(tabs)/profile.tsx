@@ -1,17 +1,21 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { getTheme } from '@qu1z/shared';
+import Ionicons from '@expo/vector-icons/Ionicons';
+
+import { getTheme, type PostView, type PublicProfile } from '@qu1z/shared';
 
 import { Composer } from '@/components/composer';
 import { PostCard } from '@/components/post-card';
-import { BadgesGrid, OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
+import { BadgesGrid, FollowCounts, OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { computeBadges } from '@/game/badges';
 import { bestWinStreak, totalXp, useProgress } from '@/state/progress';
-import { useSocial, wallPosts } from '@/state/social';
+import { useApi } from '@/net/api';
+import { useGameServer } from '@/state/game-server';
+import { avatarColor } from '@/utils/avatar';
 
 const OUTCOME = {
   win: { label: 'Victoire', color: Colors.correct },
@@ -21,8 +25,10 @@ const OUTCOME = {
 
 export default function ProfileScreen() {
   const { playerName, stats, history } = useProgress();
-  const { friends, following, subscribedThemes, posts } = useSocial();
-  const wall = wallPosts(posts, null);
+  const { playerId } = useGameServer();
+  const me = useApi<PublicProfile>(playerId ? `/api/users/${playerId}` : null);
+  const wallData = useApi<{ posts: PostView[] }>(playerId ? `/api/users/${playerId}/posts` : null);
+  const wall = wallData.data?.posts ?? [];
   const all = Object.values(stats);
   const duels = all.reduce((t, s) => t + s.duels, 0);
   const wins = all.reduce((t, s) => t + s.wins, 0);
@@ -35,12 +41,34 @@ export default function ProfileScreen() {
 
   return (
     <Screen inTabs>
+      <View style={styles.topRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Réglages du profil"
+          onPress={() => router.push('/settings/profile')}
+          style={styles.settings}>
+          <Ionicons name="settings-outline" size={22} color={Colors.text} />
+        </Pressable>
+      </View>
       <ProfileHeader
-        name={playerName}
-        color={Colors.player}
-        country="🇫🇷"
-        bio={`${friends.length} amis · ${following.length} abonnements · ${subscribedThemes.length} thèmes suivis`}
-        xp={totalXp(stats)}
+        name={me.data?.pseudo ?? playerName}
+        color={playerId ? avatarColor(playerId) : Colors.player}
+        title={me.data?.title}
+        bio={me.data?.bio}
+        xp={me.data?.xp ?? totalXp(stats)}
+        actions={
+          me.data ? (
+            <View style={{ alignSelf: 'stretch', gap: Spacing.sm }}>
+              <FollowCounts profile={me.data} />
+              {me.data.isPrivate && (
+                <AppText variant="caption" muted style={{ textAlign: 'center' }}>
+                  Profil privé
+                </AppText>
+              )}
+              <Button label="Modifier le profil" variant="outline" color={Colors.text} onPress={() => router.push('/settings/profile')} />
+            </View>
+          ) : undefined
+        }
       />
 
       <StatsCard
@@ -111,6 +139,8 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  settings: { padding: Spacing.sm },
   duel: {
     flexDirection: 'row',
     alignItems: 'center',

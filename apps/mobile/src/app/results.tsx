@@ -59,8 +59,6 @@ export default function ResultsScreen() {
     const req = game.lastRequest?.themeId === duel.themeId ? game.lastRequest : null;
     const params: Record<string, string> = { themeId: duel.themeId };
     if (req?.mode === 'pvp') params.mode = 'pvp';
-    const opponentId = req?.opponentId ?? (record.opponentIsBot ? record.opponentId : null);
-    if (opponentId) params.opponent = opponentId;
     router.replace({ pathname: '/duel/[themeId]', params: params as { themeId: string } });
   };
   const share = () =>
