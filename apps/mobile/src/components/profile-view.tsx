@@ -67,6 +67,51 @@ export function StatsCard({ stats }: { stats: { label: string; value: string }[]
   );
 }
 
+/** Barre de répartition des résultats : victoires, nuls, défaites. */
+export function OutcomeBar({ wins, draws, losses }: { wins: number; draws: number; losses: number }) {
+  const total = wins + draws + losses;
+  const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0);
+  const segments = [
+    { value: wins, color: Colors.opponent },
+    { value: draws, color: Colors.text },
+    { value: losses, color: Colors.player },
+  ].filter((s) => s.value > 0);
+
+  return (
+    <View style={styles.outcome}>
+      <View
+        accessible
+        accessibilityLabel={
+          total
+            ? `${pct(wins)} % de victoires, ${pct(draws)} % de nuls, ${pct(losses)} % de défaites`
+            : 'Aucun duel joué'
+        }
+        style={styles.outcomeBar}>
+        {total === 0 ? (
+          <View style={{ flex: 1, backgroundColor: Colors.surfaceRaised }} />
+        ) : (
+          segments.map((s, i) => <View key={i} style={{ flex: s.value, backgroundColor: s.color }} />)
+        )}
+      </View>
+      {total === 0 ? (
+        <AppText variant="caption" muted>
+          Pas encore de duel joué.
+        </AppText>
+      ) : (
+        <View style={styles.outcomeLegend}>
+          <AppText variant="caption" color={Colors.opponent}>
+            {pct(wins)} % victoires
+          </AppText>
+          <AppText variant="caption">{pct(draws)} % nuls</AppText>
+          <AppText variant="caption" color={Colors.player}>
+            {pct(losses)} % défaites
+          </AppText>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export function Showcase({ title, themes }: { title: string; themes: ShowcaseTheme[] }) {
   return (
     <>
@@ -133,6 +178,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 6,
     padding: Spacing.md,
   },
+  outcome: { gap: Spacing.sm },
+  outcomeBar: { flexDirection: 'row', height: 14, borderRadius: 999, overflow: 'hidden', gap: 3 },
+  outcomeLegend: { flexDirection: 'row', justifyContent: 'space-between' },
   badges: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -Spacing.xs },
   badge: { width: '25%', alignItems: 'center', gap: 4, padding: Spacing.xs, marginBottom: Spacing.sm },
   badgeIcon: {

@@ -111,3 +111,13 @@ export function demoGlobalRating(playerId: string): number {
 export function themeName(themeId: string): string {
   return getTheme(themeId)?.name ?? themeId;
 }
+
+/** Bilan de démonstration (victoires, nuls, défaites) d'un joueur fictif. */
+export function demoRecord(playerId: string): { wins: number; draws: number; losses: number } {
+  const duels = 800 + (hash(playerId) % 4200);
+  const winRate = 0.48 + (hash(playerId + 'w') % 20) / 100;
+  const drawRate = 0.03 + (hash(playerId + 'd') % 5) / 100;
+  const wins = Math.round(duels * winRate);
+  const draws = Math.round(duels * drawRate);
+  return { wins, draws, losses: duels - wins - draws };
+}

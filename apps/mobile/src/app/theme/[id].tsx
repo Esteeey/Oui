@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
+import { OutcomeBar } from '@/components/profile-view';
 import { DivisionBadge } from '@/components/social';
 import { AppText, Button, Card, ProgressBar, Screen, Stat } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
@@ -55,6 +56,10 @@ export default function ThemeScreen() {
         <Stat label="Victoires" value={String(stats.wins)} />
         <Stat label="Précision" value={`${precision} %`} />
         <Stat label="Temps moyen" value={avgTime === '–' ? avgTime : `${avgTime} s`} />
+      </Card>
+
+      <Card>
+        <OutcomeBar wins={stats.wins} draws={stats.draws} losses={stats.duels - stats.wins - stats.draws} />
       </Card>
 
       <Button

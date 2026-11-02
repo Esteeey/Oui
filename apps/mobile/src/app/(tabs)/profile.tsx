@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { getTheme } from '@qu1z/shared';
 
-import { BadgesGrid, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
+import { BadgesGrid, OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -23,6 +23,7 @@ export default function ProfileScreen() {
   const all = Object.values(stats);
   const duels = all.reduce((t, s) => t + s.duels, 0);
   const wins = all.reduce((t, s) => t + s.wins, 0);
+  const draws = all.reduce((t, s) => t + s.draws, 0);
   const correct = all.reduce((t, s) => t + s.correct, 0);
   const answered = all.reduce((t, s) => t + s.answered, 0);
   const showcase = Object.entries(stats)
@@ -47,6 +48,9 @@ export default function ProfileScreen() {
           { label: 'Meilleure série', value: String(bestWinStreak(history)) },
         ]}
       />
+
+      <SectionHeader title="Statistiques" />
+      <OutcomeBar wins={wins} draws={draws} losses={duels - wins - draws} />
 
       {showcase.length > 0 ? (
         <Showcase title="Mes thèmes" themes={showcase} />

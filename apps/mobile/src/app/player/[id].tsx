@@ -6,11 +6,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { THEMES, getCategory } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
-import { ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
+import { OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
 import { DemoNote, SectionHeader } from '@/components/social';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { demoRating, demoXp, getPlayer } from '@/demo/data';
+import { demoRating, demoRecord, demoXp, getPlayer } from '@/demo/data';
 import { useProgress } from '@/state/progress';
 import { useSocial } from '@/state/social';
 
@@ -23,6 +23,7 @@ export default function PlayerScreen() {
   if (!player) return <Redirect href="/" />;
 
   const isFriend = friends.includes(player.id);
+  const record = demoRecord(player.id);
   const xp = THEMES.reduce((t, th) => t + demoXp(player.id, th.id), 0);
   const showcase = player.showcase.map((themeId) => ({
     themeId,
@@ -101,10 +102,14 @@ export default function PlayerScreen() {
 
       <StatsCard
         stats={[
+          { label: 'Duels', value: String(record.wins + record.draws + record.losses) },
           { label: 'Thèmes', value: String(player.showcase.length) },
           { label: 'Statut', value: player.online ? 'En ligne' : 'Hors ligne' },
         ]}
       />
+
+      <SectionHeader title="Statistiques" />
+      <OutcomeBar {...record} />
 
       <Showcase title="Thèmes phares" themes={showcase} />
 
