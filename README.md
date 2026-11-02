@@ -19,3 +19,7 @@ python3 -m http.server 8000
 ```
 
 puis allez sur http://localhost:8000.
+
+## Conception
+
+Le dossier de conception de la plateforme de duels de culture générale est dans [`docs/CONCEPTION.md`](docs/CONCEPTION.md).
