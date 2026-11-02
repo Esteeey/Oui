@@ -1,0 +1,11 @@
+{
+  "name": "qu1z",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "mobile": "pnpm --filter mobile start",
+    "web": "pnpm --filter mobile web",
+    "test": "pnpm --filter @qu1z/shared test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

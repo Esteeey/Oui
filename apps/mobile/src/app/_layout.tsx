@@ -1,0 +1,44 @@
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+
+import { Colors } from '@/constants/theme';
+import { ProgressProvider } from '@/state/progress';
+
+SplashScreen.preventAutoHideAsync();
+
+const navigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: Colors.background,
+    card: Colors.background,
+    text: Colors.text,
+    primary: Colors.player,
+    border: Colors.border,
+  },
+};
+
+export default function RootLayout() {
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
+
+  return (
+    <ThemeProvider value={navigationTheme}>
+      <ProgressProvider>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: Colors.background },
+            animation: 'slide_from_right',
+          }}>
+          <Stack.Screen name="duel/[themeId]" options={{ gestureEnabled: false, animation: 'fade' }} />
+          <Stack.Screen name="results" options={{ gestureEnabled: false, animation: 'fade_from_bottom' }} />
+        </Stack>
+      </ProgressProvider>
+    </ThemeProvider>
+  );
+}
