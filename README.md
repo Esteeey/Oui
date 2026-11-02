@@ -16,7 +16,8 @@ docs/              conception
 ## État actuel (prototype)
 
 - **5 onglets** : Fil d'actualité, Explorer, Classement, Social, Profil, plus les notifications.
-- **Fil** : défis reçus, publications des amis et de tes propres duels, « Bravo », « Défier ».
+- **Fil d'accueil** : publications des personnes suivies et des thèmes auxquels on est abonné, activité de jeu, défis reçus, « Bravo ». Bouton « Quoi de neuf ? » pour publier.
+- **Murs et fils de thème** : chaque joueur a son mur (lui seul y publie) ; chaque thème a son fil, où publient ses abonnés.
 - **Social** : amis, demandes d'amis (accepter / refuser), défis reçus, invitation par partage.
 - **Profil** : niveau, titre, statistiques, thèmes avec division, 8 badges, derniers duels. Profils des autres joueurs avec bilan des face-à-face.
 - **Classement** : Monde ou Amis, général ou par thème, par cote (Elo pour le prototype) et divisions.

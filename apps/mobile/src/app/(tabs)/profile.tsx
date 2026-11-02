@@ -3,13 +3,15 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { getTheme } from '@qu1z/shared';
 
+import { Composer } from '@/components/composer';
+import { PostCard } from '@/components/post-card';
 import { BadgesGrid, OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { computeBadges } from '@/game/badges';
 import { bestWinStreak, totalXp, useProgress } from '@/state/progress';
-import { useSocial } from '@/state/social';
+import { useSocial, wallPosts } from '@/state/social';
 
 const OUTCOME = {
   win: { label: 'Victoire', color: Colors.correct },
@@ -19,7 +21,8 @@ const OUTCOME = {
 
 export default function ProfileScreen() {
   const { playerName, stats, history } = useProgress();
-  const { friends } = useSocial();
+  const { friends, following, subscribedThemes, posts } = useSocial();
+  const wall = wallPosts(posts, null);
   const all = Object.values(stats);
   const duels = all.reduce((t, s) => t + s.duels, 0);
   const wins = all.reduce((t, s) => t + s.wins, 0);
@@ -36,7 +39,7 @@ export default function ProfileScreen() {
         name={playerName}
         color={Colors.player}
         country="🇫🇷"
-        bio={`${friends.length} amis · Compte invité`}
+        bio={`${friends.length} amis · ${following.length} abonnements · ${subscribedThemes.length} thèmes suivis`}
         xp={totalXp(stats)}
       />
 
@@ -48,6 +51,12 @@ export default function ProfileScreen() {
           { label: 'Meilleure série', value: String(bestWinStreak(history)) },
         ]}
       />
+
+      <SectionHeader title="Mon mur" />
+      <Composer target={{ kind: 'profile' }} placeholder="Publie sur ton mur…" />
+      {wall.map((post) => (
+        <PostCard key={post.id} post={post} showTheme={false} />
+      ))}
 
       <SectionHeader title="Statistiques" />
       <OutcomeBar wins={wins} draws={draws} losses={duels - wins - draws} />

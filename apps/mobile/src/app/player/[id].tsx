@@ -6,24 +6,27 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { THEMES, getCategory } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
+import { PostCard } from '@/components/post-card';
 import { OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
 import { DemoNote, SectionHeader } from '@/components/social';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { demoRating, demoRecord, demoXp, getPlayer } from '@/demo/data';
 import { useProgress } from '@/state/progress';
-import { useSocial } from '@/state/social';
+import { useSocial, wallPosts } from '@/state/social';
 
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const player = getPlayer(id);
   const { history } = useProgress();
-  const { friends, requests, addFriend, removeFriend, acceptRequest } = useSocial();
+  const { friends, requests, following, posts, addFriend, removeFriend, acceptRequest, toggleFollow } = useSocial();
   const [choosing, setChoosing] = useState(false);
   if (!player) return <Redirect href="/" />;
 
   const isFriend = friends.includes(player.id);
   const record = demoRecord(player.id);
+  const isFollowing = following.includes(player.id);
+  const wall = wallPosts(posts, player.id);
   const xp = THEMES.reduce((t, th) => t + demoXp(player.id, th.id), 0);
   const showcase = player.showcase.map((themeId) => ({
     themeId,
@@ -49,7 +52,14 @@ export default function PlayerScreen() {
           <View style={styles.actions}>
             <Button label="Défier" color={Colors.opponent} onPress={() => setChoosing((c) => !c)} style={{ flex: 1 }} />
             <Button
-              label={isFriend ? 'Ami ✓' : requests.includes(player.id) ? 'Accepter' : 'Ajouter'}
+              label={isFollowing ? 'Suivi ✓' : 'Suivre'}
+              variant={isFollowing ? 'outline' : 'solid'}
+              color={isFollowing ? Colors.textMuted : Colors.player}
+              onPress={() => toggleFollow(player.id)}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label={isFriend ? 'Ami ✓' : requests.includes(player.id) ? 'Accepter' : 'Ami +'}
               variant="outline"
               color={isFriend ? Colors.textMuted : Colors.text}
               onPress={() =>
@@ -112,6 +122,15 @@ export default function PlayerScreen() {
       <OutcomeBar {...record} />
 
       <Showcase title="Thèmes phares" themes={showcase} />
+
+      <SectionHeader title={`Mur de ${player.name}`} />
+      <AppText variant="caption" muted>
+        Seul {player.name} peut publier ici.{isFollowing ? '' : ' Suis ce joueur pour voir ses publications dans ton accueil.'}
+      </AppText>
+      {wall.map((post) => (
+        <PostCard key={post.id} post={post} showTheme={false} />
+      ))}
+      {wall.length === 0 && <AppText muted>Aucune publication pour l'instant.</AppText>}
 
       <SectionHeader title="Profil de démonstration" />
       <DemoNote>

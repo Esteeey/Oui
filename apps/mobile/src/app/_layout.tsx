@@ -41,6 +41,7 @@ export default function RootLayout() {
             <Stack.Screen name="duel/[themeId]" options={{ gestureEnabled: false, animation: 'fade' }} />
             <Stack.Screen name="results" options={{ gestureEnabled: false, animation: 'fade_from_bottom' }} />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="compose" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
         </SocialProvider>
       </ProgressProvider>

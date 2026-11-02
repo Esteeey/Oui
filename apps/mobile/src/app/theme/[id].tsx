@@ -4,19 +4,25 @@ import { StyleSheet, View } from 'react-native';
 import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
+import { Composer } from '@/components/composer';
+import { PostCard } from '@/components/post-card';
 import { OutcomeBar } from '@/components/profile-view';
-import { DivisionBadge } from '@/components/social';
+import { DivisionBadge, SectionHeader } from '@/components/social';
 import { AppText, Button, Card, ProgressBar, Screen, Stat } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { useThemeStats } from '@/state/progress';
+import { themePosts, useSocial } from '@/state/social';
 
 export default function ThemeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = getTheme(id);
   const stats = useThemeStats(id);
+  const { posts, subscribedThemes, toggleThemeSubscription } = useSocial();
   if (!theme) return <Redirect href="/" />;
   const category = getCategory(theme.categoryId)!;
   const level = levelFromXp(stats.xp);
+  const subscribed = subscribedThemes.includes(theme.id);
+  const feed = themePosts(posts, theme.id);
 
   const precision = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0;
   const avgTime = stats.correct ? (stats.totalCorrectResponseMs / stats.correct / 1000).toFixed(1) : '–';
@@ -35,6 +41,13 @@ export default function ThemeScreen() {
         <AppText muted style={{ textAlign: 'center' }}>
           {theme.description}
         </AppText>
+        <Button
+          label={subscribed ? 'Abonné ✓' : "S'abonner au thème"}
+          variant={subscribed ? 'outline' : 'solid'}
+          color={subscribed ? Colors.textMuted : category.color}
+          onPress={() => toggleThemeSubscription(theme.id)}
+          style={{ marginTop: Spacing.sm, alignSelf: 'stretch' }}
+        />
       </View>
 
       <Card>
@@ -72,6 +85,25 @@ export default function ThemeScreen() {
       <AppText variant="caption" muted style={{ textAlign: 'center' }}>
         {questionsOf(theme.id).length} questions · 7 par duel · 10 s par question
       </AppText>
+
+      <SectionHeader title={`Fil du thème · ${feed.length}`} />
+      {subscribed ? (
+        <Composer target={{ kind: 'theme', themeId: theme.id }} placeholder={`Écris dans le fil « ${theme.name} »…`} />
+      ) : (
+        <Card style={{ alignItems: 'center' }}>
+          <AppText muted style={{ textAlign: 'center' }}>
+            Abonne-toi à ce thème pour publier dans son fil et voir ses publications dans ton accueil.
+          </AppText>
+        </Card>
+      )}
+      {feed.map((post) => (
+        <PostCard key={post.id} post={post} showTheme={false} />
+      ))}
+      {feed.length === 0 && (
+        <AppText muted style={{ textAlign: 'center' }}>
+          Personne n'a encore publié ici.
+        </AppText>
+      )}
     </Screen>
   );
 }

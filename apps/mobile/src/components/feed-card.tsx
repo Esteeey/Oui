@@ -7,6 +7,7 @@ import { getCategory, getTheme } from '@qu1z/shared';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import type { FeedEvent } from '@/demo/data';
+import { timeAgo } from '@/utils/time';
 
 export interface FeedEntry {
   id: string;
@@ -15,7 +16,8 @@ export interface FeedEntry {
   name: string;
   color: string;
   themeId: string;
-  ago: string;
+  /** Horodatage (ms). */
+  at: number;
   likes: number;
   event: FeedEvent;
 }
@@ -63,7 +65,7 @@ export function FeedCard({
             {text}
           </AppText>
           <AppText variant="caption" muted>
-            {entry.ago}
+            {timeAgo(entry.at)}
           </AppText>
         </View>
         <Ionicons name={icon} size={26} color={color} />

@@ -6,24 +6,18 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { THEMES, getCategory, getTheme, levelFromXp } from '@qu1z/shared';
 
 import { FeedCard, type FeedEntry } from '@/components/feed-card';
+import { PostCard } from '@/components/post-card';
 import { DemoNote, IconButton, SectionHeader } from '@/components/social';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
-import { FEED, getPlayer } from '@/demo/data';
+import { FEED, getPlayer, type Post } from '@/demo/data';
 import { useProgress, type DuelRecord } from '@/state/progress';
-import { useSocial } from '@/state/social';
-
-function ago(timestamp: number): string {
-  const minutes = Math.floor((Date.now() - timestamp) / 60_000);
-  if (minutes < 1) return "à l'instant";
-  if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)} h`;
-}
+import { homePosts, useSocial } from '@/state/social';
 
 /** Transforme les duels du joueur en publications du fil. */
 function ownEntries(history: DuelRecord[], name: string): FeedEntry[] {
   return history.flatMap((duel) => {
-    const base = { playerId: null, name, color: Colors.player, themeId: duel.themeId, ago: ago(duel.playedAt), likes: 0 };
+    const base = { playerId: null, name, color: Colors.player, themeId: duel.themeId, at: duel.playedAt, likes: 0 };
     const entries: FeedEntry[] = [];
     const before = levelFromXp(duel.xpBefore).level;
     const after = levelFromXp(duel.xpBefore + duel.xpGained).level;
@@ -40,16 +34,22 @@ function ownEntries(history: DuelRecord[], name: string): FeedEntry[] {
 
 export default function FeedScreen() {
   const { playerName, history } = useProgress();
-  const { challenges, liked, toggleLike, unreadNotifications } = useSocial();
+  const { challenges, liked, toggleLike, unreadNotifications, posts, following, subscribedThemes } = useSocial();
 
   const quickTheme = history[0]?.themeId ?? THEMES[0].id;
-  const entries: FeedEntry[] = [
+  // Accueil : publications et activité des personnes suivies, publications des thèmes suivis, et les miennes.
+  const activity: FeedEntry[] = [
     ...ownEntries(history, 'Toi'),
-    ...FEED.map((item) => {
+    ...FEED.filter((item) => following.includes(item.playerId)).map((item) => {
       const player = getPlayer(item.playerId)!;
       return { ...item, name: player.name, color: player.color };
     }),
   ];
+  type TimelineItem = { kind: 'post'; at: number; post: Post } | { kind: 'activity'; at: number; entry: FeedEntry };
+  const timeline: TimelineItem[] = [
+    ...homePosts(posts, following, subscribedThemes).map((post) => ({ kind: 'post' as const, at: post.at, post })),
+    ...activity.map((entry) => ({ kind: 'activity' as const, at: entry.at, entry })),
+  ].sort((a, b) => b.at - a.at);
 
   return (
     <Screen inTabs>
@@ -115,12 +115,32 @@ export default function FeedScreen() {
       )}
 
       <SectionHeader title="Fil d'actualité" />
-      <DemoNote>Les autres joueurs sont fictifs pour l'instant. Tes propres duels apparaissent ici en vrai.</DemoNote>
-      {entries.map((entry, i) => (
-        <Animated.View key={entry.id} entering={FadeInDown.delay(Math.min(i, 6) * 50).springify()}>
-          <FeedCard entry={entry} liked={liked.has(entry.id)} onLike={() => toggleLike(entry.id)} />
+      <Pressable accessibilityRole="button" onPress={() => router.push('/compose')} style={styles.compose}>
+        <Avatar name={playerName} color={Colors.player} size={36} />
+        <AppText muted style={{ flex: 1 }}>
+          Quoi de neuf ?
+        </AppText>
+        <Ionicons name="create-outline" size={22} color={Colors.player} />
+      </Pressable>
+      <DemoNote>
+        Tu vois ici les publications des personnes que tu suis et des thèmes auxquels tu es abonné ({subscribedThemes.length}). Les autres joueurs sont fictifs.
+      </DemoNote>
+      {timeline.map((item, i) => (
+        <Animated.View
+          key={item.kind === 'post' ? item.post.id : item.entry.id}
+          entering={FadeInDown.delay(Math.min(i, 6) * 50).springify()}>
+          {item.kind === 'post' ? (
+            <PostCard post={item.post} />
+          ) : (
+            <FeedCard entry={item.entry} liked={liked.has(item.entry.id)} onLike={() => toggleLike(item.entry.id)} />
+          )}
         </Animated.View>
       ))}
+      {timeline.length === 0 && (
+        <AppText muted style={{ textAlign: 'center' }}>
+          Suis des joueurs ou abonne-toi à des thèmes pour remplir ton fil.
+        </AppText>
+      )}
       <AppText variant="caption" muted style={{ textAlign: 'center' }}>
         {playerName}, tu es à jour !
       </AppText>
@@ -139,6 +159,17 @@ const styles = StyleSheet.create({
     padding: Spacing.sm + 4,
     gap: 6,
     alignItems: 'flex-start',
+  },
+  compose: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm + 4,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm + 4,
   },
   accept: {
     flexDirection: 'row',

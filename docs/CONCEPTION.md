@@ -198,6 +198,20 @@ Quand aucun adversaire n'est disponible, plutôt qu'un robot inventé, on rejoue
 
 ### 4.5 Social
 
+**Publications et fils** (règle de base du réseau) :
+
+| Fil | Qui peut publier | Qui le voit dans son accueil |
+|---|---|---|
+| **Mur d'un joueur** | Uniquement ce joueur | Ses abonnés (les personnes qui le suivent) |
+| **Fil d'un thème** | Les joueurs abonnés au thème | Les abonnés du thème |
+| **Accueil** (onglet Fil) | — | Agrège : mes publications, les murs des personnes que je suis, les fils des thèmes auxquels je suis abonné, et l'activité de jeu des personnes suivies (victoires, sans-faute, niveaux, divisions, badges) |
+
+- On **suit** un joueur depuis son profil (« Suivre »), sans qu'il ait besoin d'accepter. L'**ami** reste une relation réciproque, utile pour les défis et le classement entre amis.
+- On **s'abonne** à un thème depuis sa page. L'abonnement donne le droit de publier dans son fil.
+- Publication : texte de 280 caractères maximum, « Bravo » (j'aime). À venir : commentaires, images, signalement, modération.
+
+**Autres fonctions sociales** :
+
 - **Amis** : demande ou acceptation, recherche par pseudo, QR code, lien d'invitation, contacts (avec accord explicite).
 - **Rivalités** : historique des face-à-face avec chaque adversaire (« 12 – 9 contre @Lina »), mis en avant sur l'écran de résultats.
 - **Fil d'activité** des amis : nouveaux records, montées de division, badges, défis lancés.

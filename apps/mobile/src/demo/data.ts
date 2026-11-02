@@ -1,5 +1,7 @@
 import { INITIAL_RATING, THEMES, divisionFor, getTheme } from '@qu1z/shared';
 
+import { minutesAgo } from '@/utils/time';
+
 /**
  * Données de démonstration du prototype : joueurs fictifs, fil d'actualité, défis.
  * Elles seront remplacées par les données du serveur. L'interface l'indique clairement.
@@ -53,18 +55,52 @@ export interface FeedItem {
   id: string;
   playerId: string;
   themeId: string;
-  ago: string;
+  /** Horodatage (ms). */
+  at: number;
   likes: number;
   event: FeedEvent;
 }
 
 export const FEED: FeedItem[] = [
-  { id: 'f1', playerId: 'lina', themeId: 'cine-grands-films', ago: '8 min', likes: 4, event: { kind: 'perfect' } },
-  { id: 'f2', playerId: 'malik', themeId: 'geo-capitales', ago: '25 min', likes: 2, event: { kind: 'division', division: divisionFor(demoRating('malik', 'geo-capitales')).name } },
-  { id: 'f3', playerId: 'ines', themeId: 'sci-essentiels', ago: '1 h', likes: 6, event: { kind: 'win', opponent: 'Théo', score: 612, opponentScore: 540 } },
-  { id: 'f4', playerId: 'yanis', themeId: 'sports-jo', ago: '3 h', likes: 1, event: { kind: 'level', level: 12 } },
-  { id: 'f5', playerId: 'chloe', themeId: 'sci-essentiels', ago: 'hier', likes: 3, event: { kind: 'badge', badge: 'Éclair' } },
-  { id: 'f6', playerId: 'lina', themeId: 'cg-melange', ago: 'hier', likes: 5, event: { kind: 'win', opponent: 'Malik', score: 575, opponentScore: 571 } },
+  { id: 'f1', playerId: 'lina', themeId: 'cine-grands-films', at: minutesAgo(8), likes: 4, event: { kind: 'perfect' } },
+  { id: 'f2', playerId: 'malik', themeId: 'geo-capitales', at: minutesAgo(25), likes: 2, event: { kind: 'division', division: divisionFor(demoRating('malik', 'geo-capitales')).name } },
+  { id: 'f3', playerId: 'ines', themeId: 'sci-essentiels', at: minutesAgo(65), likes: 6, event: { kind: 'win', opponent: 'Théo', score: 612, opponentScore: 540 } },
+  { id: 'f4', playerId: 'yanis', themeId: 'sports-jo', at: minutesAgo(190), likes: 1, event: { kind: 'level', level: 12 } },
+  { id: 'f5', playerId: 'chloe', themeId: 'sci-essentiels', at: minutesAgo(1500), likes: 3, event: { kind: 'badge', badge: 'Éclair' } },
+  { id: 'f6', playerId: 'lina', themeId: 'cg-melange', at: minutesAgo(1620), likes: 5, event: { kind: 'win', opponent: 'Malik', score: 575, opponentScore: 571 } },
+];
+
+/** Abonnements de départ : personnes suivies et thèmes. */
+export const INITIAL_FOLLOWING = ['lina', 'malik', 'chloe', 'yanis', 'ines'];
+export const INITIAL_THEME_SUBSCRIPTIONS = ['cine-grands-films', 'geo-capitales'];
+
+/**
+ * Publication écrite.
+ * - `profile` : sur le mur de son auteur (seul l'auteur publie sur son mur).
+ * - `theme` : dans le fil d'un thème (il faut y être abonné pour publier).
+ */
+export type PostTarget = { kind: 'profile' } | { kind: 'theme'; themeId: string };
+
+export interface Post {
+  id: string;
+  /** `null` = le joueur lui-même. */
+  authorId: string | null;
+  target: PostTarget;
+  text: string;
+  at: number;
+  likes: number;
+}
+
+export const INITIAL_POSTS: Post[] = [
+  { id: 'p1', authorId: 'lina', target: { kind: 'theme', themeId: 'cine-grands-films' }, text: 'Question du jour pour les cinéphiles : votre film préféré de 1994 ? Pour moi c’est « Léon », sans hésiter.', at: minutesAgo(15), likes: 9 },
+  { id: 'p2', authorId: 'malik', target: { kind: 'profile' }, text: 'Enfin Platine en Capitales du monde ! Merci à tous ceux qui m’ont battu sur Canberra, je ne me ferai plus avoir.', at: minutesAgo(30), likes: 14 },
+  { id: 'p3', authorId: 'sarah', target: { kind: 'theme', themeId: 'geo-capitales' }, text: 'Astuce : la capitale du Nigeria n’est pas Lagos mais Abuja depuis 1991. Je vois encore beaucoup de monde tomber dans le piège !', at: minutesAgo(70), likes: 21 },
+  { id: 'p4', authorId: 'ines', target: { kind: 'profile' }, text: 'Troisième sans-faute de la semaine. Qui veut tenter de m’arrêter en Sciences ?', at: minutesAgo(120), likes: 7 },
+  { id: 'p5', authorId: 'theo', target: { kind: 'theme', themeId: 'cine-grands-films' }, text: 'On organise un tournoi entre amis ce week-end sur le thème Grands films. Qui est partant ?', at: minutesAgo(240), likes: 5 },
+  { id: 'p6', authorId: 'hugo', target: { kind: 'theme', themeId: 'sports-jo' }, text: 'Petit rappel : un marathon fait 42,195 km. Ne me remerciez pas pour le point gagné.', at: minutesAgo(300), likes: 3 },
+  { id: 'p7', authorId: 'chloe', target: { kind: 'profile' }, text: 'Révisions de bio terminées, place aux duels !', at: minutesAgo(600), likes: 4 },
+  { id: 'p8', authorId: 'yanis', target: { kind: 'theme', themeId: 'sports-jo' }, text: 'Qui se souvient de la ville hôte des JO de 2012 sans chercher ?', at: minutesAgo(1400), likes: 2 },
+  { id: 'p9', authorId: 'malik', target: { kind: 'theme', themeId: 'geo-capitales' }, text: 'Berne, pas Zurich. Je le répète chaque semaine.', at: minutesAgo(2000), likes: 11 },
 ];
 
 export interface DemoNotification {
