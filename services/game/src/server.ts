@@ -6,6 +6,8 @@ import type { ClientMessage, ServerMessage } from '@qu1z/shared';
 
 import { createApi } from './api';
 import { Game, type GameOptions } from './game';
+import { Challenges } from './challenges';
+import { Notifier } from './notifier';
 import { Social } from './social';
 
 const HEARTBEAT_MS = 10_000;
@@ -13,6 +15,8 @@ const HEARTBEAT_MS = 10_000;
 export interface GameServer {
   game: Game;
   social: Social;
+  notifier: Notifier;
+  challenges: Challenges;
   http: Server;
   port: number;
   close: () => Promise<void>;
@@ -32,8 +36,11 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
 
   const game = new Game({ ...options, send });
   await game.restore();
-  const social = new Social(game.repo.db, game.limiter);
-  const api = createApi(game, social);
+  const notifier = new Notifier(game.repo.db, send);
+  game.notifier = notifier;
+  const social = new Social(game.repo.db, game.limiter, notifier);
+  const challenges = new Challenges(game.repo.db, game, notifier);
+  const api = createApi(game, social, notifier, challenges);
   const http = createServer((req, res) => void api(req, res));
   const wss = new WebSocketServer({ server: http, maxPayload: 8 * 1024 });
 
@@ -126,6 +133,8 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
   return {
     game,
     social,
+    notifier,
+    challenges,
     http,
     port: typeof address === 'object' && address ? address.port : port,
     close: async () => {

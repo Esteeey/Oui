@@ -10,3 +10,4 @@ export * from './rewards';
 export * from './bot';
 export * from './protocol';
 export * from './social';
+export * from './notifications';

@@ -117,4 +117,6 @@ export type ServerMessage =
   | { type: 'queueCancelled' }
   | { type: 'duel'; snapshot: DuelSnapshot }
   | { type: 'chat'; duelId: string; messages: ChatMessage[]; canChat: boolean }
-  | { type: 'error'; code: string; message: string };
+  | { type: 'error'; code: string; message: string }
+  /** Une notification a été ajoutée ou mise à jour : le client recharge le centre. */
+  | { type: 'notification'; unread?: number };

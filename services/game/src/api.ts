@@ -2,7 +2,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { THEMES } from '@qu1z/shared';
 
+import { randomUUID } from 'node:crypto';
+
+import type { Challenges } from './challenges';
 import type { Game } from './game';
+import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
 
 const MAX_BODY = 16 * 1024;
@@ -38,7 +42,7 @@ type Handler = (ctx: { userId: string; params: string[]; query: URLSearchParams;
  * API HTTP. Authentification : `Authorization: Bearer <jeton>`.
  * Chaque route vérifie elle-même les droits (blocages, confidentialité) : rien ne repose sur l'interface.
  */
-export function createApi(game: Game, social: Social) {
+export function createApi(game: Game, social: Social, notifier: Notifier, challenges: Challenges) {
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
@@ -110,6 +114,58 @@ export function createApi(game: Game, social: Social) {
     ['POST', /^\/api\/posts\/([^/]+)\/comments$/, async ({ userId, params, body }) => {
       const b = await body();
       return social.addComment(userId, uuid(params[0]), b.text, b.parentId ? uuid(b.parentId) : undefined);
+    }],
+
+    // Notifications
+    ['GET', /^\/api\/notifications$/, async ({ userId }) => ({
+      notifications: await notifier.list(userId),
+      unread: await notifier.unread(userId),
+    })],
+    ['POST', /^\/api\/notifications\/read-all$/, async ({ userId }) => notifier.markAllRead(userId)],
+    ['POST', /^\/api\/notifications\/([^/]+)\/read$/, async ({ userId, params }) => notifier.markRead(userId, uuid(params[0]))],
+    ['GET', /^\/api\/me\/notification-preferences$/, async ({ userId }) => notifier.prefs(userId)],
+    ['PATCH', /^\/api\/me\/notification-preferences$/, async ({ userId, body }) => notifier.setPrefs(userId, await body())],
+
+    // Défis
+    ['GET', /^\/api\/challenges$/, async ({ userId }) => ({ challenges: await challenges.list(userId) })],
+    ['GET', /^\/api\/users\/([^/]+)\/can-challenge$/, async ({ userId, params }) => ({
+      canChallenge: await challenges.canChallenge(userId, uuid(params[0])),
+    })],
+    ['POST', /^\/api\/challenges$/, async ({ userId, body }) => {
+      const b = await body();
+      return challenges.create(userId, uuid(b.userId), String(b.themeId ?? ''), b.rematchOf ? uuid(b.rematchOf) : undefined);
+    }],
+    ['POST', /^\/api\/challenges\/([^/]+)\/accept$/, async ({ userId, params }) => challenges.accept(userId, uuid(params[0]))],
+    ['POST', /^\/api\/challenges\/([^/]+)\/decline$/, async ({ userId, params }) => challenges.decline(userId, uuid(params[0]))],
+    ['POST', /^\/api\/challenges\/([^/]+)\/cancel$/, async ({ userId, params }) => challenges.cancel(userId, uuid(params[0]))],
+
+    // Annonces officielles : publiées uniquement par un administrateur.
+    ['POST', /^\/api\/admin\/announcements$/, async ({ userId, body }) => {
+      const user = await game.repo.user(userId);
+      if (user?.role !== 'admin') throw new SocialError(403, 'forbidden');
+      const b = await body();
+      const title = String(b.title ?? '').trim();
+      const text = String(b.body ?? '').trim();
+      const kind = ['maintenance', 'update', 'event', 'feature', 'info'].includes(String(b.kind)) ? String(b.kind) : 'info';
+      if (!title || title.length > 120 || !text || text.length > 1000) throw new SocialError(400, 'invalid_text');
+      const id = randomUUID();
+      await game.repo.db.query('INSERT INTO system_announcements (id, author_id, title, body, kind) VALUES ($1, $2, $3, $4, $5)', [
+        id,
+        userId,
+        title,
+        text,
+        kind,
+      ]);
+      const recipients = await notifier.broadcast({ type: 'announcement', category: 'system', data: { announcementId: id, title, kind } });
+      return { id, recipients };
+    }],
+    ['GET', /^\/api\/announcements\/([^/]+)$/, async ({ params }) => {
+      const [row] = await game.repo.db.query<{ id: string; title: string; body: string; kind: string; created_at: Date }>(
+        'SELECT id, title, body, kind, created_at FROM system_announcements WHERE id = $1',
+        [uuid(params[0])],
+      );
+      if (!row) throw new SocialError(404, 'not_found');
+      return { ...row, createdAt: new Date(row.created_at).getTime() };
     }],
 
     // Classements

@@ -6,10 +6,12 @@ import {
   RULES,
   computeRewards,
   getTheme,
+  levelFromXp,
   prepareDuel,
   questionsOf,
   ratingDelta,
   totals,
+  unlockedTitles,
   type DuelRecord,
   type DuelResult,
   type DuelSnapshot,
@@ -18,6 +20,7 @@ import {
 } from '@qu1z/shared';
 
 import { DEFAULT_TIMING, Duel, type Participant, type Timing } from './duel';
+import type { Notifier } from './notifier';
 import { RateLimiter, DEFAULT_LIMITS, type Limits } from './rate-limit';
 import { Repo, type UserRow } from './repo';
 
@@ -47,6 +50,8 @@ export function hashToken(token: string): string {
 export class Game {
   readonly repo: Repo;
   readonly limiter: RateLimiter;
+  /** Branché par le serveur ; absent dans certains tests. */
+  notifier?: Notifier;
   private readonly timing: Timing;
   private readonly now: () => number;
   private readonly matchTimeoutMs: number;
@@ -109,8 +114,11 @@ export class Game {
 
   /** Présence : appelée par le serveur quand la première connexion s'ouvre ou la dernière se ferme. */
   setOnline(playerId: string, online: boolean): void {
-    if (online) this.online.add(playerId);
-    else {
+    if (online) {
+      const wasOnline = this.online.has(playerId);
+      this.online.add(playerId);
+      if (!wasOnline) void this.notifier?.friendOnline(playerId).catch((err) => console.error('Notification', err));
+    } else {
       this.online.delete(playerId);
       this.cancelQueue(playerId);
       void this.repo.touchLastSeen(playerId);
@@ -173,6 +181,15 @@ export class Game {
     }, this.matchTimeoutMs);
     this.queue.set(themeId, { playerId, since, timer });
     this.send(playerId, { type: 'queued', themeId, since });
+  }
+
+  /** Duel issu d'un défi accepté entre deux joueurs réels. Refusé si l'un d'eux est déjà en duel. */
+  async startChallengeDuel(fromId: string, toId: string, themeId: string): Promise<string | null> {
+    if (this.active.has(fromId) || this.active.has(toId)) return null;
+    this.cancelQueue(fromId);
+    this.cancelQueue(toId);
+    const duel = await this.startDuel(themeId, 'pvp', [await this.human(fromId, themeId), await this.human(toId, themeId)]);
+    return duel.id;
   }
 
   cancelQueue(playerId: string): void {
@@ -308,11 +325,16 @@ export class Game {
 
   private async finished(duel: Duel): Promise<void> {
     await this.persist(duel);
+    const results: (DuelResult | null)[] = [];
     for (const [k, p] of duel.state.participants.entries()) {
-      if (p.isBot) continue;
+      if (p.isBot) {
+        results.push(null);
+        continue;
+      }
       this.active.delete(p.playerId);
-      await this.grantRewards(duel, k);
+      results.push(await this.grantRewards(duel, k));
     }
+    await this.notifyAfterDuel(duel, results).catch((err) => console.error('Notification', err));
     for (const p of duel.state.participants) {
       if (p.isBot) continue;
       await this.pushTo(p.playerId, duel);
@@ -381,6 +403,73 @@ export class Game {
         },
       };
     });
+  }
+
+  /** Notifications de fin de duel : abandon, fin hors de l'application, progression, classement. */
+  private async notifyAfterDuel(duel: Duel, results: (DuelResult | null)[]): Promise<void> {
+    const n = this.notifier;
+    if (!n) return;
+    const s = duel.state;
+    for (const [k, p] of s.participants.entries()) {
+      const result = results[k];
+      if (p.isBot || !result) continue;
+      const other = s.participants[1 - k];
+      const base = { duelId: s.id, themeId: s.themeId };
+      if (other.forfeited && !other.isBot) {
+        await n.notify(p.playerId, { type: 'opponent_forfeit', category: 'challenges', actorId: other.playerId, data: base });
+      }
+      if (!p.connected && !p.forfeited) {
+        await n.notify(p.playerId, { type: 'duel_finished', category: 'challenges', data: { ...base, outcome: result.outcome } });
+      }
+      // Progression : niveau global, titre débloqué, niveau dans le thème.
+      const levelBefore = levelFromXp(result.accountXpBefore).level;
+      const levelAfter = levelFromXp(result.accountXpAfter).level;
+      if (levelAfter > levelBefore) {
+        await n.notify(p.playerId, { type: 'level_up', category: 'progression', data: { level: levelAfter } });
+        const newTitles = unlockedTitles(levelAfter).filter((t) => !unlockedTitles(levelBefore).includes(t));
+        for (const title of newTitles) await n.notify(p.playerId, { type: 'title_unlocked', category: 'progression', data: { title } });
+      }
+      const rec = result.record;
+      const themeBefore = levelFromXp(rec.xpBefore).level;
+      const themeAfter = levelFromXp(rec.xpBefore + rec.xpGained).level;
+      if (themeAfter > themeBefore) {
+        await n.notify(p.playerId, { type: 'theme_level_up', category: 'progression', data: { themeId: s.themeId, level: themeAfter } });
+      }
+      await this.notifyRanking(p.playerId, s.themeId, rec.ratingBefore, rec.ratingBefore + rec.ratingDelta);
+    }
+  }
+
+  /** Seuls les changements importants : entrée dans le Top 100, le Top 10, la 1re place, et leurs pertes. */
+  private async notifyRanking(userId: string, themeId: string, before: number, after: number): Promise<void> {
+    const n = this.notifier!;
+    const rankWith = async (rating: number) => {
+      const [{ r }] = await this.repo.db.query<{ r: number }>(
+        `SELECT 1 + count(*)::int AS r FROM theme_stats ts JOIN users u ON u.id = ts.user_id
+         WHERE ts.theme_id = $1 AND ts.user_id <> $2 AND u.status <> 'banned' AND ts.rating > $3`,
+        [themeId, userId, rating],
+      );
+      return r;
+    };
+    const rankBefore = await rankWith(before);
+    const rankAfter = await rankWith(after);
+    const data = { themeId, rank: rankAfter };
+    if (rankAfter === 1 && rankBefore > 1) {
+      await n.notify(userId, { type: 'rank_first', category: 'ranking', data });
+      // L'ancien premier perd sa place : il est prévenu.
+      const [previous] = await this.repo.db.query<{ user_id: string }>(
+        `SELECT ts.user_id FROM theme_stats ts JOIN users u ON u.id = ts.user_id
+         WHERE ts.theme_id = $1 AND ts.user_id <> $2 AND u.status <> 'banned' AND ts.rating >= $3 AND ts.rating < $4
+         ORDER BY ts.rating DESC LIMIT 1`,
+        [themeId, userId, before, after],
+      );
+      if (previous) await n.notify(previous.user_id, { type: 'rank_lost_first', category: 'ranking', actorId: userId, data: { themeId, rank: 2 } });
+    } else if (rankAfter <= 10 && rankBefore > 10) {
+      await n.notify(userId, { type: 'rank_top10', category: 'ranking', data });
+    } else if (rankAfter <= 100 && rankBefore > 100) {
+      await n.notify(userId, { type: 'rank_top100', category: 'ranking', data });
+    } else if (rankBefore <= 10 && rankAfter > 10) {
+      await n.notify(userId, { type: 'rank_left_top10', category: 'ranking', data });
+    }
   }
 
   activeDuelOf(playerId: string): Duel | undefined {

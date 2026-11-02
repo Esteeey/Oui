@@ -22,6 +22,7 @@ import {
 } from '@qu1z/shared';
 
 import type { Database, Queryable } from './db/database';
+import type { Notifier } from './notifier';
 import type { RateLimiter } from './rate-limit';
 
 /** Erreur métier renvoyée telle quelle par l'API (code HTTP + code lisible). */
@@ -70,7 +71,13 @@ export class Social {
   constructor(
     private readonly db: Database,
     private readonly limiter: RateLimiter,
+    private readonly notifier?: Notifier,
   ) {}
+
+  /** Les notifications ne doivent jamais faire échouer l'action qui les déclenche. */
+  private notify(userId: string, input: Parameters<Notifier['notify']>[1]): Promise<void> {
+    return this.notifier ? this.notifier.notify(userId, input).catch((err) => console.error('Notification', err)) : Promise.resolve();
+  }
 
   // ---- Utilitaires -------------------------------------------------------------------------
 
@@ -211,17 +218,33 @@ export class Social {
     const already = await this.db.query('SELECT 1 FROM follows WHERE follower_id = $1 AND followee_id = $2', [viewer, target]);
     if (already.length) return { status: 'following' };
     if (is_private) {
-      await this.db.query('INSERT INTO follow_requests (requester_id, target_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [viewer, target]);
+      const added = await this.db.query(
+        'INSERT INTO follow_requests (requester_id, target_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING requester_id',
+        [viewer, target],
+      );
+      if (added.length) {
+        await this.notify(target, { type: 'follow_request', category: 'follows', actorId: viewer, groupKey: `follow_request:${viewer}` });
+      }
       return { status: 'requested' };
     }
-    await this.db.query('INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [viewer, target]);
+    const added = await this.db.query(
+      'INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING follower_id',
+      [viewer, target],
+    );
+    if (added.length) {
+      await this.notify(target, { type: 'new_follower', category: 'follows', actorId: viewer, groupKey: `new_follower:${viewer}` });
+    }
     return { status: 'following' };
   }
 
   /** Se désabonner ou annuler sa demande. */
   async unfollow(viewer: string, target: string): Promise<void> {
     await this.db.query('DELETE FROM follows WHERE follower_id = $1 AND followee_id = $2', [viewer, target]);
-    await this.db.query('DELETE FROM follow_requests WHERE requester_id = $1 AND target_id = $2', [viewer, target]);
+    const cancelled = await this.db.query('DELETE FROM follow_requests WHERE requester_id = $1 AND target_id = $2 RETURNING target_id', [
+      viewer,
+      target,
+    ]);
+    if (cancelled.length && this.notifier) await this.notifier.remove(target, `follow_request:${viewer}`);
   }
 
   /** Retirer un abonné : accès privé révoqué immédiatement, sans notification. */
@@ -242,20 +265,24 @@ export class Social {
 
   /** Accepter une demande (une par une, jamais en masse). */
   async acceptRequest(owner: string, requester: string): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    const accepted = await this.db.transaction(async (tx) => {
       const removed = await tx.query('DELETE FROM follow_requests WHERE requester_id = $1 AND target_id = $2 RETURNING requester_id', [
         requester,
         owner,
       ]);
       if (!removed.length) throw new SocialError(404, 'no_request');
-      if (await this.isBlockedEitherWay(owner, requester, tx)) return;
+      if (await this.isBlockedEitherWay(owner, requester, tx)) return false;
       await tx.query('INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [requester, owner]);
+      return true;
     });
+    if (this.notifier) await this.notifier.remove(owner, `follow_request:${requester}`);
+    if (accepted) await this.notify(requester, { type: 'follow_accepted', category: 'follows', actorId: owner });
   }
 
   /** Refuser une demande : aucune notification au demandeur. */
   async declineRequest(owner: string, requester: string): Promise<void> {
     await this.db.query('DELETE FROM follow_requests WHERE requester_id = $1 AND target_id = $2', [requester, owner]);
+    if (this.notifier) await this.notifier.remove(owner, `follow_request:${requester}`);
   }
 
   async followList(viewer: string, target: string, which: 'followers' | 'following', search?: string): Promise<UserSummary[]> {
@@ -348,6 +375,7 @@ export class Social {
     if (!text || text.length > MAX_POST_LENGTH) throw new SocialError(400, 'invalid_text');
     this.limit('post', viewer);
     const id = randomUUID();
+    let mentioned: { id: string }[] = [];
     await this.db.transaction(async (tx) => {
       if (target.kind === 'theme') {
         if (!getTheme(target.themeId)) throw new SocialError(404, 'unknown_theme');
@@ -361,8 +389,12 @@ export class Social {
         target.kind === 'theme' ? target.themeId : null,
         text,
       ]);
-      await this.saveMentions(tx, 'post', id, viewer, await this.resolveMentions(viewer, text, tx));
+      mentioned = await this.resolveMentions(viewer, text, tx);
+      await this.saveMentions(tx, 'post', id, viewer, mentioned);
     });
+    for (const m of mentioned) {
+      await this.notify(m.id, { type: 'mention', category: 'community', actorId: viewer, data: { postId: id } });
+    }
     return this.post(viewer, id);
   }
 
@@ -474,8 +506,17 @@ export class Social {
   async setLike(viewer: string, postId: string, liked: boolean): Promise<PostView> {
     await this.post(viewer, postId); // vérifie la visibilité (et donc les blocages)
     this.limit('like', viewer);
-    if (liked) await this.db.query('INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, viewer]);
-    else await this.db.query('DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2', [postId, viewer]);
+    if (liked) {
+      const added = await this.db.query(
+        'INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING post_id',
+        [postId, viewer],
+      );
+      const post = await this.post(viewer, postId);
+      // Likes regroupés : « Thomas et 14 autres personnes aiment ta publication ».
+      if (added.length) {
+        await this.notify(post.author.id, { type: 'like', category: 'community', actorId: viewer, groupKey: `like:${postId}`, data: { postId } });
+      }
+    } else await this.db.query('DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2', [postId, viewer]);
     return this.post(viewer, postId);
   }
 
@@ -507,6 +548,8 @@ export class Social {
     if (await this.isBlockedEitherWay(viewer, post.author.id)) throw new SocialError(403, 'blocked');
     this.limit('comment', viewer);
     const id = randomUUID();
+    let parentAuthor: string | null = null;
+    let mentioned: { id: string }[] = [];
     await this.db.transaction(async (tx) => {
       if (parentId) {
         const [parent] = await tx.query<{ author_id: string; parent_comment_id: string | null }>(
@@ -515,6 +558,7 @@ export class Social {
         );
         if (!parent) throw new SocialError(404, 'unknown_parent');
         if (await this.isBlockedEitherWay(viewer, parent.author_id, tx)) throw new SocialError(403, 'blocked');
+        parentAuthor = parent.author_id;
         // Les réponses restent sur un seul niveau : on répond au fil du commentaire d'origine.
         parentId = parent.parent_comment_id ?? parentId;
       }
@@ -525,8 +569,20 @@ export class Social {
         parentId ?? null,
         text,
       ]);
-      await this.saveMentions(tx, 'comment', id, viewer, await this.resolveMentions(viewer, text, tx));
+      mentioned = await this.resolveMentions(viewer, text, tx);
+      await this.saveMentions(tx, 'comment', id, viewer, mentioned);
     });
+    const data = { postId, commentId: id };
+    // Réponse à mon commentaire : regroupée par discussion, repart de zéro après lecture.
+    if (parentAuthor) {
+      await this.notify(parentAuthor, { type: 'reply', category: 'community', actorId: viewer, groupKey: `reply:${parentId}`, resetWhenRead: true, data });
+    }
+    if (post.author.id !== parentAuthor) {
+      await this.notify(post.author.id, { type: 'comment', category: 'community', actorId: viewer, groupKey: `comment:${postId}`, resetWhenRead: true, data });
+    }
+    for (const m of mentioned) {
+      if (m.id !== parentAuthor && m.id !== post.author.id) await this.notify(m.id, { type: 'mention', category: 'community', actorId: viewer, data });
+    }
     return (await this.comments(viewer, postId)).find((c) => c.id === id)!;
   }
 
