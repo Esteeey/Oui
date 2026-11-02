@@ -62,9 +62,16 @@ Score maximal théorique : 7 × 100 + 5 × 10 (série) = **750 points**.
 
 **Départage en cas d'égalité** : le plus grand nombre de bonnes réponses, puis le temps de réponse total le plus court. Si tout est égal, c'est un match nul.
 
-**Récompenses en fin de duel**
+**Récompenses en fin de duel** (calculées et versées uniquement par le serveur, une seule fois par duel)
 
-- XP : 10 par bonne réponse, +40 pour une victoire, +15 pour un nul, +30 pour un sans-faute (7/7). Bonus de « premier duel du jour » ×2.
+| Bonus | Règle |
+|---|---|
+| Bonus fin | +20 si le joueur a réellement terminé le duel : présent à la fin et sans abandon |
+| Bonus victoire | +40 pour le gagnant ayant terminé (+15 en cas d'égalité, règle existante conservée) |
+| Bonus boost | 10 XP par bonne réponse, +30 pour un sans-faute (règle existante) |
+| Abandon volontaire | 0 XP, défaite |
+
+Une déconnexion n'est pas un abandon : le duel continue, les questions sans réponse valent 0. Un joueur encore déconnecté à la fin du duel garde son bonus boost mais ne reçoit ni bonus de fin ni bonus de victoire. À venir : bonus de « premier duel du jour » ×2.
 - Cote : mise à jour Glicko-2 (uniquement en mode classé).
 - Statistiques du thème mises à jour.
 
@@ -386,7 +393,8 @@ Principes de **stabilité et d'équité** :
 - **Le serveur décide de tout** : choix des questions, chrono, validation des réponses, calcul des points. Le client n'est qu'un affichage.
 - **La bonne réponse n'est jamais envoyée avant la révélation**, ce qui rend la triche par inspection du réseau inutile.
 - **Synchronisation d'horloge** à la connexion (mesure aller-retour). Le chrono affiché est calé sur l'horloge du serveur, et une tolérance de latence est appliquée de façon identique aux deux joueurs.
-- **Reconnexion** : en cas de coupure, la salle est conservée 20 s et le joueur reprend à la question en cours. Les questions manquées valent 0, mais la partie va jusqu'au bout pour l'adversaire.
+- **Reconnexion** : une coupure ne met jamais le duel en pause. Le serveur garde le duel (y compris sur disque) ; à son retour, le joueur retrouve la question en cours avec le temps restant réel, ou ses résultats si le duel s'est terminé. Les questions manquées valent 0.
+- **Perspective** : le serveur envoie à chaque joueur un état où il est toujours « me » ; l'application l'affiche toujours à gauche.
 - **Abandon** : victoire pour l'adversaire, aucune perte d'XP pour lui, et pénalité de cote pour celui qui abandonne de façon répétée.
 - **Salles en mémoire et sauvegardées dans Redis** à chaque question : si une instance du serveur tombe, une autre reprend la salle.
 - **Détection de triche** : temps de réponse humainement impossibles et précision anormale par rapport à la difficulté, avec une file de vérification.

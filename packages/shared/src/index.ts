@@ -6,3 +6,6 @@ export * from './duel';
 export * from './catalog';
 export * from './questions';
 export * from './rating';
+export * from './rewards';
+export * from './bot';
+export * from './protocol';

@@ -6,6 +6,7 @@ import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel } from '
 import { BackButton } from '@/components/back-button';
 import { Composer } from '@/components/composer';
 import { PostCard } from '@/components/post-card';
+import { ThemeCover } from '@/components/theme-cover';
 import { OutcomeBar } from '@/components/profile-view';
 import { DivisionBadge, SectionHeader } from '@/components/social';
 import { AppText, Button, Card, ProgressBar, Screen, Stat } from '@/components/ui';
@@ -30,10 +31,12 @@ export default function ThemeScreen() {
   return (
     <Screen>
       <BackButton />
+      <View style={styles.cover}>
+        <ThemeCover themeId={theme.id} height={190} fadeTo={Colors.background} />
+      </View>
       <View style={styles.hero}>
-        <AppText style={{ fontSize: 48 }}>{category.icon}</AppText>
         <AppText variant="caption" color={category.color}>
-          {category.name.toUpperCase()}
+          {category.icon} {category.name.toUpperCase()}
         </AppText>
         <AppText variant="title" style={{ textAlign: 'center' }}>
           {theme.name}
@@ -79,11 +82,16 @@ export default function ThemeScreen() {
       </Card>
 
       <Button
-        label="Duel d'entraînement"
+        label="Duel classé"
         color={category.color}
+        onPress={() => router.push({ pathname: '/duel/[themeId]', params: { themeId: theme.id, mode: 'pvp' } })}
+      />
+      <Button
+        label="Duel d'entraînement (bot)"
+        variant="outline"
+        color={Colors.text}
         onPress={() => router.push({ pathname: '/duel/[themeId]', params: { themeId: theme.id } })}
       />
-      <Button label="Duel classé · bientôt en ligne" variant="outline" color={Colors.textMuted} disabled />
 
       <AppText variant="caption" muted style={{ textAlign: 'center' }}>
         {questionsOf(theme.id).length} questions · 7 par duel · 10 s par question
@@ -112,6 +120,7 @@ export default function ThemeScreen() {
 }
 
 const styles = StyleSheet.create({
+  cover: { borderRadius: 20, overflow: 'hidden', marginBottom: -Spacing.lg },
   hero: { alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
   levelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   stats: { flexDirection: 'row' },

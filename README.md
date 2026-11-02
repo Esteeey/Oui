@@ -9,6 +9,7 @@ Dossier de conception : [`docs/CONCEPTION.md`](docs/CONCEPTION.md)
 
 ```
 apps/mobile/       application Expo (iOS, Android, Web)
+services/game/     serveur de jeu temps réel (WebSocket) : duels, chrono, XP, reconnexion
 packages/shared/   règles du duel, barème, cote, progression, catalogue, questions
 content/           outils de contenu (génération des drapeaux)
 docs/              conception
@@ -26,10 +27,20 @@ docs/              conception
 - 6 thèmes jouables, dont **Drapeaux du monde** en questions illustrées (14 drapeaux dessinés pour Qu1z).
 - Commentaires sous les publications, nombre d'abonnés par thème.
 
+Serveur de jeu :
+
+- Le serveur fait autorité : questions, chrono, réponses, scores, résultat et **XP** (le client n'envoie que ses choix).
+- Duel classé entre deux joueurs réels (matchmaking par thème, bot au bout de 10 s), ou duel contre le bot.
+- Une déconnexion ne met jamais le duel en pause ; à la reconnexion (ou réouverture de l'app), le joueur retrouve son duel ou ses résultats.
+- Récompenses : bonus fin +20 (présent à la fin), bonus victoire +40, bonus boost (10 XP par bonne réponse, +30 si sans-faute) ; abandon = 0 XP ; versement unique par duel.
+- Page Résultats : couverture du thème, bandeau VICTOIRE / PERDU, joueurs (soi toujours à gauche), tableau des bonus, barre de niveau, Rejouer, Chat, Partager.
+
 Limites du prototype :
 
 - Les autres joueurs, le fil, les amis et les notifications sont des **données de démonstration**, signalées dans l'application. En duel, les réponses de l'adversaire sont simulées.
-- La progression est gardée en mémoire : elle est perdue quand l'application est fermée, jusqu'à l'arrivée des comptes et du serveur.
+- Comptes invités (jeton gardé sur l'appareil) ; pas encore de connexion Apple / Google ni de photo de profil.
+- Stockage du serveur dans un fichier JSON (à remplacer par PostgreSQL).
+- Fil, amis et publications restent des données de démonstration locales.
 
 ## Lancer le projet
 
@@ -37,6 +48,18 @@ Prérequis : Node.js 22 et pnpm.
 
 ```bash
 pnpm install
+```
+
+Le serveur de jeu (port 8787, données dans `services/game/data/`) doit tourner pour jouer :
+
+```bash
+pnpm server
+```
+
+Sur un téléphone, l'application doit connaître l'adresse de l'ordinateur sur le réseau local, par exemple :
+
+```bash
+EXPO_PUBLIC_GAME_SERVER_URL=ws://192.168.1.20:8787 pnpm mobile
 ```
 
 Dans le navigateur :
@@ -51,7 +74,7 @@ Sur téléphone : installez l'application **Expo Go**, lancez la commande ci-des
 pnpm mobile
 ```
 
-Tests et vérification des types :
+Tests (règles partagées et serveur, dont les scénarios de déconnexion) et vérification des types :
 
 ```bash
 pnpm test

@@ -129,3 +129,32 @@ describe('questions illustrées', () => {
     expect(readingTimeMs('Court', true)).toBe(readingTimeMs('Court') + RULES.imageReadingBonusMs);
   });
 });
+
+import { computeRewards } from './rewards';
+
+describe('récompenses', () => {
+  const base = { correct: 4, questions: 7 };
+  it('gagnant ayant terminé : +20 fin, +40 victoire, boost 40', () => {
+    expect(computeRewards({ ...base, outcome: 'win', finished: true, forfeited: false })).toEqual({
+      finishBonus: 20, victoryBonus: 40, boostBonus: 40, total: 100,
+    });
+  });
+  it('perdant ayant terminé : +20 fin seulement (plus le boost)', () => {
+    expect(computeRewards({ ...base, outcome: 'loss', finished: true, forfeited: false })).toMatchObject({
+      finishBonus: 20, victoryBonus: 0,
+    });
+  });
+  it('abandon : aucun XP, gagnant ou perdant', () => {
+    for (const outcome of ['win', 'loss'] as const) {
+      expect(computeRewards({ ...base, outcome, finished: false, forfeited: true }).total).toBe(0);
+    }
+  });
+  it('absent à la fin (déconnecté) : ni fin ni victoire, boost conservé', () => {
+    expect(computeRewards({ ...base, outcome: 'win', finished: false, forfeited: false })).toEqual({
+      finishBonus: 0, victoryBonus: 0, boostBonus: 40, total: 40,
+    });
+  });
+  it('sans-faute : boost 70 + 30', () => {
+    expect(computeRewards({ correct: 7, questions: 7, outcome: 'win', finished: true, forfeited: false }).boostBonus).toBe(100);
+  });
+});

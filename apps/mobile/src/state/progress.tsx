@@ -1,43 +1,10 @@
-import { createContext, use, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
-import { INITIAL_RATING, type DuelOutcome, type DuelQuestion, type ScoredAnswer } from '@qu1z/shared';
+import { INITIAL_RATING, type DuelRecord, type ThemeStats } from '@qu1z/shared';
 
-/** Statistiques d'un joueur dans un thème. */
-export interface ThemeStats {
-  xp: number;
-  rating: number;
-  duels: number;
-  wins: number;
-  draws: number;
-  correct: number;
-  answered: number;
-  totalCorrectResponseMs: number;
-}
+import { useGameServer } from '@/state/game-server';
 
-export interface DuelRecord {
-  id: string;
-  playedAt: number;
-  themeId: string;
-  /** Joueur de démonstration affronté, ou `null` pour le bot d'entraînement. */
-  opponentId: string | null;
-  opponentName: string;
-  questions: DuelQuestion[];
-  player: ScoredAnswer[];
-  opponent: ScoredAnswer[];
-  outcome: DuelOutcome;
-  xpBefore: number;
-  xpGained: number;
-  ratingBefore: number;
-  ratingDelta: number;
-}
-
-interface ProgressState {
-  playerName: string;
-  stats: Record<string, ThemeStats>;
-  history: DuelRecord[];
-  lastDuel: DuelRecord | null;
-  recordDuel: (record: DuelRecord) => void;
-}
+export type { DuelRecord, ThemeStats };
 
 export const EMPTY_STATS: ThemeStats = {
   xp: 0,
@@ -50,50 +17,28 @@ export const EMPTY_STATS: ThemeStats = {
   totalCorrectResponseMs: 0,
 };
 
-const ProgressContext = createContext<ProgressState | null>(null);
-
-/**
- * Progression du joueur, gardée en mémoire pour le prototype.
- * Elle sera enregistrée sur le serveur quand les comptes seront en place.
- */
-export function ProgressProvider({ children }: { children: ReactNode }) {
-  const [stats, setStats] = useState<Record<string, ThemeStats>>({});
-  const [history, setHistory] = useState<DuelRecord[]>([]);
-
-  const recordDuel = (record: DuelRecord) => {
-    setHistory((h) => [record, ...h]);
-    setStats((prev) => {
-      const s = prev[record.themeId] ?? EMPTY_STATS;
-      const correctAnswers = record.player.filter((a) => a.correct);
-      return {
-        ...prev,
-        [record.themeId]: {
-          xp: s.xp + record.xpGained,
-          rating: s.rating + record.ratingDelta,
-          duels: s.duels + 1,
-          wins: s.wins + (record.outcome === 'win' ? 1 : 0),
-          draws: s.draws + (record.outcome === 'draw' ? 1 : 0),
-          correct: s.correct + correctAnswers.length,
-          answered: s.answered + record.player.length,
-          totalCorrectResponseMs:
-            s.totalCorrectResponseMs + correctAnswers.reduce((t, a) => t + a.responseMs, 0),
-        },
-      };
-    });
-  };
-
-  return (
-    <ProgressContext
-      value={{ playerName: 'Invité', stats, history, lastDuel: history[0] ?? null, recordDuel }}>
-      {children}
-    </ProgressContext>
-  );
+interface ProgressState {
+  playerName: string;
+  stats: Record<string, ThemeStats>;
+  history: DuelRecord[];
+  lastDuel: DuelRecord | null;
 }
 
+/** Conservé pour la compatibilité : la progression vient désormais du serveur de jeu. */
+export function ProgressProvider({ children }: { children: ReactNode }) {
+  return children;
+}
+
+/** Progression du joueur, telle qu'enregistrée par le serveur (XP, cote, statistiques, historique). */
 export function useProgress(): ProgressState {
-  const ctx = use(ProgressContext);
-  if (!ctx) throw new Error('useProgress doit être utilisé dans <ProgressProvider>.');
-  return ctx;
+  const { profile } = useGameServer();
+  const history = profile?.history ?? [];
+  return {
+    playerName: profile?.name ?? 'Invité',
+    stats: profile?.stats ?? {},
+    history,
+    lastDuel: history[0] ?? null,
+  };
 }
 
 export function useThemeStats(themeId: string): ThemeStats {

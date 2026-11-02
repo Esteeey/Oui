@@ -3,9 +3,10 @@
   "private": true,
   "packageManager": "pnpm@10.28.0",
   "scripts": {
+    "server": "pnpm --filter @qu1z/game-server start",
     "mobile": "pnpm --filter mobile start",
     "web": "pnpm --filter mobile web",
-    "test": "pnpm --filter @qu1z/shared test",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   }
 }

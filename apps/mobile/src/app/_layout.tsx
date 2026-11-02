@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { Colors } from '@/constants/theme';
-import { ProgressProvider } from '@/state/progress';
+import { GameServerProvider } from '@/state/game-server';
 import { SocialProvider } from '@/state/social';
 
 SplashScreen.preventAutoHideAsync();
@@ -28,7 +28,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={navigationTheme}>
-      <ProgressProvider>
+      <GameServerProvider>
         <SocialProvider>
           <StatusBar style="light" />
           <Stack
@@ -40,11 +40,12 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="duel/[themeId]" options={{ gestureEnabled: false, animation: 'fade' }} />
             <Stack.Screen name="results" options={{ gestureEnabled: false, animation: 'fade_from_bottom' }} />
+            <Stack.Screen name="chat/[duelId]" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="compose" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
         </SocialProvider>
-      </ProgressProvider>
+      </GameServerProvider>
     </ThemeProvider>
   );
 }
