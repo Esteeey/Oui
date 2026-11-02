@@ -50,6 +50,11 @@ const TITLES: [number, string][] = [
   [1, 'Débutant'],
 ];
 
+/** Titres débloqués à un niveau global donné (du plus récent au plus ancien). */
+export function unlockedTitles(level: number): string[] {
+  return TITLES.filter(([min]) => level >= min).map(([, title]) => title);
+}
+
 export function titleForLevel(level: number): string {
   return TITLES.find(([min]) => level >= min)?.[1] ?? 'Débutant';
 }

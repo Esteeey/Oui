@@ -1,0 +1,552 @@
+import { randomUUID } from 'node:crypto';
+
+import {
+  MAX_BIO_LENGTH,
+  MAX_COMMENT_LENGTH,
+  MAX_POST_LENGTH,
+  PSEUDO_PATTERN,
+  extractMentions,
+  getTheme,
+  levelFromXp,
+  unlockedTitles,
+  type ActivityView,
+  type CommentView,
+  type DuelResult,
+  type FeedItem,
+  type LeaderboardRow,
+  type PostTarget,
+  type PostView,
+  type PublicProfile,
+  type ThemeInfo,
+  type UserSummary,
+} from '@qu1z/shared';
+
+import type { Database, Queryable } from './db/database';
+import type { RateLimiter } from './rate-limit';
+
+/** Erreur métier renvoyée telle quelle par l'API (code HTTP + code lisible). */
+export class SocialError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+  ) {
+    super(code);
+  }
+}
+
+const PAGE = 30;
+
+interface SummaryRow {
+  id: string;
+  pseudo: string;
+  equipped_title: string | null;
+  xp: number;
+}
+
+const SUMMARY_COLUMNS = 'u.id, p.pseudo, p.equipped_title, u.xp';
+
+function summary(r: SummaryRow): UserSummary {
+  return { id: r.id, pseudo: r.pseudo, title: r.equipped_title, level: levelFromXp(r.xp).level };
+}
+
+/** Aucun blocage dans un sens ou dans l'autre entre `viewer` et la colonne `other`. */
+function notBlocked(other: string, viewer = '$1'): string {
+  return `NOT EXISTS (SELECT 1 FROM blocks bl WHERE (bl.blocker_id = ${viewer} AND bl.blocked_id = ${other})
+    OR (bl.blocker_id = ${other} AND bl.blocked_id = ${viewer}))`;
+}
+
+/**
+ * Le contenu de l'auteur est visible par `viewer` : pas de blocage, et profil public,
+ * ou viewer = auteur, ou viewer abonné accepté. Utilisé par TOUTES les requêtes communautaires.
+ */
+function canSee(author: string, viewer = '$1'): string {
+  return `(${notBlocked(author, viewer)} AND (${author} = ${viewer}
+    OR NOT (SELECT pr.is_private FROM profiles pr WHERE pr.user_id = ${author})
+    OR EXISTS (SELECT 1 FROM follows fo WHERE fo.follower_id = ${viewer} AND fo.followee_id = ${author})))`;
+}
+
+/** Service social : profils, abonnements, thèmes, publications, commentaires, likes, mentions, classements. */
+export class Social {
+  constructor(
+    private readonly db: Database,
+    private readonly limiter: RateLimiter,
+  ) {}
+
+  // ---- Utilitaires -------------------------------------------------------------------------
+
+  private async exists(userId: string): Promise<boolean> {
+    return (await this.db.query("SELECT 1 FROM users WHERE id = $1 AND status <> 'banned'", [userId])).length > 0;
+  }
+
+  async isBlockedEitherWay(a: string, b: string, q: Queryable = this.db): Promise<boolean> {
+    return (
+      (await q.query('SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)', [a, b]))
+        .length > 0
+    );
+  }
+
+  private async canSeeContentOf(viewer: string, author: string): Promise<boolean> {
+    const rows = await this.db.query(`SELECT 1 WHERE ${canSee('$2')}`, [viewer, author]);
+    return rows.length > 0;
+  }
+
+  private limit(action: string, userId: string): void {
+    if (!this.limiter.allow(action, userId)) throw new SocialError(429, 'rate_limited');
+  }
+
+  // ---- Profils -----------------------------------------------------------------------------
+
+  async profile(viewer: string, targetId: string): Promise<PublicProfile> {
+    const [row] = await this.db.query<
+      SummaryRow & { bio: string; is_private: boolean; show_followers: boolean; show_following: boolean }
+    >(
+      `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following
+       FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 AND u.status <> 'banned'`,
+      [targetId],
+    );
+    if (!row) throw new SocialError(404, 'not_found');
+    const isMe = viewer === targetId;
+    const [rel] = await this.db.query<{
+      following: boolean;
+      requested: boolean;
+      follows_me: boolean;
+      blocked_by_me: boolean;
+      blocks_me: boolean;
+      followers: number;
+      following_count: number;
+    }>(
+      `SELECT
+        EXISTS (SELECT 1 FROM follows WHERE follower_id = $1 AND followee_id = $2) AS following,
+        EXISTS (SELECT 1 FROM follow_requests WHERE requester_id = $1 AND target_id = $2) AS requested,
+        EXISTS (SELECT 1 FROM follows WHERE follower_id = $2 AND followee_id = $1) AS follows_me,
+        EXISTS (SELECT 1 FROM blocks WHERE blocker_id = $1 AND blocked_id = $2) AS blocked_by_me,
+        EXISTS (SELECT 1 FROM blocks WHERE blocker_id = $2 AND blocked_id = $1) AS blocks_me,
+        (SELECT count(*)::int FROM follows WHERE followee_id = $2) AS followers,
+        (SELECT count(*)::int FROM follows WHERE follower_id = $2) AS following_count`,
+      [viewer, targetId],
+    );
+    // Un joueur qui m'a bloqué m'est invisible.
+    if (rel.blocks_me && !isMe) throw new SocialError(404, 'not_found');
+    const canSeeContent = isMe || (!rel.blocked_by_me && (!row.is_private || rel.following));
+    return {
+      ...summary(row),
+      bio: canSeeContent ? row.bio : '',
+      isPrivate: row.is_private,
+      showFollowers: row.show_followers,
+      showFollowing: row.show_following,
+      followers: rel.followers,
+      following: rel.following_count,
+      xp: row.xp,
+      relationship: {
+        isMe,
+        following: rel.following,
+        requested: rel.requested,
+        followsMe: rel.follows_me,
+        blockedByMe: rel.blocked_by_me,
+      },
+      canSeeContent,
+      canSeeFollowers: isMe || (canSeeContent && row.show_followers),
+      canSeeFollowing: isMe || (canSeeContent && row.show_following),
+    };
+  }
+
+  titles(xp: number): string[] {
+    return unlockedTitles(levelFromXp(xp).level);
+  }
+
+  async updateProfile(
+    userId: string,
+    patch: { pseudo?: unknown; bio?: unknown; isPrivate?: unknown; showFollowers?: unknown; showFollowing?: unknown; equippedTitle?: unknown },
+  ): Promise<PublicProfile> {
+    await this.db.transaction(async (tx) => {
+      if (patch.pseudo !== undefined) {
+        const pseudo = String(patch.pseudo).trim();
+        if (!PSEUDO_PATTERN.test(pseudo)) throw new SocialError(400, 'invalid_pseudo');
+        const taken = await tx.query('SELECT 1 FROM profiles WHERE lower(pseudo) = lower($1) AND user_id <> $2', [pseudo, userId]);
+        if (taken.length) throw new SocialError(409, 'pseudo_taken');
+        await tx.query('UPDATE profiles SET pseudo = $2 WHERE user_id = $1', [userId, pseudo]);
+      }
+      if (patch.bio !== undefined) {
+        const bio = String(patch.bio).trim();
+        if (bio.length > MAX_BIO_LENGTH) throw new SocialError(400, 'bio_too_long');
+        await tx.query('UPDATE profiles SET bio = $2 WHERE user_id = $1', [userId, bio]);
+      }
+      for (const [key, column] of [
+        ['isPrivate', 'is_private'],
+        ['showFollowers', 'show_followers'],
+        ['showFollowing', 'show_following'],
+      ] as const) {
+        if (patch[key] === undefined) continue;
+        if (typeof patch[key] !== 'boolean') throw new SocialError(400, 'invalid_value');
+        await tx.query(`UPDATE profiles SET ${column} = $2 WHERE user_id = $1`, [userId, patch[key]]);
+      }
+      // Un profil redevenu public accepte les demandes en attente : elles visaient à le suivre.
+      if (patch.isPrivate === false) {
+        await tx.query(
+          `INSERT INTO follows (follower_id, followee_id)
+           SELECT requester_id, target_id FROM follow_requests WHERE target_id = $1 ON CONFLICT DO NOTHING`,
+          [userId],
+        );
+        await tx.query('DELETE FROM follow_requests WHERE target_id = $1', [userId]);
+      }
+      if (patch.equippedTitle !== undefined) {
+        const title = patch.equippedTitle === null ? null : String(patch.equippedTitle);
+        const [{ xp }] = await tx.query<{ xp: number }>('SELECT xp FROM users WHERE id = $1', [userId]);
+        if (title !== null && !this.titles(xp).includes(title)) throw new SocialError(403, 'title_locked');
+        await tx.query('UPDATE profiles SET equipped_title = $2 WHERE user_id = $1', [userId, title]);
+      }
+    });
+    return this.profile(userId, userId);
+  }
+
+  // ---- Abonnements -------------------------------------------------------------------------
+
+  /** S'abonner : direct pour un profil public, demande pour un profil privé. */
+  async follow(viewer: string, target: string): Promise<{ status: 'following' | 'requested' }> {
+    if (viewer === target) throw new SocialError(400, 'self');
+    if (!(await this.exists(target))) throw new SocialError(404, 'not_found');
+    if (await this.isBlockedEitherWay(viewer, target)) throw new SocialError(403, 'blocked');
+    this.limit('follow', viewer);
+    const [{ is_private }] = await this.db.query<{ is_private: boolean }>('SELECT is_private FROM profiles WHERE user_id = $1', [target]);
+    const already = await this.db.query('SELECT 1 FROM follows WHERE follower_id = $1 AND followee_id = $2', [viewer, target]);
+    if (already.length) return { status: 'following' };
+    if (is_private) {
+      await this.db.query('INSERT INTO follow_requests (requester_id, target_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [viewer, target]);
+      return { status: 'requested' };
+    }
+    await this.db.query('INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [viewer, target]);
+    return { status: 'following' };
+  }
+
+  /** Se désabonner ou annuler sa demande. */
+  async unfollow(viewer: string, target: string): Promise<void> {
+    await this.db.query('DELETE FROM follows WHERE follower_id = $1 AND followee_id = $2', [viewer, target]);
+    await this.db.query('DELETE FROM follow_requests WHERE requester_id = $1 AND target_id = $2', [viewer, target]);
+  }
+
+  /** Retirer un abonné : accès privé révoqué immédiatement, sans notification. */
+  async removeFollower(owner: string, follower: string): Promise<void> {
+    await this.db.query('DELETE FROM follows WHERE follower_id = $2 AND followee_id = $1', [owner, follower]);
+  }
+
+  async followRequests(owner: string): Promise<{ user: UserSummary; createdAt: number }[]> {
+    const rows = await this.db.query<SummaryRow & { created_at: Date }>(
+      `SELECT ${SUMMARY_COLUMNS}, fr.created_at FROM follow_requests fr
+       JOIN users u ON u.id = fr.requester_id JOIN profiles p ON p.user_id = u.id
+       WHERE fr.target_id = $1 AND u.status <> 'banned' AND ${notBlocked('u.id')}
+       ORDER BY fr.created_at DESC`,
+      [owner],
+    );
+    return rows.map((r) => ({ user: summary(r), createdAt: new Date(r.created_at).getTime() }));
+  }
+
+  /** Accepter une demande (une par une, jamais en masse). */
+  async acceptRequest(owner: string, requester: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const removed = await tx.query('DELETE FROM follow_requests WHERE requester_id = $1 AND target_id = $2 RETURNING requester_id', [
+        requester,
+        owner,
+      ]);
+      if (!removed.length) throw new SocialError(404, 'no_request');
+      if (await this.isBlockedEitherWay(owner, requester, tx)) return;
+      await tx.query('INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [requester, owner]);
+    });
+  }
+
+  /** Refuser une demande : aucune notification au demandeur. */
+  async declineRequest(owner: string, requester: string): Promise<void> {
+    await this.db.query('DELETE FROM follow_requests WHERE requester_id = $1 AND target_id = $2', [requester, owner]);
+  }
+
+  async followList(viewer: string, target: string, which: 'followers' | 'following', search?: string): Promise<UserSummary[]> {
+    const profile = await this.profile(viewer, target);
+    if (which === 'followers' ? !profile.canSeeFollowers : !profile.canSeeFollowing) throw new SocialError(403, 'hidden');
+    const [joinCol, whereCol] = which === 'followers' ? ['follower_id', 'followee_id'] : ['followee_id', 'follower_id'];
+    const rows = await this.db.query<SummaryRow>(
+      `SELECT ${SUMMARY_COLUMNS} FROM follows f
+       JOIN users u ON u.id = f.${joinCol} JOIN profiles p ON p.user_id = u.id
+       WHERE f.${whereCol} = $2 AND u.status <> 'banned' AND ${notBlocked('u.id')}
+         AND ($3::text IS NULL OR p.pseudo ILIKE '%' || $3 || '%')
+       ORDER BY f.created_at DESC LIMIT 200`,
+      [viewer, target, search?.trim() ? search.trim().replace(/[%_\\]/g, (c) => `\\${c}`) : null],
+    );
+    return rows.map(summary);
+  }
+
+  // ---- Blocage (effets sociaux) ------------------------------------------------------------
+
+  /** Bloquer : supprime les abonnements et demandes dans les deux sens (non restaurés au déblocage). */
+  async block(blocker: string, blocked: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [blocker, blocked]);
+      await tx.query(
+        'DELETE FROM follows WHERE (follower_id = $1 AND followee_id = $2) OR (follower_id = $2 AND followee_id = $1)',
+        [blocker, blocked],
+      );
+      await tx.query(
+        'DELETE FROM follow_requests WHERE (requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1)',
+        [blocker, blocked],
+      );
+    });
+  }
+
+  // ---- Thèmes ------------------------------------------------------------------------------
+
+  async themeInfo(viewer: string, themeIds: string[]): Promise<ThemeInfo[]> {
+    const rows = await this.db.query<{ theme_id: string; n: number; mine: boolean }>(
+      `SELECT theme_id, count(*)::int AS n, bool_or(user_id = $1) AS mine FROM theme_subscriptions
+       WHERE theme_id = ANY($2::text[]) GROUP BY theme_id`,
+      [viewer, themeIds],
+    );
+    const byId = new Map(rows.map((r) => [r.theme_id, r]));
+    return themeIds.map((id) => ({ themeId: id, subscribers: byId.get(id)?.n ?? 0, subscribed: byId.get(id)?.mine ?? false }));
+  }
+
+  async setThemeSubscription(viewer: string, themeId: string, subscribed: boolean): Promise<ThemeInfo> {
+    if (!getTheme(themeId)) throw new SocialError(404, 'unknown_theme');
+    if (subscribed) {
+      await this.db.query('INSERT INTO theme_subscriptions (user_id, theme_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [viewer, themeId]);
+    } else {
+      await this.db.query('DELETE FROM theme_subscriptions WHERE user_id = $1 AND theme_id = $2', [viewer, themeId]);
+    }
+    return (await this.themeInfo(viewer, [themeId]))[0];
+  }
+
+  async subscribedThemes(viewer: string): Promise<string[]> {
+    return (await this.db.query<{ theme_id: string }>('SELECT theme_id FROM theme_subscriptions WHERE user_id = $1 ORDER BY created_at', [viewer])).map(
+      (r) => r.theme_id,
+    );
+  }
+
+  // ---- Mentions ----------------------------------------------------------------------------
+
+  /** Résout les @pseudo d'un texte. Exclut soi-même et toute personne bloquée dans un sens ou l'autre. */
+  private async resolveMentions(author: string, text: string, tx: Queryable): Promise<{ id: string; pseudo: string }[]> {
+    const pseudos = extractMentions(text);
+    if (!pseudos.length) return [];
+    const rows = await tx.query<{ id: string; pseudo: string }>(
+      `SELECT u.id, p.pseudo FROM profiles p JOIN users u ON u.id = p.user_id
+       WHERE lower(p.pseudo) = ANY($2::text[]) AND u.id <> $1 AND u.status <> 'banned' AND ${notBlocked('u.id')}`,
+      [author, pseudos],
+    );
+    return rows.filter(() => this.limiter.allow('mention', author));
+  }
+
+  private async saveMentions(tx: Queryable, type: 'post' | 'comment', contentId: string, author: string, list: { id: string }[]) {
+    for (const m of list) {
+      await tx.query(
+        'INSERT INTO mentions (id, content_type, content_id, author_id, mentioned_user_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
+        [randomUUID(), type, contentId, author, m.id],
+      );
+    }
+  }
+
+  // ---- Publications ------------------------------------------------------------------------
+
+  async createPost(viewer: string, target: PostTarget, rawText: unknown): Promise<PostView> {
+    const text = String(rawText ?? '').trim();
+    if (!text || text.length > MAX_POST_LENGTH) throw new SocialError(400, 'invalid_text');
+    this.limit('post', viewer);
+    const id = randomUUID();
+    await this.db.transaction(async (tx) => {
+      if (target.kind === 'theme') {
+        if (!getTheme(target.themeId)) throw new SocialError(404, 'unknown_theme');
+        const sub = await tx.query('SELECT 1 FROM theme_subscriptions WHERE user_id = $1 AND theme_id = $2', [viewer, target.themeId]);
+        if (!sub.length) throw new SocialError(403, 'not_subscribed');
+      }
+      await tx.query('INSERT INTO posts (id, author_id, target, theme_id, text) VALUES ($1, $2, $3, $4, $5)', [
+        id,
+        viewer,
+        target.kind,
+        target.kind === 'theme' ? target.themeId : null,
+        text,
+      ]);
+      await this.saveMentions(tx, 'post', id, viewer, await this.resolveMentions(viewer, text, tx));
+    });
+    return this.post(viewer, id);
+  }
+
+  private async postViews(viewer: string, where: string, params: unknown[], before?: number): Promise<PostView[]> {
+    const rows = await this.db.query<
+      SummaryRow & { post_id: string; target: 'profile' | 'theme'; theme_id: string | null; text: string; created_at: Date; likes: number; liked: boolean; comments: number }
+    >(
+      `SELECT po.id AS post_id, po.target, po.theme_id, po.text, po.created_at, ${SUMMARY_COLUMNS},
+         (SELECT count(*)::int FROM post_likes l WHERE l.post_id = po.id) AS likes,
+         EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id = po.id AND l.user_id = $1) AS liked,
+         (SELECT count(*)::int FROM comments c WHERE c.post_id = po.id AND c.removed_at IS NULL AND ${notBlocked('c.author_id')}) AS comments
+       FROM posts po JOIN users u ON u.id = po.author_id JOIN profiles p ON p.user_id = u.id
+       WHERE po.removed_at IS NULL AND u.status <> 'banned' AND ${canSee('po.author_id')} AND (${where})
+         AND ($${params.length + 2}::timestamptz IS NULL OR po.created_at < $${params.length + 2})
+       ORDER BY po.created_at DESC, po.id DESC LIMIT ${PAGE}`,
+      [viewer, ...params, before ? new Date(before) : null],
+    );
+    const mentions = await this.mentionsOf(viewer, 'post', rows.map((r) => r.post_id));
+    return rows.map((r) => ({
+      id: r.post_id,
+      author: summary(r),
+      target: r.target === 'theme' ? { kind: 'theme', themeId: r.theme_id! } : { kind: 'profile' },
+      text: r.text,
+      createdAt: new Date(r.created_at).getTime(),
+      likes: r.likes,
+      likedByMe: r.liked,
+      comments: r.comments,
+      mentions: mentions.get(r.post_id) ?? [],
+    }));
+  }
+
+  private async mentionsOf(viewer: string, type: 'post' | 'comment', ids: string[]): Promise<Map<string, { id: string; pseudo: string }[]>> {
+    const map = new Map<string, { id: string; pseudo: string }[]>();
+    if (!ids.length) return map;
+    const rows = await this.db.query<{ content_id: string; id: string; pseudo: string }>(
+      `SELECT m.content_id, u.id, p.pseudo FROM mentions m JOIN users u ON u.id = m.mentioned_user_id
+       JOIN profiles p ON p.user_id = u.id
+       WHERE m.content_type = $2 AND m.content_id = ANY($3::uuid[]) AND ${notBlocked('u.id')}`,
+      [viewer, type, ids],
+    );
+    for (const r of rows) map.set(r.content_id, [...(map.get(r.content_id) ?? []), { id: r.id, pseudo: r.pseudo }]);
+    return map;
+  }
+
+  async post(viewer: string, postId: string): Promise<PostView> {
+    const [view] = await this.postViews(viewer, 'po.id = $2', [postId]);
+    if (!view) throw new SocialError(404, 'not_found');
+    return view;
+  }
+
+  async themeFeed(viewer: string, themeId: string, before?: number): Promise<PostView[]> {
+    return this.postViews(viewer, "po.target = 'theme' AND po.theme_id = $2", [themeId], before);
+  }
+
+  async wall(viewer: string, authorId: string, before?: number): Promise<PostView[]> {
+    return this.postViews(viewer, "po.target = 'profile' AND po.author_id = $2", [authorId], before);
+  }
+
+  /** Accueil : mes publications, murs des personnes suivies, fils des thèmes suivis, activité de jeu des suivis. */
+  async homeFeed(viewer: string, before?: number): Promise<FeedItem[]> {
+    const posts = await this.postViews(
+      viewer,
+      `po.author_id = $1
+       OR (po.target = 'profile' AND po.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1))
+       OR (po.target = 'theme' AND po.theme_id IN (SELECT theme_id FROM theme_subscriptions WHERE user_id = $1))`,
+      [],
+      before,
+    );
+    const activity = await this.activity(viewer, before);
+    return [
+      ...posts.map((post) => ({ kind: 'post' as const, at: post.createdAt, post })),
+      ...activity.map((a) => ({ kind: 'activity' as const, at: a.createdAt, activity: a })),
+    ]
+      .sort((a, b) => b.at - a.at)
+      .slice(0, PAGE);
+  }
+
+  /** Activité de jeu (victoires, sans-faute, niveaux) de moi et des personnes que je suis. */
+  async activity(viewer: string, before?: number): Promise<ActivityView[]> {
+    const rows = await this.db.query<SummaryRow & { duel_id: string; result: DuelResult; created_at: Date }>(
+      `SELECT r.duel_id, r.result, r.created_at, ${SUMMARY_COLUMNS} FROM duel_results r
+       JOIN users u ON u.id = r.user_id JOIN profiles p ON p.user_id = u.id
+       WHERE (r.user_id = $1 OR r.user_id IN (SELECT followee_id FROM follows WHERE follower_id = $1))
+         AND u.status <> 'banned' AND ${canSee('r.user_id')}
+         AND ($2::timestamptz IS NULL OR r.created_at < $2)
+       ORDER BY r.created_at DESC LIMIT ${PAGE}`,
+      [viewer, before ? new Date(before) : null],
+    );
+    const out: ActivityView[] = [];
+    for (const r of rows) {
+      const rec = r.result.record;
+      const base = { user: summary(r), themeId: rec.themeId, createdAt: new Date(r.created_at).getTime() };
+      const levelBefore = levelFromXp(rec.xpBefore).level;
+      const after = levelFromXp(rec.xpBefore + rec.xpGained).level;
+      if (after > levelBefore) out.push({ ...base, id: `${r.duel_id}:${r.id}:level`, event: { kind: 'level', level: after } });
+      if (rec.player.length === rec.questions.length && rec.player.length > 0 && rec.player.every((a) => a.correct)) {
+        out.push({ ...base, id: `${r.duel_id}:${r.id}:perfect`, event: { kind: 'perfect' } });
+      } else if (rec.outcome === 'win') {
+        const score = rec.player.reduce((t, a) => t + a.points, 0);
+        const opponentScore = rec.opponent.reduce((t, a) => t + a.points, 0);
+        out.push({ ...base, id: `${r.duel_id}:${r.id}:win`, event: { kind: 'win', opponent: rec.opponentName, score, opponentScore } });
+      }
+    }
+    return out;
+  }
+
+  // ---- Likes et commentaires ---------------------------------------------------------------
+
+  async setLike(viewer: string, postId: string, liked: boolean): Promise<PostView> {
+    await this.post(viewer, postId); // vérifie la visibilité (et donc les blocages)
+    this.limit('like', viewer);
+    if (liked) await this.db.query('INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [postId, viewer]);
+    else await this.db.query('DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2', [postId, viewer]);
+    return this.post(viewer, postId);
+  }
+
+  async comments(viewer: string, postId: string): Promise<CommentView[]> {
+    await this.post(viewer, postId);
+    const rows = await this.db.query<SummaryRow & { comment_id: string; parent_comment_id: string | null; text: string; created_at: Date }>(
+      `SELECT c.id AS comment_id, c.parent_comment_id, c.text, c.created_at, ${SUMMARY_COLUMNS}
+       FROM comments c JOIN users u ON u.id = c.author_id JOIN profiles p ON p.user_id = u.id
+       WHERE c.post_id = $2 AND c.removed_at IS NULL AND u.status <> 'banned' AND ${notBlocked('c.author_id')}
+       ORDER BY c.created_at, c.id`,
+      [viewer, postId],
+    );
+    const mentions = await this.mentionsOf(viewer, 'comment', rows.map((r) => r.comment_id));
+    return rows.map((r) => ({
+      id: r.comment_id,
+      postId,
+      parentId: r.parent_comment_id,
+      author: summary(r),
+      text: r.text,
+      createdAt: new Date(r.created_at).getTime(),
+      mentions: mentions.get(r.comment_id) ?? [],
+    }));
+  }
+
+  async addComment(viewer: string, postId: string, rawText: unknown, parentId?: string): Promise<CommentView> {
+    const post = await this.post(viewer, postId);
+    const text = String(rawText ?? '').trim();
+    if (!text || text.length > MAX_COMMENT_LENGTH) throw new SocialError(400, 'invalid_text');
+    if (await this.isBlockedEitherWay(viewer, post.author.id)) throw new SocialError(403, 'blocked');
+    this.limit('comment', viewer);
+    const id = randomUUID();
+    await this.db.transaction(async (tx) => {
+      if (parentId) {
+        const [parent] = await tx.query<{ author_id: string; parent_comment_id: string | null }>(
+          'SELECT author_id, parent_comment_id FROM comments WHERE id = $1 AND post_id = $2 AND removed_at IS NULL',
+          [parentId, postId],
+        );
+        if (!parent) throw new SocialError(404, 'unknown_parent');
+        if (await this.isBlockedEitherWay(viewer, parent.author_id, tx)) throw new SocialError(403, 'blocked');
+        // Les réponses restent sur un seul niveau : on répond au fil du commentaire d'origine.
+        parentId = parent.parent_comment_id ?? parentId;
+      }
+      await tx.query('INSERT INTO comments (id, post_id, author_id, parent_comment_id, text) VALUES ($1, $2, $3, $4, $5)', [
+        id,
+        postId,
+        viewer,
+        parentId ?? null,
+        text,
+      ]);
+      await this.saveMentions(tx, 'comment', id, viewer, await this.resolveMentions(viewer, text, tx));
+    });
+    return (await this.comments(viewer, postId)).find((c) => c.id === id)!;
+  }
+
+  // ---- Classements -------------------------------------------------------------------------
+
+  async leaderboard(viewer: string, themeId: string | null, scope: 'world' | 'following'): Promise<LeaderboardRow[]> {
+    // Par thème : la cote du thème ; général : moyenne des 3 meilleurs thèmes ($2 nul).
+    const ratingSql = `SELECT user_id, rating FROM theme_stats WHERE $2::text IS NOT NULL AND theme_id = $2
+      UNION ALL
+      SELECT user_id, round(avg(rating))::int AS rating FROM (
+        SELECT user_id, rating, row_number() OVER (PARTITION BY user_id ORDER BY rating DESC) AS rn FROM theme_stats
+      ) t WHERE $2::text IS NULL AND rn <= 3 GROUP BY user_id`;
+    const rows = await this.db.query<SummaryRow & { rating: number }>(
+      `WITH ratings AS (${ratingSql})
+       SELECT ${SUMMARY_COLUMNS}, r.rating FROM ratings r JOIN users u ON u.id = r.user_id JOIN profiles p ON p.user_id = u.id
+       WHERE u.status <> 'banned' AND ${notBlocked('u.id')}
+         AND ($3::text = 'world' OR u.id = $1 OR u.id IN (SELECT followee_id FROM follows WHERE follower_id = $1))
+       ORDER BY r.rating DESC, u.id LIMIT 100`,
+      [viewer, themeId, scope],
+    );
+    return rows.map((r, i) => ({ rank: i + 1, user: summary(r), rating: r.rating, isMe: r.id === viewer }));
+  }
+}

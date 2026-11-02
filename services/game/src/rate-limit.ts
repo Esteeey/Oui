@@ -23,7 +23,11 @@ export const DEFAULT_LIMITS: Limits = {
   groupInvite: { max: 30, windowMs: DAY },
   mention: { max: 50, windowMs: DAY },
   report: { max: 20, windowMs: DAY },
-  http: { max: 120, windowMs: MINUTE },
+  http: { max: 240, windowMs: MINUTE },
+  follow: { max: 60, windowMs: MINUTE },
+  post: { max: 10, windowMs: MINUTE },
+  comment: { max: 30, windowMs: MINUTE },
+  like: { max: 120, windowMs: MINUTE },
 };
 
 export class RateLimiter {

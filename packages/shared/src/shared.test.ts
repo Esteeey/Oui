@@ -158,3 +158,16 @@ describe('récompenses', () => {
     expect(computeRewards({ correct: 7, questions: 7, outcome: 'win', finished: true, forfeited: false }).boostBonus).toBe(100);
   });
 });
+
+import { PSEUDO_PATTERN, extractMentions } from './social';
+
+describe('social', () => {
+  it('valide les pseudos', () => {
+    for (const ok of ['Joueur_1234', 'Lina', 'Chloé.B', 'abc']) expect(PSEUDO_PATTERN.test(ok)).toBe(true);
+    for (const ko of ['ab', 'avec espace', 'x'.repeat(21), '<script>', 'a@b']) expect(PSEUDO_PATTERN.test(ko)).toBe(false);
+  });
+  it('repère les mentions sans doublon et sans les adresses e-mail', () => {
+    expect(extractMentions('Bravo @Lina et @lina ! Écris à moi@mail.fr, @Chloé.B')).toEqual(['lina', 'chloé.b']);
+    expect(extractMentions('@ab trop court')).toEqual([]);
+  });
+});

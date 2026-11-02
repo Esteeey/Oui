@@ -54,7 +54,7 @@ export class Repo {
     return this.db.transaction(async (tx) => {
       await tx.query('INSERT INTO users (id, token_hash) VALUES ($1, $2)', [id, tokenHash]);
       for (let attempt = 0; ; attempt++) {
-        const pseudo = `Joueur ${1000 + Math.floor(Math.random() * 9000)}${attempt > 5 ? attempt : ''}`;
+        const pseudo = `Joueur_${1000 + Math.floor(Math.random() * 9000)}${attempt > 5 ? attempt : ''}`;
         const taken = await tx.query('SELECT 1 FROM profiles WHERE lower(pseudo) = lower($1)', [pseudo]);
         if (taken.length === 0) {
           await tx.query('INSERT INTO profiles (user_id, pseudo) VALUES ($1, $2)', [id, pseudo]);
