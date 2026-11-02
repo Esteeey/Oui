@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { THEMES, getCategory, type LeaderboardRow } from '@qu1z/shared';
 
 import { Chip, DivisionBadge, Segmented } from '@/components/social';
+import { SearchButton } from '@/components/search-button';
 import { AppText, Avatar, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
@@ -25,9 +26,10 @@ export default function LeaderboardScreen() {
 
   return (
     <Screen inTabs>
-      <AppText variant="title" style={{ paddingTop: Spacing.sm }}>
-        Classements
-      </AppText>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing.sm }}>
+        <AppText variant="title">Classements</AppText>
+        <SearchButton />
+      </View>
       <Segmented
         value={scope}
         onChange={setScope}

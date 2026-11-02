@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { MAX_COMMENT_LENGTH, type CommentView, type PostView } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
+import { MentionSuggestions } from '@/components/mention-suggestions';
 import { PostCard } from '@/components/post-card';
 import { RichText } from '@/components/rich-text';
 import { SectionHeader } from '@/components/social';
@@ -107,6 +108,7 @@ export default function PostScreen() {
           accessibilityLabel="Écrire un commentaire"
           style={styles.field}
         />
+        <MentionSuggestions text={text} onChange={setText} />
         {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
         <Button label="Envoyer" onPress={send} disabled={!text.trim()} />
       </View>

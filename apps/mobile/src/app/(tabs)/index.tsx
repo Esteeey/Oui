@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { THEMES, getTheme, type FeedItem } from '@qu1z/shared';
 
 import { ActivityCard } from '@/components/feed-card';
+import { SearchButton } from '@/components/search-button';
 import { PostCard } from '@/components/post-card';
 import { IconButton, SectionHeader } from '@/components/social';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
@@ -29,12 +30,15 @@ export default function FeedScreen() {
         <AppText variant="display">
           Qu<AppText variant="display" color={Colors.player}>1</AppText>z
         </AppText>
-        <IconButton
-          icon="notifications-outline"
-          label="Notifications"
-          badge={unreadNotifications}
-          onPress={() => router.push('/notifications')}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+          <SearchButton />
+          <IconButton
+            icon="notifications-outline"
+            label="Notifications"
+            badge={unreadNotifications}
+            onPress={() => router.push('/notifications')}
+          />
+        </View>
       </View>
 
       <Card style={styles.play}>

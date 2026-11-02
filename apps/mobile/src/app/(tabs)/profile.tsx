@@ -6,6 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { getTheme, type PostView, type PublicProfile } from '@qu1z/shared';
 
 import { Composer } from '@/components/composer';
+import { SearchButton } from '@/components/search-button';
 import { PostCard } from '@/components/post-card';
 import { BadgesGrid, FollowCounts, OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
 import { SectionHeader } from '@/components/social';
@@ -42,6 +43,7 @@ export default function ProfileScreen() {
   return (
     <Screen inTabs>
       <View style={styles.topRow}>
+        <SearchButton />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Réglages du profil"
@@ -139,7 +141,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  topRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: Spacing.sm },
   settings: { padding: Spacing.sm },
   duel: {
     flexDirection: 'row',

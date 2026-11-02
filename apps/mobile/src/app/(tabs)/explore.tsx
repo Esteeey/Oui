@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { CATEGORIES, THEMES, getCategory, levelFromXp, themesOf } from '@qu1z/shared';
 
 import { SectionHeader } from '@/components/social';
+import { SearchButton } from '@/components/search-button';
 import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
@@ -27,9 +28,10 @@ export default function ExploreScreen() {
 
   return (
     <Screen inTabs>
-      <AppText variant="title" style={{ paddingTop: Spacing.sm }}>
-        Explorer
-      </AppText>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing.sm }}>
+        <AppText variant="title">Explorer</AppText>
+        <SearchButton />
+      </View>
 
       <View style={styles.search}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />

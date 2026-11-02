@@ -7,6 +7,7 @@ import type { PublicProfile, UserSummary } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
 import { UserRow } from '@/components/player-row';
+import { SearchButton } from '@/components/search-button';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
@@ -37,6 +38,7 @@ export default function FollowListScreen() {
             style={styles.input}
           />
         </View>
+        <SearchButton />
       </View>
       <AppText variant="title">
         {which === 'followers' ? 'Abonnés' : 'Abonnements'}

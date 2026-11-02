@@ -4,6 +4,7 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 import { getCategory, getTheme, type ChallengeView, type PublicProfile, type ThemeInfo, type UserSummary } from '@qu1z/shared';
 
 import { UserRow } from '@/components/player-row';
+import { SearchButton } from '@/components/search-button';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -40,10 +41,14 @@ export default function SocialScreen() {
 
   return (
     <Screen inTabs>
-      <AppText variant="title" style={{ paddingTop: Spacing.sm }}>
-        Social
-      </AppText>
-      <Button label="Inviter un ami" color={Colors.opponent} onPress={invite} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing.sm }}>
+        <AppText variant="title">Social</AppText>
+        <SearchButton />
+      </View>
+      <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+        <Button label="Découvrir des joueurs" onPress={() => router.push('/discover')} style={{ flex: 1 }} />
+        <Button label="Inviter" color={Colors.opponent} onPress={invite} style={{ flex: 1 }} />
+      </View>
 
       {error && <AppText color={Colors.wrong}>{error}</AppText>}
       {incoming.length > 0 && (

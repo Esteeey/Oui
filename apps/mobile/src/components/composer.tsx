@@ -3,6 +3,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 
 import { MAX_POST_LENGTH, type PostTarget } from '@qu1z/shared';
 
+import { MentionSuggestions } from '@/components/mention-suggestions';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
@@ -58,6 +59,7 @@ export function Composer({
           style={styles.input}
         />
       </View>
+      <MentionSuggestions text={text} onChange={setText} />
       {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
       <View style={styles.footer}>
         <AppText variant="caption" color={remaining < 20 ? Colors.gold : Colors.textMuted}>

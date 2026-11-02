@@ -34,7 +34,8 @@ Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 - Comptes invités (jeton gardé sur l'appareil) ; connexion par e-mail et photos de profil à venir.
 - **Notifications** : centre complet (likes regroupés, commentaires, mentions, abonnements, progression, classements, défis, annonces), préférences, temps réel. Les notifications push sur téléphone arrivent plus tard.
 - **Défis** entre joueurs liés par un abonnement, revanche après un duel.
-- Pas encore de recherche de joueurs, de messagerie, de groupes ni de modération.
+- **Recherche** de joueurs et de thèmes depuis tous les onglets, page **Découvrir des joueurs**, suggestions pendant la saisie d'une mention.
+- Pas encore de messagerie, de groupes ni de modération.
 
 ## Lancer le projet
 
