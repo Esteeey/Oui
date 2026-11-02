@@ -62,7 +62,7 @@ export default function LeaderboardScreen() {
             <AppText variant="heading" style={styles.rank} color={row.rank <= 3 ? Colors.gold : Colors.textMuted}>
               {row.rank}
             </AppText>
-            <Avatar name={row.user.pseudo} color={avatarColor(row.user.id)} size={40} />
+            <Avatar name={row.user.pseudo} color={avatarColor(row.user.id)} uri={row.user.avatar} size={40} />
             <View style={{ flex: 1, gap: 4 }}>
               <AppText variant="label" numberOfLines={1}>
                 {row.user.pseudo}

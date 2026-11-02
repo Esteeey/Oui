@@ -42,7 +42,7 @@ export function MentionSuggestions({ text, onChange }: { text: string; onChange:
           accessibilityLabel={`Mentionner ${u.pseudo}`}
           onPress={() => onChange(`${text.slice(0, text.length - query.length - 1)}@${u.pseudo} `)}
           style={styles.chip}>
-          <Avatar name={u.pseudo} color={avatarColor(u.id)} size={24} />
+          <Avatar name={u.pseudo} color={avatarColor(u.id)} uri={u.avatar} size={24} />
           <AppText variant="caption">@{u.pseudo}</AppText>
         </Pressable>
       ))}

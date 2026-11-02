@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
 import {
   Pressable,
@@ -14,6 +15,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { mediaUri } from '@/net/media';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'score';
 
@@ -127,7 +129,9 @@ export function ProgressBar({
   );
 }
 
-export function Avatar({ name, color, size = 56 }: { name: string; color: string; size?: number }) {
+/** Photo de profil, ou initiale sur fond coloré quand le joueur n'en a pas. */
+export function Avatar({ name, color, size = 56, uri }: { name: string; color: string; size?: number; uri?: string | null }) {
+  const source = mediaUri(uri);
   return (
     <View
       style={{
@@ -137,12 +141,17 @@ export function Avatar({ name, color, size = 56 }: { name: string; color: string
         backgroundColor: color,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 3,
+        borderWidth: size >= 40 ? 3 : 2,
         borderColor: Colors.surfaceRaised,
+        overflow: 'hidden',
       }}>
-      <AppText variant="heading" color={Colors.background} style={{ fontSize: size * 0.42 }}>
-        {name.slice(0, 1).toUpperCase()}
-      </AppText>
+      {source ? (
+        <Image source={{ uri: source }} style={{ width: '100%', height: '100%' }} contentFit="cover" accessibilityLabel={`Photo de ${name}`} />
+      ) : (
+        <AppText variant="heading" color={Colors.background} style={{ fontSize: size * 0.42 }}>
+          {name.slice(0, 1).toUpperCase()}
+        </AppText>
+      )}
     </View>
   );
 }

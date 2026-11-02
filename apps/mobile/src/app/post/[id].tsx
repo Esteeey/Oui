@@ -55,7 +55,7 @@ export default function PostScreen() {
         accessibilityRole="button"
         accessibilityLabel={`Profil de ${c.author.pseudo}`}
         onPress={() => router.push({ pathname: '/player/[id]', params: { id: c.author.id } })}>
-        <Avatar name={c.author.pseudo} color={avatarColor(c.author.id)} size={32} />
+        <Avatar name={c.author.pseudo} color={avatarColor(c.author.id)} uri={c.author.avatar} size={32} />
       </Pressable>
       <View style={{ flex: 1, gap: 4 }}>
         <View style={styles.bubble}>

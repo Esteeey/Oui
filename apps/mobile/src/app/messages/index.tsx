@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { ConversationSummary, MessageRequestView } from '@qu1z/shared';
+import { attachmentLabel, type ConversationSummary, type MessageRequestView } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
 import { SectionHeader } from '@/components/social';
@@ -52,7 +52,7 @@ export default function InboxScreen() {
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/player/[id]', params: { id: r.from.id } })}
                 style={styles.requestHead}>
-                <Avatar name={r.from.pseudo} color={avatarColor(r.from.id)} size={40} />
+                <Avatar name={r.from.pseudo} color={avatarColor(r.from.id)} uri={r.from.avatar} size={40} />
                 <View style={{ flex: 1 }}>
                   <AppText variant="label">{r.from.pseudo}</AppText>
                   <AppText variant="caption" muted>
@@ -84,7 +84,7 @@ export default function InboxScreen() {
       <View style={styles.list}>
         {conversations.map((c) => {
           const last = c.lastMessage;
-          const preview = last ? `${last.senderId === playerId ? 'Toi : ' : ''}${last.text ?? 'Média'}` : 'Conversation ouverte';
+          const preview = last ? `${last.senderId === playerId ? 'Toi : ' : ''}${last.kind === 'text' ? (last.text ?? '') : `${attachmentLabel(last.kind)}${last.text ? ` · ${last.text}` : ''}`}` : 'Conversation ouverte';
           return (
             <View key={c.id}>
               <Pressable
@@ -93,7 +93,7 @@ export default function InboxScreen() {
                 onLongPress={() => setMenu(menu === c.id ? null : c.id)}
                 style={styles.row}>
                 <View>
-                  <Avatar name={c.other?.pseudo ?? '?'} color={c.other ? avatarColor(c.other.id) : Colors.border} size={48} />
+                  <Avatar uri={c.other?.avatar} name={c.other?.pseudo ?? '?'} color={c.other ? avatarColor(c.other.id) : Colors.border} size={48} />
                   {c.presence?.online && <View accessibilityLabel="En ligne" style={styles.online} />}
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>

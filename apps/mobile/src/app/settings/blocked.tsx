@@ -21,7 +21,7 @@ export default function BlockedScreen() {
       <AppText variant="title">Joueurs bloqués</AppText>
       {list.data && blocked.length === 0 && <AppText muted>Tu n’as bloqué personne.</AppText>}
       {blocked.map((b) => {
-        const user: UserSummary = { id: b.id, pseudo: b.pseudo, title: null, level: 1 };
+        const user: UserSummary = { id: b.id, pseudo: b.pseudo, title: null, level: 1, avatar: null };
         return (
           <View key={b.id} style={{ gap: Spacing.sm }}>
             <UserRow

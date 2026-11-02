@@ -19,6 +19,7 @@ export interface ShowcaseTheme {
 export function ProfileHeader({
   name,
   color,
+  avatar,
   title,
   bio,
   xp,
@@ -26,6 +27,7 @@ export function ProfileHeader({
 }: {
   name: string;
   color: string;
+  avatar?: string | null;
   /** Titre équipé par le joueur (sinon, le titre de son niveau). */
   title?: string | null;
   bio?: string;
@@ -35,7 +37,7 @@ export function ProfileHeader({
   const level = levelFromXp(xp);
   return (
     <View style={styles.header}>
-      <Avatar name={name} color={color} size={96} />
+      <Avatar name={name} color={color} size={96} uri={avatar} />
       <AppText variant="title">{name}</AppText>
       <AppText variant="label" color={Colors.gold}>
         {title ?? titleForLevel(level.level)} · Niveau {level.level}

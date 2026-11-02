@@ -73,7 +73,7 @@ export default function DiscoverScreen() {
                   accessibilityLabel={`Profil de ${u.pseudo}`}
                   onPress={() => router.push({ pathname: '/player/[id]', params: { id: u.id } })}
                   style={styles.card}>
-                  <Avatar name={u.pseudo} color={avatarColor(u.id)} size={64} />
+                  <Avatar name={u.pseudo} color={avatarColor(u.id)} uri={u.avatar} size={64} />
                   <AppText variant="label" numberOfLines={1}>
                     {u.pseudo}
                   </AppText>

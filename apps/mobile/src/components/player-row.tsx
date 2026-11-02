@@ -17,7 +17,7 @@ export function UserRow({ user, showLevel = false, right, subtitle }: { user: Us
         accessibilityLabel={`Profil de ${user.pseudo}`}
         onPress={() => router.push({ pathname: '/player/[id]', params: { id: user.id } })}
         style={styles.main}>
-        <Avatar name={user.pseudo} color={avatarColor(user.id)} size={44} />
+        <Avatar name={user.pseudo} color={avatarColor(user.id)} uri={user.avatar} size={44} />
         <View style={{ flex: 1 }}>
           <AppText variant="label" numberOfLines={1}>
             {user.pseudo}

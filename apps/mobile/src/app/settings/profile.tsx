@@ -1,14 +1,16 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { MAX_BIO_LENGTH, type PublicProfile } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
 import { Chip, SectionHeader } from '@/components/social';
-import { AppText, Button, Card, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
+import { pickImage, uploadImage } from '@/net/media';
+import { avatarColor } from '@/utils/avatar';
 import { useGameServer } from '@/state/game-server';
 
 /** Réglages du profil : pseudo, bio, titre équipé, confidentialité, joueurs bloqués. */
@@ -37,11 +39,53 @@ export default function ProfileSettingsScreen() {
     }
   };
 
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const changePhoto = async (source: 'library' | 'camera') => {
+    setMessage(null);
+    try {
+      const picked = await pickImage(source, { square: true });
+      if (!picked) return;
+      setPhotoBusy(true);
+      await uploadImage(picked, '/api/me/avatar');
+      setMessage({ ok: true, text: 'Photo de profil mise à jour.' });
+    } catch (e) {
+      setMessage({ ok: false, text: errorMessage(e) });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+  const removePhoto = async () => {
+    setMessage(null);
+    try {
+      await api('DELETE', '/api/me/avatar');
+      setMessage({ ok: true, text: 'Photo de profil retirée.' });
+    } catch (e) {
+      setMessage({ ok: false, text: errorMessage(e) });
+    }
+  };
+
   const p = me.data;
   return (
     <Screen>
       <BackButton />
       <AppText variant="title">Mon profil</AppText>
+
+      <Card style={styles.photoCard}>
+        <Avatar name={p?.pseudo ?? '?'} color={playerId ? avatarColor(playerId) : Colors.player} uri={p?.avatar} size={84} />
+        <View style={{ flex: 1, gap: Spacing.sm }}>
+          <AppText variant="label">Photo de profil</AppText>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }}>
+            <Button label={photoBusy ? 'Envoi…' : 'Galerie'} variant="outline" color={Colors.text} disabled={photoBusy} onPress={() => changePhoto('library')} />
+            {Platform.OS !== 'web' && (
+              <Button label="Appareil photo" variant="outline" color={Colors.text} disabled={photoBusy} onPress={() => changePhoto('camera')} />
+            )}
+            {p?.avatar && <Button label="Retirer" variant="outline" color={Colors.wrong} onPress={removePhoto} />}
+          </View>
+          <AppText variant="caption" muted>
+            JPEG, PNG, WebP ou GIF, 8 Mo maximum. La position et les infos de l’appareil sont retirées.
+          </AppText>
+        </View>
+      </Card>
 
       <Card>
         <AppText variant="label">Pseudo</AppText>
@@ -114,6 +158,7 @@ function Toggle({ label, hint, value, onChange }: { label: string; hint: string;
 }
 
 const styles = StyleSheet.create({
+  photoCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   input: {
     color: Colors.text,
     fontSize: 16,

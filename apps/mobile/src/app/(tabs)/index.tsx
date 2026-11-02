@@ -18,7 +18,7 @@ import { avatarColor } from '@/utils/avatar';
 
 export default function FeedScreen() {
   const { playerName, history } = useProgress();
-  const { playerId } = useGameServer();
+  const { playerId, profile } = useGameServer();
   const feed = useApi<{ items: FeedItem[] }>(playerId ? '/api/feed' : null);
   const { unreadNotifications } = useGameServer();
   const quickTheme = history[0]?.themeId ?? THEMES[0].id;
@@ -57,7 +57,7 @@ export default function FeedScreen() {
 
       <SectionHeader title="Fil d'actualité" />
       <Pressable accessibilityRole="button" onPress={() => router.push('/compose')} style={styles.compose}>
-        <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.player} size={36} />
+        <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.player} size={36} uri={profile?.avatar} />
         <AppText muted style={{ flex: 1 }}>
           Quoi de neuf ?
         </AppText>

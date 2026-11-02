@@ -4,11 +4,24 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { MAX_MESSAGE_LENGTH, QUICK_REACTIONS, type ConversationDetail, type MessageView } from '@qu1z/shared';
+import { Image } from 'expo-image';
 
+import {
+  attachmentLabel,
+  MAX_MESSAGE_LENGTH,
+  QUICK_REACTIONS,
+  type ConversationDetail,
+  type GifView,
+  type MediaView,
+  type MessageView,
+  type StickerId,
+} from '@qu1z/shared';
+
+import { AttachmentTray, AttachmentView } from '@/components/attachments';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
+import { pickImage, uploadImage, type PickedImage } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
@@ -29,6 +42,9 @@ export default function ConversationScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tray, setTray] = useState(false);
+  const [photo, setPhoto] = useState<PickedImage | null>(null);
+  const [sending, setSending] = useState(false);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const positions = useRef(new Map<string, number>());
   const messages = detail.data?.messages ?? [];
@@ -56,18 +72,59 @@ export default function ConversationScreen() {
   const other = c?.other;
   const lastMine = [...messages].reverse().find((m) => m.senderId === playerId);
 
+  /** Envoie un message : texte, photo (avec légende facultative), sticker ou GIF. */
+  const post = async (content: Record<string, unknown>) => {
+    setError(null);
+    setSending(true);
+    try {
+      await api('POST', `/api/messages/${id}`, { ...content, ...(replyTo ? { replyToId: replyTo.id } : {}) });
+      setReplyTo(null);
+      setTray(false);
+      setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
+      return true;
+    } catch (e) {
+      setError(errorMessage(e));
+      return false;
+    } finally {
+      setSending(false);
+    }
+  };
+
   const send = async () => {
+    if (photo) {
+      setSending(true);
+      try {
+        const media = await uploadImage<MediaView>(photo, '/api/media?purpose=message');
+        if (await post({ mediaId: media.id, ...(text.trim() ? { text } : {}) })) {
+          setPhoto(null);
+          setText('');
+        }
+      } catch (e) {
+        setError(errorMessage(e));
+        setSending(false);
+      }
+      return;
+    }
     if (!text.trim()) return;
+    if (await post({ text })) setText('');
+  };
+
+  const choosePhoto = async (source: 'library' | 'camera') => {
     setError(null);
     try {
-      await api('POST', `/api/messages/${id}`, { text, ...(replyTo ? { replyToId: replyTo.id } : {}) });
-      setText('');
-      setReplyTo(null);
-      setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300);
+      const picked = await pickImage(source);
+      if (picked) {
+        setPhoto(picked);
+        setTray(false);
+      }
     } catch (e) {
       setError(errorMessage(e));
     }
   };
+
+  const sendSticker = (stickerId: StickerId) => void post({ stickerId });
+  const sendGif = (g: GifView) => void post({ gif: { id: g.id, url: g.url, width: g.width, height: g.height } });
+  const canSend = !sending && (!!photo || !!text.trim());
 
   const react = (m: MessageView, emoji: string) => {
     const mine = m.reactions.find((r) => r.userIds.includes(playerId ?? ''))?.emoji;
@@ -93,7 +150,7 @@ export default function ConversationScreen() {
             accessibilityRole="button"
             onPress={() => router.push({ pathname: '/player/[id]', params: { id: other.id } })}
             style={styles.who}>
-            <Avatar name={other.pseudo} color={avatarColor(other.id)} size={38} />
+            <Avatar name={other.pseudo} color={avatarColor(other.id)} uri={other.avatar} size={38} />
             <View>
               <AppText variant="label">{other.pseudo}</AppText>
               {presenceText(c?.presence ?? null) && (
@@ -125,18 +182,25 @@ export default function ConversationScreen() {
                 accessibilityHint="Répondre ou réagir"
                 onPress={() => setSelected(selected === m.id ? null : m.id)}
                 onLongPress={() => setSelected(m.id)}
-                style={[styles.bubble, mine ? styles.mine : styles.theirs, highlight === m.id && styles.highlight]}>
+                style={[
+                  styles.bubble,
+                  mine ? styles.mine : styles.theirs,
+                  (m.kind === 'sticker' || m.kind === 'gif') && !m.replyTo && styles.bare,
+                  m.kind === 'image' && styles.photoBubble,
+                  highlight === m.id && styles.highlight,
+                ]}>
                 {m.replyTo && (
                   <Pressable accessibilityRole="button" accessibilityLabel="Voir le message d’origine" onPress={() => goTo(m.replyTo!.id)} style={styles.quote}>
                     <AppText variant="caption" color={Colors.opponent}>
                       {m.replyTo.senderId === playerId ? 'Toi' : (m.replyTo.senderPseudo ?? '')}
                     </AppText>
                     <AppText variant="caption" muted numberOfLines={2}>
-                      {m.replyTo.text ?? 'Message retiré'}
+                      {m.replyTo.text ?? (attachmentLabel(m.replyTo.kind) || 'Message retiré')}
                     </AppText>
                   </Pressable>
                 )}
-                <AppText>{m.text}</AppText>
+                {m.attachment && <AttachmentView attachment={m.attachment} />}
+                {m.text ? <AppText>{m.text}</AppText> : null}
                 <AppText variant="caption" muted style={{ alignSelf: 'flex-end', fontSize: 11 }}>
                   {new Date(m.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                 </AppText>
@@ -195,24 +259,43 @@ export default function ConversationScreen() {
           {replyTo && (
             <Pressable accessibilityRole="button" onPress={() => setReplyTo(null)} style={styles.replyBanner}>
               <AppText variant="caption" color={Colors.opponent} style={{ flex: 1 }} numberOfLines={1}>
-                Réponse à {replyTo.senderId === playerId ? 'toi' : other?.pseudo} : {replyTo.text}
+                Réponse à {replyTo.senderId === playerId ? 'toi' : other?.pseudo} : {replyTo.text ?? attachmentLabel(replyTo.kind)}
               </AppText>
               <Ionicons name="close" size={16} color={Colors.textMuted} />
             </Pressable>
           )}
           {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
+          {photo && (
+            <View style={styles.pending}>
+              <Image source={{ uri: photo.uri }} style={styles.pendingImage} contentFit="cover" accessibilityLabel="Photo à envoyer" />
+              <AppText variant="caption" muted style={{ flex: 1 }}>
+                Photo prête. Ajoute une légende si tu veux.
+              </AppText>
+              <Pressable accessibilityRole="button" accessibilityLabel="Retirer la photo" onPress={() => setPhoto(null)} style={{ padding: 6 }}>
+                <Ionicons name="close" size={18} color={Colors.textMuted} />
+              </Pressable>
+            </View>
+          )}
+          {tray && !photo && <AttachmentTray onPhoto={choosePhoto} onSticker={sendSticker} onGif={sendGif} />}
           <View style={styles.inputRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={tray ? 'Fermer les pièces jointes' : 'Photo, sticker ou GIF'}
+              onPress={() => setTray(!tray)}
+              style={styles.plus}>
+              <Ionicons name={tray ? 'close' : 'add'} size={24} color={Colors.text} />
+            </Pressable>
             <TextInput
               value={text}
               onChangeText={setText}
-              placeholder="Message…"
+              placeholder={photo ? 'Légende…' : 'Message…'}
               placeholderTextColor={Colors.textMuted}
               maxLength={MAX_MESSAGE_LENGTH}
               multiline
               accessibilityLabel="Écrire un message"
               style={styles.input}
             />
-            <Pressable accessibilityRole="button" accessibilityLabel="Envoyer" disabled={!text.trim()} onPress={send} style={[styles.send, !text.trim() && { opacity: 0.4 }]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Envoyer" disabled={!canSend} onPress={send} style={[styles.send, !canSend && { opacity: 0.4 }]}>
               <Ionicons name="send" size={20} color={Colors.background} />
             </Pressable>
           </View>
@@ -233,6 +316,11 @@ const styles = StyleSheet.create({
   mine: { backgroundColor: '#3A1F17', borderBottomRightRadius: 6 },
   theirs: { backgroundColor: Colors.surface, borderBottomLeftRadius: 6 },
   highlight: { borderWidth: 2, borderColor: Colors.gold },
+  bare: { backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 },
+  photoBubble: { padding: 4 },
+  plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+  pending: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: 6 },
+  pendingImage: { width: 56, height: 56, borderRadius: Radius.sm },
   quote: { borderLeftWidth: 3, borderLeftColor: Colors.opponent, paddingLeft: Spacing.sm, paddingVertical: 2 },
   reactions: { flexDirection: 'row', gap: 4 },
   reaction: { backgroundColor: Colors.surfaceRaised, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2 },

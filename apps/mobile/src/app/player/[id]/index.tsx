@@ -80,6 +80,7 @@ export default function PlayerScreen() {
       <ProfileHeader
         name={p.pseudo}
         color={avatarColor(p.id)}
+        avatar={p.avatar}
         title={p.title}
         bio={p.bio}
         xp={p.xp}

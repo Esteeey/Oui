@@ -114,6 +114,16 @@ export const ERROR_MESSAGES: Record<string, string> = {
   too_many_requests: 'Trop de demandes envoyées à ce joueur ce mois-ci.',
   invalid_reply: 'Impossible de répondre à ce message.',
   invalid_emoji: 'Réaction invalide.',
+  unsupported_format: 'Format non pris en charge : JPEG, PNG, WebP ou GIF uniquement.',
+  too_large: 'Fichier trop lourd (8 Mo maximum).',
+  empty_file: 'Fichier vide.',
+  too_many_frames: 'Ce GIF est trop long.',
+  invalid_media: 'Cette image ne peut pas être envoyée.',
+  invalid_sticker: 'Sticker inconnu.',
+  invalid_gif: 'Ce GIF ne peut pas être envoyé.',
+  gifs_unavailable: 'Les GIF ne sont pas encore disponibles.',
+  gif_provider_error: 'Le catalogue de GIF ne répond pas.',
+  permission: 'Autorise l’accès dans les réglages de ton téléphone pour continuer.',
 };
 
 export function errorMessage(e: unknown): string {

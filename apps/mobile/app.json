@@ -32,6 +32,13 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Qu1z accède à tes photos pour que tu puisses en envoyer et choisir ta photo de profil.",
+          "cameraPermission": "Qu1z utilise l’appareil photo pour que tu puisses prendre une photo à envoyer."
+        }
       ]
     ],
     "experiments": {

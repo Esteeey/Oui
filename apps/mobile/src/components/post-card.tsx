@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { getCategory, getTheme, type PostView } from '@qu1z/shared';
 
+import { Photo } from '@/components/attachments';
 import { RichText } from '@/components/rich-text';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -41,7 +42,7 @@ export function PostCard({
     <View style={styles.card}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${post.author.pseudo}`} onPress={openAuthor}>
-          <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} size={42} />
+          <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} uri={post.author.avatar} size={42} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
           <AppText variant="label" onPress={openAuthor}>
@@ -72,7 +73,8 @@ export function PostCard({
         </View>
       </View>
 
-      <RichText text={post.text} mentions={post.mentions} style={{ lineHeight: 23 }} />
+      {post.text ? <RichText text={post.text} mentions={post.mentions} style={{ lineHeight: 23 }} /> : null}
+      {post.media && <Photo media={post.media} maxWidth={560} maxHeight={420} />}
 
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>

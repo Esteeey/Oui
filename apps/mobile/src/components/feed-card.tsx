@@ -31,7 +31,7 @@ export function ActivityCard({ activity }: { activity: ActivityView }) {
     <View style={styles.card}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${activity.user.pseudo}`} onPress={openPlayer}>
-          <Avatar name={activity.user.pseudo} color={avatarColor(activity.user.id)} size={42} />
+          <Avatar name={activity.user.pseudo} color={avatarColor(activity.user.id)} uri={activity.user.avatar} size={42} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <AppText>

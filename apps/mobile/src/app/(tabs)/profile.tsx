@@ -55,6 +55,7 @@ export default function ProfileScreen() {
       <ProfileHeader
         name={me.data?.pseudo ?? playerName}
         color={playerId ? avatarColor(playerId) : Colors.player}
+        avatar={me.data?.avatar}
         title={me.data?.title}
         bio={me.data?.bio}
         xp={me.data?.xp ?? totalXp(stats)}

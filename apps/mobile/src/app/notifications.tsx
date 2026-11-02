@@ -113,7 +113,7 @@ export default function NotificationsScreen() {
           return (
             <Pressable key={n.id} accessibilityRole="button" onPress={() => tap(n)} style={styles.row}>
               {actor ? (
-                <Avatar name={actor.pseudo} color={avatarColor(actor.id)} size={40} />
+                <Avatar name={actor.pseudo} color={avatarColor(actor.id)} uri={actor.avatar} size={40} />
               ) : (
                 <View style={[styles.icon, { backgroundColor: icon?.color ?? Colors.surfaceRaised }]}>
                   <Ionicons name={icon?.icon ?? 'notifications'} size={20} color={Colors.background} />
