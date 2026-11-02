@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { INITIAL_RATING, type ChatMessage, type DuelRecord, type DuelResult, type Profile, type ThemeStats } from '@qu1z/shared';
+import { INITIAL_RATING, type DuelRecord, type DuelResult, type Profile, type ThemeStats } from '@qu1z/shared';
 
 import type { Database, Queryable } from './db/database';
 import type { DuelState } from './duel';
@@ -222,25 +222,6 @@ export class Repo {
 
   async clearPendingResult(userId: string, duelId: string): Promise<void> {
     await this.db.query('UPDATE users SET pending_result_duel_id = NULL WHERE id = $1 AND pending_result_duel_id = $2', [userId, duelId]);
-  }
-
-  // ---- Chat de duel ------------------------------------------------------------------------
-
-  async addDuelChat(duelId: string, fromId: string, text: string, max: number): Promise<boolean> {
-    return this.db.transaction(async (tx) => {
-      const [{ n }] = await tx.query<{ n: number }>('SELECT count(*)::int AS n FROM duel_chat_messages WHERE duel_id = $1', [duelId]);
-      if (n >= max) return false;
-      await tx.query('INSERT INTO duel_chat_messages (id, duel_id, from_id, text) VALUES ($1, $2, $3, $4)', [randomUUID(), duelId, fromId, text]);
-      return true;
-    });
-  }
-
-  async duelChat(duelId: string): Promise<ChatMessage[]> {
-    const rows = await this.db.query<{ id: string; from_id: string; text: string; created_at: Date }>(
-      'SELECT id, from_id, text, created_at FROM duel_chat_messages WHERE duel_id = $1 ORDER BY created_at, id',
-      [duelId],
-    );
-    return rows.map((r) => ({ id: r.id, fromId: r.from_id, text: r.text, at: new Date(r.created_at).getTime() }));
   }
 
   // ---- Blocages ----------------------------------------------------------------------------

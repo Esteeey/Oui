@@ -93,12 +93,6 @@ export interface DuelSnapshot {
   result: DuelResult | null;
 }
 
-export interface ChatMessage {
-  id: string;
-  fromId: string;
-  text: string;
-  at: number;
-}
 
 export type ClientMessage =
   | { type: 'hello'; token?: string }
@@ -106,9 +100,7 @@ export type ClientMessage =
   | { type: 'cancelQueue' }
   | { type: 'answer'; duelId: string; index: number; choice: number }
   | { type: 'forfeit'; duelId: string }
-  | { type: 'ackResult'; duelId: string }
-  | { type: 'chat'; duelId: string; text: string }
-  | { type: 'getChat'; duelId: string };
+  | { type: 'ackResult'; duelId: string };
 
 export type ServerMessage =
   | { type: 'welcome'; playerId: string; token: string; profile: Profile }
@@ -116,7 +108,8 @@ export type ServerMessage =
   | { type: 'queued'; themeId: string; since: number }
   | { type: 'queueCancelled' }
   | { type: 'duel'; snapshot: DuelSnapshot }
-  | { type: 'chat'; duelId: string; messages: ChatMessage[]; canChat: boolean }
   | { type: 'error'; code: string; message: string }
+  /** Messagerie modifiée (message, réaction, lecture, demande) : le client recharge ce qui est affiché. */
+  | { type: 'messages'; conversationId?: string }
   /** Une notification a été ajoutée ou mise à jour : le client recharge le centre. */
   | { type: 'notification'; unread?: number };

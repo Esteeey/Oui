@@ -302,7 +302,7 @@ describe('déconnexions et reconnexions', () => {
   });
 });
 
-describe('duel contre le bot et chat', () => {
+describe('duel contre le bot', () => {
   it('le bot répond tout seul et le duel se termine avec les récompenses', async () => {
     await boot();
     const a = await client();
@@ -323,15 +323,4 @@ describe('duel contre le bot et chat', () => {
     expect(s.opponent.isBot).toBe(true);
   });
 
-  it('chat réservé aux deux joueurs d’un duel entre joueurs réels', async () => {
-    await boot();
-    const { a, b, duelId } = await startPvp();
-    a.send({ type: 'chat', duelId, text: 'Bien joué !' });
-    const m = await b.waitFor((x) => x.type === 'chat', 2000, 0);
-    expect(m.type === 'chat' && m.messages[0].text).toBe('Bien joué !');
-    const intruder = await client();
-    intruder.send({ type: 'chat', duelId, text: 'spam' });
-    await sleep(40);
-    expect(await server.game.repo.duelChat(duelId)).toHaveLength(1);
-  });
 });

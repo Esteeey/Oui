@@ -8,6 +8,7 @@ import { createApi } from './api';
 import { Game, type GameOptions } from './game';
 import { Challenges } from './challenges';
 import { Discovery } from './discovery';
+import { Messaging } from './messaging';
 import { Notifier } from './notifier';
 import { Social } from './social';
 
@@ -19,6 +20,7 @@ export interface GameServer {
   notifier: Notifier;
   challenges: Challenges;
   discovery: Discovery;
+  messaging: Messaging;
   http: Server;
   port: number;
   close: () => Promise<void>;
@@ -43,7 +45,8 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
   const social = new Social(game.repo.db, game.limiter, notifier);
   const challenges = new Challenges(game.repo.db, game, notifier);
   const discovery = new Discovery(game.repo.db);
-  const api = createApi(game, social, notifier, challenges, discovery);
+  const messaging = new Messaging(game.repo.db, game.limiter, (id) => game.isOnline(id), send);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging);
   const http = createServer((req, res) => void api(req, res));
   const wss = new WebSocketServer({ server: http, maxPayload: 8 * 1024 });
 
@@ -96,10 +99,6 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
           return game.forfeit(playerId, str(msg.duelId));
         case 'ackResult':
           return game.ackResult(playerId, str(msg.duelId));
-        case 'chat':
-          return game.chat(playerId, str(msg.duelId), str(msg.text));
-        case 'getChat':
-          return game.getChat(playerId, str(msg.duelId));
         default:
           return;
       }
@@ -139,6 +138,7 @@ export async function startServer(port: number, options: Omit<GameOptions, 'send
     notifier,
     challenges,
     discovery,
+    messaging,
     http,
     port: typeof address === 'object' && address ? address.port : port,
     close: async () => {

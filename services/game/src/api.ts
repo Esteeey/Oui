@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Challenges } from './challenges';
 import type { Discovery } from './discovery';
+import type { Messaging } from './messaging';
 import type { Game } from './game';
 import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
@@ -43,7 +44,7 @@ type Handler = (ctx: { userId: string; params: string[]; query: URLSearchParams;
  * API HTTP. Authentification : `Authorization: Bearer <jeton>`.
  * Chaque route vérifie elle-même les droits (blocages, confidentialité) : rien ne repose sur l'interface.
  */
-export function createApi(game: Game, social: Social, notifier: Notifier, challenges: Challenges, discovery: Discovery) {
+export function createApi(game: Game, social: Social, notifier: Notifier, challenges: Challenges, discovery: Discovery, messaging: Messaging) {
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
@@ -80,6 +81,7 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
       if (!(await game.repo.user(target))) throw new SocialError(404, 'unknown_user');
       if (!game.limiter.allow('block', userId)) throw new SocialError(429, 'rate_limited');
       await social.block(userId, target);
+      await messaging.onBlock(userId, target);
       return { ok: true };
     }],
     ['DELETE', /^\/api\/blocks\/([^/]+)$/, async ({ userId, params }) => {
@@ -126,6 +128,29 @@ export function createApi(game: Game, social: Social, notifier: Notifier, challe
       users: await discovery.mentionSuggestions(userId, query.get('q') ?? ''),
     })],
     ['GET', /^\/api\/discover$/, async ({ userId }) => ({ users: await discovery.discover(userId) })],
+
+    // Messagerie privée (séparée du centre de notifications)
+    ['GET', /^\/api\/messages$/, async ({ userId }) => ({ conversations: await messaging.inbox(userId) })],
+    ['GET', /^\/api\/messages\/requests$/, async ({ userId }) => ({ requests: await messaging.requests(userId) })],
+    ['POST', /^\/api\/messages\/requests$/, async ({ userId, body }) => {
+      const b = await body();
+      return messaging.request(userId, uuid(b.userId), b.text);
+    }],
+    ['POST', /^\/api\/messages\/requests\/([^/]+)\/accept$/, async ({ userId, params }) => messaging.acceptRequest(userId, uuid(params[0]))],
+    ['POST', /^\/api\/messages\/requests\/([^/]+)\/decline$/, async ({ userId, params }) => messaging.declineRequest(userId, uuid(params[0]))],
+    ['GET', /^\/api\/messages\/with\/([^/]+)$/, async ({ userId, params }) => ({ conversationId: await messaging.directWith(userId, uuid(params[0])) })],
+    ['PUT', /^\/api\/messages\/reactions\/([^/]+)$/, async ({ userId, params, body }) => messaging.react(userId, uuid(params[0]), String((await body()).emoji ?? ''))],
+    ['DELETE', /^\/api\/messages\/reactions\/([^/]+)$/, async ({ userId, params }) => messaging.react(userId, uuid(params[0]), null)],
+    ['GET', /^\/api\/messages\/([^/]+)$/, async ({ userId, params, query }) =>
+      messaging.conversation(userId, uuid(params[0]), Number(query.get('before')) || undefined)],
+    ['POST', /^\/api\/messages\/([^/]+)$/, async ({ userId, params, body }) => {
+      const b = await body();
+      return messaging.sendMessage(userId, uuid(params[0]), b.text, b.replyToId ? uuid(b.replyToId) : undefined);
+    }],
+    ['POST', /^\/api\/messages\/([^/]+)\/read$/, async ({ userId, params }) => messaging.markRead(userId, uuid(params[0]))],
+    ['PUT', /^\/api\/messages\/([^/]+)\/pin$/, async ({ userId, params }) => messaging.setPinned(userId, uuid(params[0]), true)],
+    ['DELETE', /^\/api\/messages\/([^/]+)\/pin$/, async ({ userId, params }) => messaging.setPinned(userId, uuid(params[0]), false)],
+    ['DELETE', /^\/api\/messages\/([^/]+)$/, async ({ userId, params }) => messaging.hide(userId, uuid(params[0]))],
 
     // Notifications
     ['GET', /^\/api\/notifications$/, async ({ userId }) => ({

@@ -24,8 +24,6 @@ import type { Notifier } from './notifier';
 import { RateLimiter, DEFAULT_LIMITS, type Limits } from './rate-limit';
 import { Repo, type UserRow } from './repo';
 
-export const MAX_CHAT_LENGTH = 200;
-const MAX_CHAT_MESSAGES = 100;
 
 export interface GameOptions {
   repo: Repo;
@@ -265,33 +263,6 @@ export class Game {
 
   async ackResult(playerId: string, duelId: string): Promise<void> {
     await this.repo.clearPendingResult(playerId, duelId);
-  }
-
-  // ---- Chat (duels entre joueurs réels) ----------------------------------------------------
-
-  async chat(playerId: string, duelId: string, text: string): Promise<void> {
-    const duel = this.ownedDuel(playerId, duelId);
-    if (!duel || duel.state.mode !== 'pvp') return;
-    const other = duel.state.participants.find((p) => p.playerId !== playerId)!;
-    if (await this.repo.isBlockedEitherWay(playerId, other.playerId)) return;
-    if (!this.limiter.allow('chat', playerId)) return;
-    const clean = String(text ?? '').trim().slice(0, MAX_CHAT_LENGTH);
-    if (!clean) return;
-    await this.writes.get(duelId);
-    if (!(await this.repo.addDuelChat(duelId, playerId, clean, MAX_CHAT_MESSAGES))) return;
-    for (const p of duel.state.participants) if (!p.isBot) await this.sendChat(p.playerId, duel);
-  }
-
-  async getChat(playerId: string, duelId: string): Promise<void> {
-    const duel = this.ownedDuel(playerId, duelId);
-    if (duel) await this.sendChat(playerId, duel);
-  }
-
-  private async sendChat(playerId: string, duel: Duel): Promise<void> {
-    const other = duel.state.participants.find((p) => p.playerId !== playerId)!;
-    const blocked = !other.isBot && (await this.repo.isBlockedEitherWay(playerId, other.playerId));
-    const messages = blocked ? [] : await this.repo.duelChat(duel.id);
-    this.send(playerId, { type: 'chat', duelId: duel.id, messages, canChat: duel.state.mode === 'pvp' && !blocked });
   }
 
   // ---- Diffusion et fin de duel ------------------------------------------------------------
