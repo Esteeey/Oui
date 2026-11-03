@@ -6,6 +6,7 @@ import { groupRights, MAX_GROUP_NAME_LENGTH, type GroupDetail, type GroupMemberV
 
 import { BackButton } from '@/components/back-button';
 import { GroupAvatar, RoleBadge } from '@/components/group';
+import { ReportSheet } from '@/components/report-sheet';
 import { SectionHeader } from '@/components/social';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -25,6 +26,7 @@ export default function GroupInfoScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [transferring, setTransferring] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const g = group.data;
   const rights = groupRights(g?.myRole ?? 'member');
@@ -266,6 +268,8 @@ export default function GroupInfoScreen() {
           )}
 
           <SectionHeader title="Groupe" />
+          <ReportSheet target={reporting ? { type: 'group', id: g.id, label: `le groupe « ${g.name} »` } : null} onClose={() => setReporting(false)} />
+          <Button label="Signaler le groupe" variant="outline" color={Colors.textMuted} onPress={() => setReporting(true)} />
           {g.myRole === 'creator' ? (
             <>
               {g.members.length > 1 && (

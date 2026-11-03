@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { THEMES, getCategory, type DuelRecord, type PostView, type PublicProfile, type ThemeStats } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
+import { ReportSheet } from '@/components/report-sheet';
 import { PostCard } from '@/components/post-card';
 import { FollowCounts, OutcomeBar, ProfileHeader, Showcase } from '@/components/profile-view';
 import { SectionHeader } from '@/components/social';
@@ -23,6 +24,7 @@ export default function PlayerScreen() {
   const wall = useApi<{ posts: PostView[] }>(p?.canSeeContent ? `/api/users/${id}/posts` : null);
   const { history } = useProgress();
   const [confirmBlock, setConfirmBlock] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
   const can = useApi<{ canChallenge: boolean }>(p && !p.relationship.isMe ? `/api/users/${id}/can-challenge` : null);
@@ -63,8 +65,16 @@ export default function PlayerScreen() {
 
   return (
     <Screen>
+      <ReportSheet target={reporting ? { type: 'user', id: p.id, label: p.pseudo } : null} onClose={() => setReporting(false)} />
       <View style={styles.topRow}>
         <BackButton />
+        <View style={{ flex: 1 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Signaler" onPress={() => setReporting(true)} style={styles.menu}>
+          <Ionicons name="flag-outline" size={18} color={Colors.textMuted} />
+          <AppText variant="caption" muted>
+            Signaler
+          </AppText>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={rel.blockedByMe ? 'Débloquer' : 'Bloquer'}

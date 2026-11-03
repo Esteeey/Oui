@@ -21,6 +21,8 @@ interface GameServerState {
   clockOffset: number;
   queued: { themeId: string; since: number } | null;
   lastError: string | null;
+  /** Compte banni : l'application ne montre plus que les sanctions et l'appel. */
+  banned: boolean;
   /** Dernière demande de duel (pour « Rejouer »). */
   lastRequest: DuelRequest | null;
   /** Notifications non lues (mises à jour en temps réel). */
@@ -44,6 +46,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const [clockOffset, setClockOffset] = useState(0);
   const [queued, setQueued] = useState<GameServerState['queued']>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [banned, setBanned] = useState(false);
   const [lastRequest, setLastRequest] = useState<DuelRequest | null>(null);
   const [unreadNotifications, setUnread] = useState(0);
   const connection = useRef<GameConnection | null>(null);
@@ -85,6 +88,10 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
           break;
         case 'error':
           setLastError(m.message);
+          if (m.code === 'banned') {
+            setBanned(true);
+            connection.current?.stop();
+          }
           break;
       }
     };
@@ -104,6 +111,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     clockOffset,
     queued,
     lastError,
+    banned,
     lastRequest,
     unreadNotifications,
     play: (request) => {

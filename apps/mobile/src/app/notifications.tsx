@@ -25,6 +25,9 @@ const ICONS: Partial<Record<NotificationView['type'], { icon: IconName; color: s
   rank_left_top10: { icon: 'trending-down', color: Colors.wrong },
   duel_finished: { icon: 'flag', color: Colors.player },
   announcement: { icon: 'megaphone', color: Colors.player },
+  sanction: { icon: 'warning', color: Colors.wrong },
+  appeal_decision: { icon: 'scale', color: Colors.opponent },
+  report_closed: { icon: 'shield-checkmark', color: Colors.correct },
 };
 
 /** Où mène chaque notification. */
@@ -53,6 +56,10 @@ function open(n: NotificationView): void {
       return;
     case 'announcement':
       if (typeof d.announcementId === 'string') router.push({ pathname: '/announcement/[id]', params: { id: d.announcementId } });
+      return;
+    case 'sanction':
+    case 'appeal_decision':
+      router.push('/settings/sanctions');
       return;
     case 'challenge_received':
     case 'rematch_request':

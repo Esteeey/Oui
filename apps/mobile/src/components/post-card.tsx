@@ -6,10 +6,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { getCategory, getTheme, type PostView } from '@qu1z/shared';
 
 import { Photo } from '@/components/attachments';
+import { ReportSheet } from '@/components/report-sheet';
 import { RichText } from '@/components/rich-text';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api } from '@/net/api';
+import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
 
@@ -26,6 +28,8 @@ export function PostCard({
 }) {
   // Affichage immédiat du « Bravo », confirmé par le serveur.
   const [liked, setLiked] = useState<boolean | null>(null);
+  const [reporting, setReporting] = useState(false);
+  const { playerId } = useGameServer();
   const isLiked = liked ?? post.likedByMe;
   const likes = post.likes + (liked === null ? 0 : (liked ? 1 : 0) - (post.likedByMe ? 1 : 0));
   const theme = post.target.kind === 'theme' ? getTheme(post.target.themeId) : undefined;
@@ -94,7 +98,13 @@ export function PostCard({
             {post.comments === 0 ? 'Commenter' : `${post.comments} commentaire${post.comments > 1 ? 's' : ''}`}
           </AppText>
         </Pressable>
+        {post.author.id !== playerId && (
+          <Pressable accessibilityRole="button" accessibilityLabel="Signaler la publication" onPress={() => setReporting(true)} style={[styles.action, { marginLeft: 'auto' }]}>
+            <Ionicons name="flag-outline" size={17} color={Colors.textMuted} />
+          </Pressable>
+        )}
       </View>
+      <ReportSheet target={reporting ? { type: 'post', id: post.id, label: 'cette publication' } : null} onClose={() => setReporting(false)} />
     </View>
   );
 }

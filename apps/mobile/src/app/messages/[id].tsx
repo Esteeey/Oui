@@ -20,6 +20,7 @@ import {
 
 import { AttachmentTray, AttachmentView } from '@/components/attachments';
 import { GroupAvatar } from '@/components/group';
+import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -46,6 +47,7 @@ export default function ConversationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [tray, setTray] = useState(false);
   const [showPinned, setShowPinned] = useState(false);
+  const [reporting, setReporting] = useState<ReportTarget | null>(null);
   const [photo, setPhoto] = useState<PickedImage | null>(null);
   const [sending, setSending] = useState(false);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -152,6 +154,7 @@ export default function ConversationScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <ReportSheet target={reporting} onClose={() => setReporting(null)} />
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages'))} style={{ padding: Spacing.sm }}>
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
@@ -316,6 +319,22 @@ export default function ConversationScreen() {
                     <Ionicons name="arrow-undo" size={16} color={Colors.text} />
                     <AppText variant="caption">Répondre</AppText>
                   </Pressable>
+                  {!mine && (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setSelected(null);
+                        setReporting({
+                          type: m.attachment ? 'media' : 'message',
+                          id: m.id,
+                          label: m.attachment?.kind === 'image' ? 'cette photo' : m.attachment?.kind === 'gif' ? 'ce GIF' : m.attachment ? 'ce sticker' : 'ce message',
+                        });
+                      }}
+                      style={styles.replyButton}>
+                      <Ionicons name="flag-outline" size={16} color={Colors.wrong} />
+                      <AppText variant="caption">Signaler</AppText>
+                    </Pressable>
+                  )}
                   {canPin && (
                     <Pressable accessibilityRole="button" onPress={() => togglePin(m)} style={styles.replyButton}>
                       <Ionicons name="pin" size={16} color={Colors.gold} />

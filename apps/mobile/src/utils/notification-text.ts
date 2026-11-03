@@ -63,5 +63,13 @@ export function notificationText(n: NotificationView): string {
       return `Tu sors du Top 10 en ${theme} (${n.data.rank}e)`;
     case 'announcement':
       return `Annonce : ${n.data.title}`;
+    case 'sanction':
+      return n.data.level === 'warning'
+        ? 'Tu as reçu un avertissement de l’équipe de modération'
+        : 'Ton compte est suspendu temporairement par l’équipe de modération';
+    case 'appeal_decision':
+      return n.data.status === 'accepted' ? 'Ton appel a été accepté : la sanction est levée' : 'Ton appel a été examiné : la sanction est maintenue';
+    case 'report_closed':
+      return 'Ton signalement a été examiné par l’équipe de modération. Merci !';
   }
 }

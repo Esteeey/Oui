@@ -17,7 +17,7 @@ import { useGameServer } from '@/state/game-server';
 export default function ProfileSettingsScreen() {
   const { playerId } = useGameServer();
   const me = useApi<PublicProfile>(playerId ? `/api/users/${playerId}` : null);
-  const account = useApi<{ titles: string[] }>('/api/me');
+  const account = useApi<{ titles: string[]; role: string }>('/api/me');
   const [pseudo, setPseudo] = useState('');
   const [bio, setBio] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -139,6 +139,18 @@ export default function ProfileSettingsScreen() {
         <AppText variant="label">Joueurs bloqués</AppText>
         <AppText muted>›</AppText>
       </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/settings/sanctions')} style={styles.link}>
+        <AppText variant="label">Mes sanctions</AppText>
+        <AppText muted>›</AppText>
+      </Pressable>
+      {(account.data?.role === 'moderator' || account.data?.role === 'admin') && (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/moderation')} style={styles.link}>
+          <AppText variant="label" color={Colors.gold}>
+            Panneau de modération
+          </AppText>
+          <AppText muted>›</AppText>
+        </Pressable>
+      )}
     </Screen>
   );
 }

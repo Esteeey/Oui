@@ -1,10 +1,11 @@
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 import { Colors } from '@/constants/theme';
-import { GameServerProvider } from '@/state/game-server';
+import { BannedScreen } from '@/components/banned-screen';
+import { GameServerProvider, useGameServer } from '@/state/game-server';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -29,6 +30,7 @@ export default function RootLayout() {
     <ThemeProvider value={navigationTheme}>
       <GameServerProvider>
           <StatusBar style="light" />
+          <BannedGate>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -47,13 +49,23 @@ export default function RootLayout() {
             <Stack.Screen name="settings/profile" />
             <Stack.Screen name="settings/blocked" />
             <Stack.Screen name="settings/notifications" />
+            <Stack.Screen name="settings/sanctions" />
+            <Stack.Screen name="moderation/index" />
+            <Stack.Screen name="moderation/report/[id]" />
             <Stack.Screen name="announcement/[id]" />
             <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="discover" />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="compose" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
+          </BannedGate>
       </GameServerProvider>
     </ThemeProvider>
   );
+}
+
+/** Compte banni : seul l'écran des sanctions (et de l'appel) reste accessible. */
+function BannedGate({ children }: { children: ReactNode }) {
+  const { banned } = useGameServer();
+  return banned ? <BannedScreen /> : children;
 }
