@@ -37,7 +37,8 @@ Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 - **Recherche** de joueurs et de thèmes depuis tous les onglets, page **Découvrir des joueurs**, suggestions pendant la saisie d'une mention.
 - **Messagerie privée** : demandes de message, conversations texte, réponses, réactions, Envoyé / Lu, présence (abonnés mutuels), épinglage.
 - **Médias** : photo de profil, photos dans les messages et les publications (galerie ou appareil photo), 12 stickers originaux, GIF (avec une clé GIPHY ou Tenor). Images vérifiées, nettoyées (EXIF, position) et redimensionnées par le serveur.
-- Pas encore de groupes ni de modération.
+- **Groupes** : création, invitations acceptées ou refusées, rôles créateur / administrateur / membre, transfert, exclusions, messages épinglés, messages système, suppression par le créateur.
+- Pas encore de modération officielle (signalements, sanctions).
 
 ## Lancer le projet
 

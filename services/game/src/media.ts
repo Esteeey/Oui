@@ -78,7 +78,8 @@ let publicUrl: (key: string) => string = (key) => `/media/${key}`;
 export const mediaUrl = (key: string | null | undefined): string | null => (key ? publicUrl(key) : null);
 
 /** Dimensions maximales après redimensionnement. */
-const MAX_SIDE = { message: 1600, post: 1600, avatar: 512 } as const;
+const MAX_SIDE = { message: 1600, post: 1600, avatar: 512, group: 512 } as const;
+const isSquare = (purpose: MediaPurpose) => purpose === 'avatar' || purpose === 'group';
 const MAX_ANIMATED_SIDE = 720;
 const MAX_INPUT_PIXELS = 40_000_000;
 const MAX_FRAMES = 300;
@@ -127,7 +128,7 @@ export class Media {
       throw new SocialError(415, 'unsupported_format');
     }
     if (!meta.format || !(MEDIA_FORMATS as readonly string[]).includes(meta.format)) throw new SocialError(415, 'unsupported_format');
-    const animated = purpose !== 'avatar' && (meta.pages ?? 1) > 1;
+    const animated = !isSquare(purpose) && (meta.pages ?? 1) > 1;
     if (animated && (meta.pages ?? 1) > MAX_FRAMES) throw new SocialError(413, 'too_many_frames');
 
     let output: { data: Buffer; info: OutputInfo };
@@ -136,7 +137,7 @@ export class Media {
       // Sans `.withMetadata()`, sharp n'écrit aucune métadonnée : EXIF, GPS, XMP et ICC sont supprimés.
       let img = sharp(input, { animated, limitInputPixels: MAX_INPUT_PIXELS }).rotate();
       img =
-        purpose === 'avatar'
+        isSquare(purpose)
           ? img.resize(side, side, { fit: 'cover', position: 'attention' })
           : img.resize(side, side, { fit: 'inside', withoutEnlargement: true });
       output = await img.webp({ quality: animated ? 70 : 82, effort: 4 }).toBuffer({ resolveWithObject: true });

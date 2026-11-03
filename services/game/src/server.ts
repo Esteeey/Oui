@@ -9,6 +9,7 @@ import { Game, type GameOptions } from './game';
 import { Challenges } from './challenges';
 import { Discovery } from './discovery';
 import { Messaging } from './messaging';
+import { Groups } from './groups';
 import { gifProviderFromEnv, type GifProvider } from './gifs';
 import { Media, MemoryStore, type MediaStore } from './media';
 import { Notifier } from './notifier';
@@ -24,6 +25,7 @@ export interface GameServer {
   discovery: Discovery;
   messaging: Messaging;
   media: Media;
+  groups: Groups;
   http: Server;
   port: number;
   close: () => Promise<void>;
@@ -61,7 +63,8 @@ export async function startServer(port: number, options: ServerOptions): Promise
   const challenges = new Challenges(game.repo.db, game, notifier);
   const discovery = new Discovery(game.repo.db);
   const messaging = new Messaging(game.repo.db, game.limiter, (id) => game.isOnline(id), send, media, gifs);
-  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs);
+  const groups = new Groups(game.repo.db, game.limiter, messaging, media);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups);
   const sweep = setInterval(() => void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err)), ORPHAN_SWEEP_MS);
   sweep.unref();
   const http = createServer((req, res) => void api(req, res));
@@ -157,6 +160,7 @@ export async function startServer(port: number, options: ServerOptions): Promise
     discovery,
     messaging,
     media,
+    groups,
     http,
     port: typeof address === 'object' && address ? address.port : port,
     close: async () => {

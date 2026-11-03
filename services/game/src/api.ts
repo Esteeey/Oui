@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { Challenges } from './challenges';
 import type { Discovery } from './discovery';
 import type { GifProvider } from './gifs';
+import type { Groups } from './groups';
 import type { Media } from './media';
 import type { Messaging } from './messaging';
 import type { Game } from './game';
@@ -75,6 +76,7 @@ export function createApi(
   messaging: Messaging,
   media: Media,
   gifs: GifProvider | null,
+  groups: Groups,
 ) {
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
@@ -99,7 +101,8 @@ export function createApi(
 
     // Médias : le fichier est envoyé brut (corps de la requête), puis rattaché par son id.
     ['POST', /^\/api\/media$/, async ({ userId, query, raw }) => {
-      const purpose = query.get('purpose') === 'post' ? 'post' : 'message';
+      const asked = query.get('purpose');
+      const purpose = asked === 'post' || asked === 'group' ? asked : 'message';
       return media.upload(userId, purpose, await raw());
     }],
     ['POST', /^\/api\/me\/avatar$/, async ({ userId, raw }) => {
@@ -196,6 +199,48 @@ export function createApi(
     }],
     ['POST', /^\/api\/messages\/requests\/([^/]+)\/accept$/, async ({ userId, params }) => messaging.acceptRequest(userId, uuid(params[0]))],
     ['POST', /^\/api\/messages\/requests\/([^/]+)\/decline$/, async ({ userId, params }) => messaging.declineRequest(userId, uuid(params[0]))],
+    // Groupes (dans la même messagerie)
+    ['POST', /^\/api\/groups$/, async ({ userId, body }) => {
+      const b = await body();
+      const ids = Array.isArray(b.userIds) ? b.userIds.slice(0, 99).map(uuid) : [];
+      return groups.create(userId, b.name, ids);
+    }],
+    ['GET', /^\/api\/groups\/invitations$/, async ({ userId }) => ({ invitations: await groups.invitations(userId) })],
+    ['POST', /^\/api\/groups\/invitations\/([^/]+)\/accept$/, async ({ userId, params }) => groups.accept(userId, uuid(params[0]))],
+    ['POST', /^\/api\/groups\/invitations\/([^/]+)\/decline$/, async ({ userId, params }) => groups.decline(userId, uuid(params[0]))],
+    ['PUT', /^\/api\/groups\/pins\/([^/]+)$/, async ({ userId, params }) => groups.setPinned(userId, uuid(params[0]), true)],
+    ['DELETE', /^\/api\/groups\/pins\/([^/]+)$/, async ({ userId, params }) => groups.setPinned(userId, uuid(params[0]), false)],
+    ['GET', /^\/api\/groups\/([^/]+)$/, async ({ userId, params }) => groups.detail(userId, uuid(params[0]))],
+    ['PATCH', /^\/api\/groups\/([^/]+)$/, async ({ userId, params, body }) => {
+      const b = await body();
+      return groups.update(userId, uuid(params[0]), {
+        name: b.name,
+        avatarMediaId: b.avatarMediaId === undefined ? undefined : b.avatarMediaId === null ? null : uuid(b.avatarMediaId),
+      });
+    }],
+    ['DELETE', /^\/api\/groups\/([^/]+)$/, async ({ userId, params, body }) => {
+      // Suppression définitive : confirmation explicite obligatoire.
+      if ((await body()).confirm !== true) throw new SocialError(400, 'confirmation_required');
+      return groups.delete(userId, uuid(params[0]));
+    }],
+    ['POST', /^\/api\/groups\/([^/]+)\/invitations$/, async ({ userId, params, body }) => groups.invite(userId, uuid(params[0]), uuid((await body()).userId))],
+    ['DELETE', /^\/api\/groups\/([^/]+)\/invitations\/([^/]+)$/, async ({ userId, params }) =>
+      groups.cancelInvitation(userId, uuid(params[0]), uuid(params[1]))],
+    ['POST', /^\/api\/groups\/([^/]+)\/leave$/, async ({ userId, params }) => groups.leave(userId, uuid(params[0]))],
+    ['POST', /^\/api\/groups\/([^/]+)\/transfer$/, async ({ userId, params, body }) => groups.transfer(userId, uuid(params[0]), uuid((await body()).userId))],
+    ['PUT', /^\/api\/groups\/([^/]+)\/members\/([^/]+)\/role$/, async ({ userId, params, body }) => {
+      const role = (await body()).role;
+      if (role !== 'admin' && role !== 'member') throw new SocialError(400, 'invalid_role');
+      return groups.setRole(userId, uuid(params[0]), uuid(params[1]), role);
+    }],
+    ['DELETE', /^\/api\/groups\/([^/]+)\/members\/([^/]+)$/, async ({ userId, params }) => groups.remove(userId, uuid(params[0]), uuid(params[1]))],
+    ['POST', /^\/api\/groups\/([^/]+)\/exclusions$/, async ({ userId, params, body }) => {
+      const b = await body();
+      const hours = b.hours === null || b.hours === undefined ? null : Number(b.hours);
+      return groups.remove(userId, uuid(params[0]), uuid(b.userId), { hours, reason: b.reason });
+    }],
+    ['DELETE', /^\/api\/groups\/([^/]+)\/exclusions\/([^/]+)$/, async ({ userId, params }) => groups.liftExclusion(userId, uuid(params[0]), uuid(params[1]))],
+
     ['GET', /^\/api\/messages\/with\/([^/]+)$/, async ({ userId, params }) => ({ conversationId: await messaging.directWith(userId, uuid(params[0])) })],
     ['PUT', /^\/api\/messages\/reactions\/([^/]+)$/, async ({ userId, params, body }) => messaging.react(userId, uuid(params[0]), String((await body()).emoji ?? ''))],
     ['DELETE', /^\/api\/messages\/reactions\/([^/]+)$/, async ({ userId, params }) => messaging.react(userId, uuid(params[0]), null)],

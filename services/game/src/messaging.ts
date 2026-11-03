@@ -8,6 +8,7 @@ import {
   type Attachment,
   type ConversationDetail,
   type ConversationSummary,
+  type GroupRole,
   type MessageRequestView,
   type MessageView,
   type Presence,
@@ -17,10 +18,9 @@ import {
 
 import type { Database, Queryable } from './db/database';
 import { validateGif, type GifProvider } from './gifs';
-import { mediaView, type Media } from './media';
+import { mediaUrl, mediaView, type Media } from './media';
 import type { RateLimiter } from './rate-limit';
 import { SocialError } from './social';
-import { mediaUrl } from './media';
 
 /** Au plus 3 demandes vers la même personne sur 30 jours (anti-spam). */
 const MAX_REQUESTS_PER_TARGET = 3;
@@ -106,7 +106,16 @@ export class Messaging {
     return r ? summary(r) : null;
   }
 
-  private signal(userIds: string[], conversationId?: string): void {
+  /** Prévient en temps réel tous les membres actifs d'une conversation. */
+  async signalMembers(conversationId: string, extra: string[] = []): Promise<void> {
+    const rows = await this.db.query<{ user_id: string }>(
+      'SELECT user_id FROM conversation_members WHERE conversation_id = $1 AND left_at IS NULL',
+      [conversationId],
+    );
+    this.signal([...new Set([...rows.map((r) => r.user_id), ...extra])], conversationId);
+  }
+
+  signal(userIds: string[], conversationId?: string): void {
     for (const id of userIds) this.send(id, { type: 'messages', ...(conversationId ? { conversationId } : {}) });
   }
 
@@ -257,17 +266,26 @@ export class Messaging {
       last_kind: string | null;
       last_sender: string | null;
       last_at: Date | null;
+      name: string | null;
+      group_avatar: string | null;
+      member_count: number;
+      role: GroupRole;
     }>(
-      `SELECT c.id, c.kind, m.pinned_at, c.last_message_at,
+      `SELECT c.id, c.kind, m.pinned_at, c.last_message_at, c.name, m.role,
+         (SELECT storage_key FROM media WHERE id = c.avatar_media_id AND removed_by_moderation_at IS NULL) AS group_avatar,
+         (SELECT count(*)::int FROM conversation_members o WHERE o.conversation_id = c.id AND o.left_at IS NULL) AS member_count,
          (SELECT count(*)::int FROM messages x WHERE x.conversation_id = c.id AND x.seq > m.last_read_seq
-            AND x.sender_id IS DISTINCT FROM $1 AND x.removed_by_moderation_at IS NULL
+            AND x.sender_id IS DISTINCT FROM $1 AND x.removed_by_moderation_at IS NULL AND x.kind <> 'system'
+            AND (x.sender_id IS NULL OR NOT ${blockedSql('$1::uuid', 'x.sender_id')})
             AND (m.hidden_at IS NULL OR x.created_at > m.hidden_at)) AS unread,
-         (SELECT o.user_id FROM conversation_members o WHERE o.conversation_id = c.id AND o.user_id <> $1 LIMIT 1) AS other_id,
+         CASE WHEN c.kind = 'direct'
+           THEN (SELECT o.user_id FROM conversation_members o WHERE o.conversation_id = c.id AND o.user_id <> $1 LIMIT 1) END AS other_id,
          lm.text AS last_text, lm.kind AS last_kind, lm.sender_id AS last_sender, lm.created_at AS last_at
        FROM conversation_members m JOIN conversations c ON c.id = m.conversation_id
        LEFT JOIN LATERAL (
          SELECT text, kind, sender_id, created_at FROM messages x
          WHERE x.conversation_id = c.id AND x.removed_by_moderation_at IS NULL AND (m.hidden_at IS NULL OR x.created_at > m.hidden_at)
+           AND (x.sender_id IS NULL OR x.sender_id = $1 OR NOT ${blockedSql('$1::uuid', 'x.sender_id')})
          ORDER BY x.seq DESC LIMIT 1) lm ON true
        WHERE m.user_id = $1 AND m.left_at IS NULL AND c.deleted_at IS NULL
          -- Supprimée de ma boîte : elle ne revient qu'avec un nouveau message.
@@ -283,6 +301,7 @@ export class Messaging {
         id: r.id,
         kind: r.kind,
         other,
+        group: r.kind === 'group' ? { name: r.name ?? '', avatar: mediaUrl(r.group_avatar), memberCount: r.member_count, myRole: r.role } : null,
         lastMessage: r.last_at ? { text: r.last_text, kind: r.last_kind ?? 'text', senderId: r.last_sender, createdAt: new Date(r.last_at).getTime() } : null,
         unread: r.unread,
         pinned: r.pinned_at !== null,
@@ -292,9 +311,12 @@ export class Messaging {
     return out;
   }
 
-  private async membership(viewer: string, conversationId: string): Promise<{ hidden_at: Date | null; last_read_seq: string }> {
-    const [m] = await this.db.query<{ hidden_at: Date | null; last_read_seq: string }>(
-      `SELECT m.hidden_at, m.last_read_seq FROM conversation_members m JOIN conversations c ON c.id = m.conversation_id
+  private async membership(
+    viewer: string,
+    conversationId: string,
+  ): Promise<{ hidden_at: Date | null; last_read_seq: string; kind: 'direct' | 'group' }> {
+    const [m] = await this.db.query<{ hidden_at: Date | null; last_read_seq: string; kind: 'direct' | 'group' }>(
+      `SELECT m.hidden_at, m.last_read_seq, c.kind FROM conversation_members m JOIN conversations c ON c.id = m.conversation_id
        WHERE m.conversation_id = $1 AND m.user_id = $2 AND m.left_at IS NULL AND c.deleted_at IS NULL`,
       [conversationId, viewer],
     );
@@ -333,18 +355,24 @@ export class Messaging {
       reply_pseudo: string | null;
       reply_kind: string | null;
       reply_text: string | null;
+      sender_pseudo: string | null;
+      sender_avatar: string | null;
     }>(
       `SELECT x.id, x.seq, x.sender_id, x.kind, x.text, x.created_at, x.gif, x.sticker_id,
+              sp.pseudo AS sender_pseudo, (SELECT storage_key FROM media WHERE id = sp.avatar_media_id AND removed_by_moderation_at IS NULL) AS sender_avatar,
               md.id AS media_id, md.storage_key, md.width, md.height, md.animated,
               r.id AS reply_id, r.sender_id AS reply_sender, rp.pseudo AS reply_pseudo, r.kind AS reply_kind,
               CASE WHEN r.removed_by_moderation_at IS NULL THEN r.text ELSE NULL END AS reply_text
        FROM messages x LEFT JOIN messages r ON r.id = x.reply_to_id LEFT JOIN profiles rp ON rp.user_id = r.sender_id
        LEFT JOIN media md ON md.id = x.media_id AND md.removed_by_moderation_at IS NULL
+       LEFT JOIN profiles sp ON sp.user_id = x.sender_id
        WHERE x.conversation_id = $1 AND x.removed_by_moderation_at IS NULL
          AND ($2::timestamptz IS NULL OR x.created_at > $2)
          AND ($3::bigint IS NULL OR x.seq < $3)
+         -- Dans un groupe, les messages d'un joueur bloqué (dans un sens ou l'autre) me sont masqués.
+         AND (x.sender_id IS NULL OR x.sender_id = $4 OR NOT ${blockedSql('$4::uuid', 'x.sender_id')})
        ORDER BY x.seq DESC LIMIT ${PAGE}`,
-      [conversationId, m.hidden_at, beforeSeq ?? null],
+      [conversationId, m.hidden_at, beforeSeq ?? null, viewer],
     );
     const ids = rows.map((r) => r.id);
     const reactions = ids.length
@@ -353,10 +381,10 @@ export class Messaging {
           [ids],
         )
       : [];
-    // Statut de mes messages : « lu » dès que l'autre a lu jusque-là.
+    // Statut de mes messages : « lu » dès que tous les autres membres ont lu jusque-là.
     const others = await this.otherMembers(conversationId, viewer);
     const [{ read_upto }] = await this.db.query<{ read_upto: string | null }>(
-      'SELECT max(last_read_seq) AS read_upto FROM conversation_members WHERE conversation_id = $1 AND user_id <> $2',
+      'SELECT min(last_read_seq) AS read_upto FROM conversation_members WHERE conversation_id = $1 AND user_id <> $2 AND left_at IS NULL',
       [conversationId, viewer],
     );
     const readUpto = Number(read_upto ?? 0);
@@ -367,6 +395,7 @@ export class Messaging {
         id: r.id,
         seq: Number(r.seq),
         senderId: r.sender_id,
+        sender: r.sender_id && r.sender_pseudo ? { id: r.sender_id, pseudo: r.sender_pseudo, avatar: mediaUrl(r.sender_avatar) } : null,
         kind: r.kind,
         text: r.text,
         attachment: attachmentOf(r),
@@ -379,12 +408,31 @@ export class Messaging {
       };
     });
     const summaryRow = (await this.inbox(viewer)).find((c) => c.id === conversationId);
-    const other = others[0] ? await this.user(others[0]) : null;
-    const canSend = !others.length || !(await this.blocked(viewer, others[0]));
+    const isGroup = m.kind === 'group';
+    const other = !isGroup && others[0] ? await this.user(others[0]) : null;
+    // Groupe : tout membre peut écrire. Conversation privée : pas de blocage entre les deux.
+    const canSend = isGroup || !others.length || !(await this.blocked(viewer, others[0]));
+    const pinned = await this.db.query<{ message_id: string; sender_id: string | null; pseudo: string | null; kind: string; text: string | null; pinned_at: Date }>(
+      `SELECT pm.message_id, x.sender_id, p.pseudo, x.kind, x.text, pm.pinned_at
+       FROM pinned_messages pm JOIN messages x ON x.id = pm.message_id LEFT JOIN profiles p ON p.user_id = x.sender_id
+       WHERE pm.conversation_id = $1 AND x.removed_by_moderation_at IS NULL
+         AND (x.sender_id IS NULL OR x.sender_id = $2 OR NOT ${blockedSql('$2::uuid', 'x.sender_id')})
+       ORDER BY pm.pinned_at DESC`,
+      [conversationId, viewer],
+    );
     return {
+      pinned: pinned.map((p) => ({
+        messageId: p.message_id,
+        senderId: p.sender_id,
+        senderPseudo: p.pseudo,
+        kind: p.kind,
+        text: p.text,
+        pinnedAt: new Date(p.pinned_at).getTime(),
+      })),
       conversation: summaryRow ?? {
         id: conversationId,
-        kind: 'direct',
+        kind: m.kind,
+        group: null,
         other,
         lastMessage: null,
         unread: 0,
@@ -401,7 +449,7 @@ export class Messaging {
    * Une photo peut être accompagnée d'une légende. Réponse facultative à un message de la même conversation.
    */
   async sendMessage(viewer: string, conversationId: string, content: MessageContent): Promise<MessageView> {
-    await this.membership(viewer, conversationId);
+    const member = await this.membership(viewer, conversationId);
     const text = content.text === undefined || content.text === null ? '' : String(content.text).trim();
     if (text.length > MAX_MESSAGE_LENGTH) throw new SocialError(400, 'invalid_text');
     const kinds = [content.mediaId, content.gif, content.stickerId].filter((x) => x !== undefined && x !== null);
@@ -413,7 +461,7 @@ export class Messaging {
     if (kind === 'sticker' && !isSticker(content.stickerId)) throw new SocialError(400, 'invalid_sticker');
     const gif = kind === 'gif' ? validateGif(this.gifs, content.gif) : null;
     const others = await this.otherMembers(conversationId, viewer);
-    for (const o of others) if (await this.blocked(viewer, o)) throw new SocialError(403, 'blocked');
+    if (member.kind === 'direct') for (const o of others) if (await this.blocked(viewer, o)) throw new SocialError(403, 'blocked');
     this.limit('message', viewer);
     const id = randomUUID();
     await this.db.transaction(async (tx) => {
@@ -458,8 +506,10 @@ export class Messaging {
       [messageId],
     );
     if (!msg) throw new SocialError(404, 'not_found');
-    await this.membership(viewer, msg.conversation_id);
-    for (const o of await this.otherMembers(msg.conversation_id, viewer)) if (await this.blocked(viewer, o)) throw new SocialError(403, 'blocked');
+    const member = await this.membership(viewer, msg.conversation_id);
+    if (member.kind === 'direct') {
+      for (const o of await this.otherMembers(msg.conversation_id, viewer)) if (await this.blocked(viewer, o)) throw new SocialError(403, 'blocked');
+    }
     if (emoji === null) {
       await this.db.query('DELETE FROM message_reactions WHERE message_id = $1 AND user_id = $2', [messageId, viewer]);
     } else {

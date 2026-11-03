@@ -32,6 +32,7 @@ export const DEFAULT_LIMITS: Limits = {
   search: { max: 120, windowMs: MINUTE },
   message: { max: 60, windowMs: MINUTE },
   upload: { max: 30, windowMs: 10 * MINUTE },
+  groupCreate: { max: 10, windowMs: DAY },
   gifSearch: { max: 60, windowMs: MINUTE },
 };
 

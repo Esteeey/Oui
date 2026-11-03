@@ -4,7 +4,7 @@
 export const MEDIA_MAX_BYTES = 8 * 1024 * 1024;
 /** Formats acceptés (vérifiés sur le contenu du fichier, pas sur l'extension). */
 export const MEDIA_FORMATS = ['jpeg', 'png', 'webp', 'gif'] as const;
-export type MediaPurpose = 'message' | 'post' | 'avatar';
+export type MediaPurpose = 'message' | 'post' | 'avatar' | 'group';
 
 /** Image hébergée par Qu1z (déjà validée, nettoyée de ses métadonnées et redimensionnée). */
 export interface MediaView {
