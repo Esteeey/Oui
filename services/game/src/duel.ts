@@ -26,7 +26,7 @@ export interface Timing {
 export const DEFAULT_TIMING: Timing = {
   introMs: RULES.introMs,
   answerMs: RULES.answerTimeMs,
-  revealMs: RULES.revealMs,
+  revealMs: RULES.revealMs + RULES.transitionMs,
   readingMs: (q) => readingTimeMs(q.text, !!q.image),
   latencyGraceMs: 300,
 };

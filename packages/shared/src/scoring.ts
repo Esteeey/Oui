@@ -1,34 +1,26 @@
 import { RULES } from './rules';
 import type { DuelOutcome, DuelQuestion, PlayerAnswer, ScoredAnswer } from './types';
 
-/** Points d'une réponse : 60 de base + jusqu'à 40 selon la rapidité + bonus de série. */
-export function scoreAnswer(
-  answer: PlayerAnswer,
-  correctIndex: number,
-  previousStreak: number,
-): ScoredAnswer {
+const MAX_SECONDS = RULES.answerTimeMs / 1000;
+
+/**
+ * Points d'une réponse : 2 par seconde restante du chrono (seconde entamée comptée), soit 20 au plus
+ * et 2 au moins pour une bonne réponse. La dernière question compte double.
+ */
+export function scoreAnswer(answer: PlayerAnswer, correctIndex: number, questionIndex: number): ScoredAnswer {
   const correct = answer.choice !== null && answer.choice === correctIndex;
   if (!correct) {
-    return { ...answer, correct, points: 0, streak: 0 };
+    return { ...answer, correct, points: 0 };
   }
   const elapsed = Math.min(Math.max(answer.responseMs, 0), RULES.answerTimeMs);
-  const remaining = RULES.answerTimeMs - elapsed;
-  const speedBonus = Math.round((RULES.maxSpeedBonus * remaining) / RULES.answerTimeMs);
-  const streak = previousStreak + 1;
-  const streakBonus = streak >= RULES.streakFrom ? RULES.streakBonus : 0;
-  return { ...answer, correct, points: RULES.basePoints + speedBonus + streakBonus, streak };
+  const seconds = Math.min(MAX_SECONDS, Math.max(1, Math.ceil((RULES.answerTimeMs - elapsed) / 1000)));
+  const multiplier = questionIndex === RULES.questionsPerDuel - 1 ? RULES.lastQuestionMultiplier : 1;
+  return { ...answer, correct, points: seconds * RULES.pointsPerSecond * multiplier };
 }
 
 /** Score toute une série de réponses, dans l'ordre des questions. */
 export function scoreAnswers(questions: DuelQuestion[], answers: PlayerAnswer[]): ScoredAnswer[] {
-  const scored: ScoredAnswer[] = [];
-  let streak = 0;
-  answers.forEach((answer, i) => {
-    const result = scoreAnswer(answer, questions[i].correctIndex, streak);
-    streak = result.streak;
-    scored.push(result);
-  });
-  return scored;
+  return answers.map((answer, i) => scoreAnswer(answer, questions[i].correctIndex, i));
 }
 
 export interface DuelTotals {
@@ -61,6 +53,6 @@ export function duelOutcome(a: DuelTotals, b: DuelTotals): DuelOutcome {
   return 'draw';
 }
 
+/** Score d'un sans-faute instantané : 6 × 20 + 40 = 160. */
 export const MAX_DUEL_POINTS =
-  RULES.questionsPerDuel * (RULES.basePoints + RULES.maxSpeedBonus) +
-  (RULES.questionsPerDuel - RULES.streakFrom + 1) * RULES.streakBonus;
+  MAX_SECONDS * RULES.pointsPerSecond * (RULES.questionsPerDuel - 1 + RULES.lastQuestionMultiplier);

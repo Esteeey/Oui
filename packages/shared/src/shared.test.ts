@@ -17,37 +17,40 @@ import {
 } from './index';
 
 describe('barème', () => {
-  it('donne 100 points pour une réponse instantanée', () => {
-    expect(scoreAnswer({ choice: 2, responseMs: 0 }, 2, 0).points).toBe(100);
+  it('donne 20 points pour une réponse dans la première seconde', () => {
+    expect(scoreAnswer({ choice: 2, responseMs: 0 }, 2, 0).points).toBe(20);
+    expect(scoreAnswer({ choice: 2, responseMs: 999 }, 2, 0).points).toBe(20);
   });
-  it('donne 60 + 20 à mi-temps', () => {
-    expect(scoreAnswer({ choice: 1, responseMs: 5_000 }, 1, 0).points).toBe(80);
+  it('donne 2 points par seconde restante', () => {
+    expect(scoreAnswer({ choice: 1, responseMs: 1_000 }, 1, 0).points).toBe(18);
+    expect(scoreAnswer({ choice: 1, responseMs: 5_500 }, 1, 0).points).toBe(10);
   });
-  it('donne 60 juste avant la fin du chrono', () => {
-    expect(scoreAnswer({ choice: 1, responseMs: RULES.answerTimeMs }, 1, 0).points).toBe(60);
+  it('donne au moins 2 points pour une bonne réponse en fin de chrono', () => {
+    expect(scoreAnswer({ choice: 1, responseMs: 9_900 }, 1, 0).points).toBe(2);
+    expect(scoreAnswer({ choice: 1, responseMs: RULES.answerTimeMs }, 1, 0).points).toBe(2);
   });
-  it('donne 0 pour une mauvaise réponse ou sans réponse, et casse la série', () => {
-    expect(scoreAnswer({ choice: 0, responseMs: 1_000 }, 1, 4)).toMatchObject({ points: 0, streak: 0 });
-    expect(scoreAnswer({ choice: null, responseMs: RULES.answerTimeMs }, 1, 4).points).toBe(0);
+  it('donne 0 pour une mauvaise réponse ou sans réponse', () => {
+    expect(scoreAnswer({ choice: 0, responseMs: 1_000 }, 1, 0).points).toBe(0);
+    expect(scoreAnswer({ choice: null, responseMs: RULES.answerTimeMs }, 1, 6).points).toBe(0);
   });
-  it('ajoute le bonus de série à partir de la 3e bonne réponse consécutive', () => {
-    expect(scoreAnswer({ choice: 0, responseMs: 0 }, 0, 1).points).toBe(100);
-    expect(scoreAnswer({ choice: 0, responseMs: 0 }, 0, 2).points).toBe(110);
+  it('double les points de la dernière question', () => {
+    expect(scoreAnswer({ choice: 0, responseMs: 0 }, 0, 6).points).toBe(40);
+    expect(scoreAnswer({ choice: 0, responseMs: 5_500 }, 0, 6).points).toBe(20);
   });
-  it('atteint le maximum théorique avec 7 réponses parfaites', () => {
+  it('donne 160 points pour un sans-faute parfait', () => {
     const questions = prepareDuel(questionsOf('cg-melange'), 1);
     const answers = questions.map((q) => ({ choice: q.correctIndex, responseMs: 0 }));
     expect(totals(scoreAnswers(questions, answers)).points).toBe(MAX_DUEL_POINTS);
-    expect(MAX_DUEL_POINTS).toBe(750);
+    expect(MAX_DUEL_POINTS).toBe(160);
   });
 });
 
 describe('résultat du duel', () => {
   it('départage aux points, puis aux bonnes réponses, puis au temps', () => {
-    expect(duelOutcome({ points: 500, correct: 5, totalResponseMs: 0 }, { points: 400, correct: 6, totalResponseMs: 0 })).toBe('win');
-    expect(duelOutcome({ points: 400, correct: 5, totalResponseMs: 0 }, { points: 400, correct: 6, totalResponseMs: 0 })).toBe('loss');
-    expect(duelOutcome({ points: 400, correct: 5, totalResponseMs: 9_000 }, { points: 400, correct: 5, totalResponseMs: 10_000 })).toBe('win');
-    expect(duelOutcome({ points: 400, correct: 5, totalResponseMs: 9_000 }, { points: 400, correct: 5, totalResponseMs: 9_000 })).toBe('draw');
+    expect(duelOutcome({ points: 120, correct: 5, totalResponseMs: 0 }, { points: 100, correct: 6, totalResponseMs: 0 })).toBe('win');
+    expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 0 }, { points: 100, correct: 6, totalResponseMs: 0 })).toBe('loss');
+    expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 9_000 }, { points: 100, correct: 5, totalResponseMs: 10_000 })).toBe('win');
+    expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 9_000 }, { points: 100, correct: 5, totalResponseMs: 9_000 })).toBe('draw');
   });
 });
 

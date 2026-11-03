@@ -12,14 +12,15 @@ export const RULES = {
   imageReadingBonusMs: 1_000,
   /** Affichage de la bonne réponse et du choix de l'adversaire. */
   revealMs: 2_000,
+  /** Répit au noir entre deux questions, ajouté à la fin de la révélation. */
+  transitionMs: 1_000,
   /** Présentation des deux joueurs avant la première question. */
   introMs: 2_500,
 
-  basePoints: 60,
-  maxSpeedBonus: 40,
-  /** Le bonus de série s'applique à partir de la N-ième bonne réponse consécutive. */
-  streakFrom: 3,
-  streakBonus: 10,
+  /** Points par seconde restante sur une bonne réponse (20 au maximum avec un chrono de 10 s). */
+  pointsPerSecond: 2,
+  /** Multiplicateur de la dernière question. */
+  lastQuestionMultiplier: 2,
 } as const;
 
 export function readingTimeMs(text: string, hasImage = false): number {

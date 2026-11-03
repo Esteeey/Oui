@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeInUp, Keyframe, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
@@ -25,6 +25,20 @@ const D = {
   gauge: '#22C55E',
   track: '#2A2A2E',
 };
+
+/**
+ * Transition entre deux questions : la révélation reste visible, fondu au noir, court répit au noir,
+ * puis la question suivante sort du noir.
+ */
+const FADE_OUT_MS = 500;
+const REVEAL_TOTAL_MS = RULES.revealMs + RULES.transitionMs;
+const FADE_TO_BLACK = new Keyframe({
+  0: { opacity: 0 },
+  [Math.round((RULES.revealMs / REVEAL_TOTAL_MS) * 100)]: { opacity: 0 },
+  [Math.round(((RULES.revealMs + FADE_OUT_MS) / REVEAL_TOTAL_MS) * 100)]: { opacity: 1 },
+  100: { opacity: 1 },
+}).duration(REVEAL_TOTAL_MS);
+const FADE_FROM_BLACK = new Keyframe({ 0: { opacity: 1 }, 100: { opacity: 0 } }).duration(600);
 
 type Params = { themeId: string; mode?: string; resume?: string };
 
@@ -197,50 +211,63 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           </View>
         )}
 
-        <View style={styles.questionZone}>
-          {questionImageSource(q?.image) !== null && (
-            <Image source={questionImageSource(q?.image)!} contentFit="contain" style={styles.image} accessibilityLabel="Illustration de la question" />
-          )}
-          <Animated.View key={`q-${duel.index}`} entering={FadeInDown.springify()}>
-            <AppText style={styles.question}>{q?.text}</AppText>
-          </Animated.View>
-        </View>
-
-        <View style={styles.choices}>
-          {duel.phase === 'reading' ? (
-            <AppText color={D.muted} style={{ textAlign: 'center', marginTop: Spacing.lg }}>
-              Prépare-toi…
-            </AppText>
-          ) : (
-            q?.choices.map((choice, i) => {
-              const state = !reveal ? 'idle' : i === duel.correctIndex ? 'correct' : duel.myChoice === i ? 'wrong' : 'idle';
-              return (
-                <Choice
-                  key={`${duel.index}-${i}`}
-                  index={i}
-                  label={choice}
-                  state={state}
-                  selected={duel.myChoice === i}
-                  opponentPicked={reveal && duel.opponentChoice === i}
-                  disabled={!online || duel.phase !== 'answering' || duel.myChoice !== null}
-                  onPress={() => game.answer(i)}
-                />
-              );
-            })
-          )}
-        </View>
-
-        <View style={styles.footer}>
-          {duel.phase === 'answering' && duel.myChoice !== null && (
-            <AppText color={D.muted}>{duel.opponent.answeredCurrent ? '' : 'En attente de l’adversaire…'}</AppText>
-          )}
-          {reveal && lastMine && (
-            <Animated.View entering={ZoomIn.springify()}>
-              <AppText variant="score" color={lastMine.correct ? D.correct : D.wrong}>
-                {lastMine.correct ? `+${lastMine.points}` : lastMine.choice === null ? 'Temps écoulé' : 'Raté'}
-              </AppText>
+        <View style={styles.stage}>
+          <View style={styles.questionZone}>
+            {questionImageSource(q?.image) !== null && (
+              <Image source={questionImageSource(q?.image)!} contentFit="contain" style={styles.image} accessibilityLabel="Illustration de la question" />
+            )}
+            <Animated.View key={`q-${duel.index}`} entering={FadeInDown.springify()}>
+              {duel.index === RULES.questionsPerDuel - 1 && (
+                <AppText variant="caption" color={D.correct} style={{ textAlign: 'center', marginBottom: Spacing.sm }}>
+                  DERNIÈRE QUESTION · POINTS ×{RULES.lastQuestionMultiplier}
+                </AppText>
+              )}
+              <AppText style={styles.question}>{q?.text}</AppText>
             </Animated.View>
-          )}
+          </View>
+
+          <View style={styles.choices}>
+            {duel.phase === 'reading' ? (
+              <AppText color={D.muted} style={{ textAlign: 'center', marginTop: Spacing.lg }}>
+                Prépare-toi…
+              </AppText>
+            ) : (
+              q?.choices.map((choice, i) => {
+                const state = !reveal ? 'idle' : i === duel.correctIndex ? 'correct' : duel.myChoice === i ? 'wrong' : 'idle';
+                return (
+                  <Choice
+                    key={`${duel.index}-${i}`}
+                    index={i}
+                    label={choice}
+                    state={state}
+                    selected={duel.myChoice === i}
+                    opponentPicked={reveal && duel.opponentChoice === i}
+                    disabled={!online || duel.phase !== 'answering' || duel.myChoice !== null}
+                    onPress={() => game.answer(i)}
+                  />
+                );
+              })
+            )}
+          </View>
+
+          <View style={styles.footer}>
+            {duel.phase === 'answering' && duel.myChoice !== null && (
+              <AppText color={D.muted}>{duel.opponent.answeredCurrent ? '' : 'En attente de l’adversaire…'}</AppText>
+            )}
+            {reveal && lastMine && (
+              <Animated.View entering={ZoomIn.springify()}>
+                <AppText variant="score" color={lastMine.correct ? D.correct : D.wrong}>
+                  {lastMine.correct ? `+${lastMine.points}` : lastMine.choice === null ? 'Temps écoulé' : 'Raté'}
+                </AppText>
+              </Animated.View>
+            )}
+          </View>
+
+          {reveal ? (
+            <Animated.View key={`out-${duel.index}`} entering={FADE_TO_BLACK} style={styles.fade} />
+          ) : duel.index > 0 && duel.phase === 'reading' ? (
+            <Animated.View key={`in-${duel.index}`} entering={FADE_FROM_BLACK} style={[styles.fade, { opacity: 0 }]} />
+          ) : null}
         </View>
 
         <Pressable accessibilityRole="button" onPress={() => setConfirmQuit(true)} style={styles.quit}>
@@ -415,6 +442,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
   },
+  stage: { gap: Spacing.md },
+  fade: { ...StyleSheet.absoluteFill, backgroundColor: D.bg, pointerEvents: 'none' },
   questionZone: { minHeight: 150, justifyContent: 'center', gap: Spacing.sm },
   image: { width: '100%', height: 130, borderRadius: Radius.sm },
   question: { color: D.text, fontSize: 28, lineHeight: 34, fontWeight: '800', textAlign: 'center' },

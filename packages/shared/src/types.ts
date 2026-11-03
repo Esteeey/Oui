@@ -68,8 +68,6 @@ export interface PlayerAnswer {
 export interface ScoredAnswer extends PlayerAnswer {
   correct: boolean;
   points: number;
-  /** Nombre de bonnes réponses consécutives après cette question. */
-  streak: number;
 }
 
 export type DuelOutcome = 'win' | 'loss' | 'draw';

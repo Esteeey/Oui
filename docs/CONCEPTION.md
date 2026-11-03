@@ -46,17 +46,17 @@ Séparer **XP** (on progresse toujours) et **cote** (on mérite sa place) est la
 1. **Lecture** : la question s'affiche seule pendant 1 à 3 s, selon sa longueur. Les deux joueurs ont le même temps de lecture.
 2. **Réponse** : les 4 propositions apparaissent et un chrono de **10 s** démarre.
 3. **Révélation** : dès que les deux joueurs ont répondu (ou à la fin du chrono), la bonne réponse et le choix de l'adversaire s'affichent pendant 2 s.
+4. **Transition** : fondu au noir et court répit (1 s en tout), puis la question suivante sort du noir.
 
 **Barème Qu1z** (propre au jeu)
 
 | Élément | Points |
 |---|---|
-| Bonne réponse | 60 points de base |
-| Bonus de rapidité | jusqu'à 40 points, proportionnels au temps restant (arrondi au point) |
+| Bonne réponse | 2 points par seconde restante au chrono (seconde entamée comptée) : 20 au plus, 2 au moins |
 | Mauvaise réponse ou temps écoulé | 0 |
-| **Série** : à partir de la 3ᵉ bonne réponse consécutive | +10 par question |
+| **Dernière question** (7ᵉ) | points doublés : 40 au plus |
 
-Score maximal théorique : 7 × 100 + 5 × 10 (série) = **750 points**.
+Sans-faute parfait : 6 × 20 + 40 = **160 points**.
 
 > 📌 **À ajouter plus tard : la Mise.** Idée validée, prévue en phase 2 (voir 8 et 9). Détail en annexe A.
 
@@ -498,11 +498,11 @@ Les **classements** sont calculés en direct dans Redis (sorted sets), et des in
 
 Idée validée, mise de côté pour ne pas alourdir la première version.
 
-- **Quand** : une fois par duel, sur les questions 2 à 7.
+- **Quand** : une fois par duel, sur les questions 2 à 6 (la 7ᵉ compte déjà double).
 - **Comment** : pendant la lecture de la question, **avant de voir les 4 propositions**, le joueur appuie sur « Miser ». C'est un pari : « ce sujet, je le connais ».
-- **Bonne réponse** : les points de la question (base + rapidité) sont doublés, jusqu'à 200 au lieu de 100.
-- **Mauvaise réponse ou temps écoulé** : −50 points.
+- **Bonne réponse** : les points de la question sont doublés, jusqu'à 40 au lieu de 20.
+- **Mauvaise réponse ou temps écoulé** : −10 points.
 - **Visibilité** : l'adversaire voit qu'une mise a été posée (pas sur quelle réponse).
 - **Intérêt** : permet de remonter au score et rend les fins de duel plus tendues.
-- **Score maximal** avec la Mise : 850 points au lieu de 750.
+- **Score maximal** avec la Mise : 180 points au lieu de 160.
 - **À prévoir** : un badge « Mise gagnante sur la dernière question », une option « avec ou sans Mise » dans les défis entre amis, et une colonne `wager` dans `match_answers`.
