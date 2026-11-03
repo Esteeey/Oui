@@ -41,6 +41,9 @@ export default function RootLayout() {
             <Stack.Screen name="messages/index" />
             <Stack.Screen name="messages/[id]" />
             <Stack.Screen name="messages/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="messages/new-group" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="messages/group/[id]/index" />
+            <Stack.Screen name="messages/group/[id]/invite" />
             <Stack.Screen name="settings/profile" />
             <Stack.Screen name="settings/blocked" />
             <Stack.Screen name="settings/notifications" />

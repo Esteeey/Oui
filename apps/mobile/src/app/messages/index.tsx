@@ -3,10 +3,11 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { attachmentLabel, type ConversationSummary, type MessageRequestView } from '@qu1z/shared';
+import { attachmentLabel, type ConversationSummary, type GroupInvitationView, type MessageRequestView } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
 import { SectionHeader } from '@/components/social';
+import { GroupAvatar } from '@/components/group';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -19,6 +20,8 @@ export default function InboxScreen() {
   const { playerId } = useGameServer();
   const inbox = useApi<{ conversations: ConversationSummary[] }>('/api/messages');
   const requests = useApi<{ requests: MessageRequestView[] }>('/api/messages/requests');
+  const groupInvites = useApi<{ invitations: GroupInvitationView[] }>('/api/groups/invitations');
+  const invites = groupInvites.data?.invitations ?? [];
   const [menu, setMenu] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const incoming = (requests.data?.requests ?? []).filter((r) => r.incoming);
@@ -36,7 +39,12 @@ export default function InboxScreen() {
     <Screen>
       <BackButton />
       <View style={styles.header}>
-        <AppText variant="title">Messages</AppText>
+        <AppText variant="title" style={{ flex: 1 }}>
+          Messages
+        </AppText>
+        <Pressable accessibilityRole="button" accessibilityLabel="Nouveau groupe" onPress={() => router.push('/messages/new-group')} style={{ padding: Spacing.sm }}>
+          <Ionicons name="people-outline" size={24} color={Colors.player} />
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Nouveau message" onPress={() => router.push('/messages/new')} style={{ padding: Spacing.sm }}>
           <Ionicons name="create-outline" size={24} color={Colors.player} />
         </Pressable>
@@ -79,12 +87,48 @@ export default function InboxScreen() {
         </>
       )}
 
+      {invites.length > 0 && (
+        <>
+          <SectionHeader title={`Invitations de groupe · ${invites.length}`} />
+          {invites.map((inv) => (
+            <Card key={inv.id}>
+              <View style={styles.requestHead}>
+                <Avatar name={inv.group.name} color={avatarColor(inv.group.id)} uri={inv.group.avatar} size={40} />
+                <View style={{ flex: 1 }}>
+                  <AppText variant="label">{inv.group.name}</AppText>
+                  <AppText variant="caption" muted>
+                    Invité par {inv.inviter.pseudo} · {inv.group.memberCount} membre{inv.group.memberCount > 1 ? 's' : ''} · {timeAgo(inv.createdAt)}
+                  </AppText>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act('POST', `/api/groups/invitations/${inv.id}/decline`)} style={{ flex: 1 }} />
+                <Button
+                  label="Rejoindre"
+                  color={Colors.correct}
+                  onPress={() =>
+                    act('POST', `/api/groups/invitations/${inv.id}/accept`, (res) =>
+                      res.conversationId && router.push({ pathname: '/messages/[id]', params: { id: res.conversationId } }),
+                    )
+                  }
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </Card>
+          ))}
+        </>
+      )}
+
       <SectionHeader title="Conversations" />
       {inbox.data && conversations.length === 0 && <AppText muted>Aucune conversation. Écris à un joueur depuis son profil.</AppText>}
       <View style={styles.list}>
         {conversations.map((c) => {
           const last = c.lastMessage;
-          const preview = last ? `${last.senderId === playerId ? 'Toi : ' : ''}${last.kind === 'text' ? (last.text ?? '') : `${attachmentLabel(last.kind)}${last.text ? ` · ${last.text}` : ''}`}` : 'Conversation ouverte';
+          const preview = !last
+            ? 'Conversation ouverte'
+            : last.kind === 'system'
+              ? (last.text ?? '')
+              : `${last.senderId === playerId ? 'Toi : ' : ''}${last.kind === 'text' ? (last.text ?? '') : `${attachmentLabel(last.kind)}${last.text ? ` · ${last.text}` : ''}`}`;
           return (
             <View key={c.id}>
               <Pressable
@@ -93,14 +137,18 @@ export default function InboxScreen() {
                 onLongPress={() => setMenu(menu === c.id ? null : c.id)}
                 style={styles.row}>
                 <View>
-                  <Avatar uri={c.other?.avatar} name={c.other?.pseudo ?? '?'} color={c.other ? avatarColor(c.other.id) : Colors.border} size={48} />
+                  {c.group ? (
+                    <GroupAvatar id={c.id} name={c.group.name} uri={c.group.avatar} size={48} />
+                  ) : (
+                    <Avatar uri={c.other?.avatar} name={c.other?.pseudo ?? '?'} color={c.other ? avatarColor(c.other.id) : Colors.border} size={48} />
+                  )}
                   {c.presence?.online && <View accessibilityLabel="En ligne" style={styles.online} />}
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <View style={styles.rowTop}>
                     <AppText variant="label" numberOfLines={1} style={{ flex: 1 }}>
                       {c.pinned ? '📌 ' : ''}
-                      {c.other?.pseudo ?? 'Conversation'}
+                      {c.group?.name ?? c.other?.pseudo ?? 'Conversation'}
                     </AppText>
                     {last && (
                       <AppText variant="caption" muted>
@@ -137,16 +185,29 @@ export default function InboxScreen() {
                     }}
                     style={{ flex: 1 }}
                   />
-                  <Button
-                    label="Supprimer"
-                    variant="outline"
-                    color={Colors.wrong}
-                    onPress={() => {
-                      setMenu(null);
-                      act('DELETE', `/api/messages/${c.id}`);
-                    }}
-                    style={{ flex: 1 }}
-                  />
+                  {c.kind === 'direct' ? (
+                    <Button
+                      label="Supprimer"
+                      variant="outline"
+                      color={Colors.wrong}
+                      onPress={() => {
+                        setMenu(null);
+                        act('DELETE', `/api/messages/${c.id}`);
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  ) : (
+                    <Button
+                      label="Infos du groupe"
+                      variant="outline"
+                      color={Colors.text}
+                      onPress={() => {
+                        setMenu(null);
+                        router.push({ pathname: '/messages/group/[id]', params: { id: c.id } });
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  )}
                 </View>
               )}
             </View>

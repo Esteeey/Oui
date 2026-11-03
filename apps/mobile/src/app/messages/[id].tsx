@@ -8,6 +8,7 @@ import { Image } from 'expo-image';
 
 import {
   attachmentLabel,
+  groupRights,
   MAX_MESSAGE_LENGTH,
   QUICK_REACTIONS,
   type ConversationDetail,
@@ -18,6 +19,7 @@ import {
 } from '@qu1z/shared';
 
 import { AttachmentTray, AttachmentView } from '@/components/attachments';
+import { GroupAvatar } from '@/components/group';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -43,6 +45,7 @@ export default function ConversationScreen() {
   const [highlight, setHighlight] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tray, setTray] = useState(false);
+  const [showPinned, setShowPinned] = useState(false);
   const [photo, setPhoto] = useState<PickedImage | null>(null);
   const [sending, setSending] = useState(false);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -70,6 +73,14 @@ export default function ConversationScreen() {
 
   const c = detail.data?.conversation;
   const other = c?.other;
+  const group = c?.group ?? null;
+  const canPin = group ? groupRights(group.myRole).pin : false;
+  const pinned = detail.data?.pinned ?? [];
+  const pinnedIds = new Set(pinned.map((p) => p.messageId));
+  const togglePin = (m: MessageView) => {
+    setSelected(null);
+    api(pinnedIds.has(m.id) ? 'DELETE' : 'PUT', `/api/groups/pins/${m.id}`).catch((e) => setError(errorMessage(e)));
+  };
   const lastMine = [...messages].reverse().find((m) => m.senderId === playerId);
 
   /** Envoie un message : texte, photo (avec légende facultative), sticker ou GIF. */
@@ -145,6 +156,23 @@ export default function ConversationScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages'))} style={{ padding: Spacing.sm }}>
           <Ionicons name="chevron-back" size={24} color={Colors.text} />
         </Pressable>
+        {group && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Infos du groupe"
+            onPress={() => router.push({ pathname: '/messages/group/[id]', params: { id } })}
+            style={styles.who}>
+            <GroupAvatar id={id} name={group.name} uri={group.avatar} size={38} />
+            <View style={{ flex: 1 }}>
+              <AppText variant="label" numberOfLines={1}>
+                {group.name}
+              </AppText>
+              <AppText variant="caption" muted>
+                {group.memberCount} membre{group.memberCount > 1 ? 's' : ''} · infos du groupe
+              </AppText>
+            </View>
+          </Pressable>
+        )}
         {other && (
           <Pressable
             accessibilityRole="button"
@@ -166,17 +194,72 @@ export default function ConversationScreen() {
         )}
       </View>
 
+      {pinned.length > 0 && (
+        <View style={styles.pinnedZone}>
+          <Pressable accessibilityRole="button" onPress={() => setShowPinned(!showPinned)} style={styles.pinnedHead}>
+            <Ionicons name="pin" size={16} color={Colors.gold} />
+            <AppText variant="label" style={{ flex: 1 }} numberOfLines={1}>
+              {pinned.length === 1 ? '1 message épinglé' : `${pinned.length} messages épinglés`}
+            </AppText>
+            <Ionicons name={showPinned ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+          </Pressable>
+          {(showPinned ? pinned : pinned.slice(0, 1)).map((p) => (
+            <Pressable
+              key={p.messageId}
+              accessibilityRole="button"
+              accessibilityLabel="Aller au message épinglé"
+              onPress={() => goTo(p.messageId)}
+              style={styles.pinnedItem}>
+              <AppText variant="caption" color={Colors.opponent}>
+                {p.senderId === playerId ? 'Toi' : (p.senderPseudo ?? '')}
+              </AppText>
+              <AppText variant="caption" muted numberOfLines={1} style={{ flex: 1 }}>
+                {p.text ?? attachmentLabel(p.kind)}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       <ScrollView
         ref={scroll}
         contentContainerStyle={styles.messages}
         onContentSizeChange={() => !replyTo && scroll.current?.scrollToEnd({ animated: false })}>
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           const mine = m.senderId === playerId;
+          if (m.kind === 'system') {
+            return (
+              <View key={m.id} onLayout={(e) => positions.current.set(m.id, e.nativeEvent.layout.y)} style={styles.systemLine}>
+                <AppText variant="caption" muted style={{ textAlign: 'center' }}>
+                  {m.text}
+                </AppText>
+              </View>
+            );
+          }
+          // Dans un groupe : pseudo et photo de l'auteur au début de chaque série de messages.
+          const firstOfRun = group && !mine && m.sender && messages[i - 1]?.senderId !== m.senderId;
           return (
             <View
               key={m.id}
               onLayout={(e) => positions.current.set(m.id, e.nativeEvent.layout.y)}
-              style={[styles.line, mine ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }]}>
+              style={[styles.line, mine ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }, group && !mine && { paddingLeft: 36 }]}>
+              {firstOfRun && m.sender && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Profil de ${m.sender.pseudo}`}
+                  onPress={() => router.push({ pathname: '/player/[id]', params: { id: m.sender!.id } })}
+                  style={styles.senderRow}>
+                  <Avatar name={m.sender.pseudo} color={avatarColor(m.sender.id)} uri={m.sender.avatar} size={28} />
+                  <AppText variant="caption" color={avatarColor(m.sender.id)}>
+                    {m.sender.pseudo}
+                  </AppText>
+                </Pressable>
+              )}
+              {pinnedIds.has(m.id) && (
+                <AppText variant="caption" color={Colors.gold}>
+                  📌 Épinglé
+                </AppText>
+              )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityHint="Répondre ou réagir"
@@ -233,6 +316,12 @@ export default function ConversationScreen() {
                     <Ionicons name="arrow-undo" size={16} color={Colors.text} />
                     <AppText variant="caption">Répondre</AppText>
                   </Pressable>
+                  {canPin && (
+                    <Pressable accessibilityRole="button" onPress={() => togglePin(m)} style={styles.replyButton}>
+                      <Ionicons name="pin" size={16} color={Colors.gold} />
+                      <AppText variant="caption">{pinnedIds.has(m.id) ? 'Désépingler' : 'Épingler'}</AppText>
+                    </Pressable>
+                  )}
                 </View>
               )}
               {lastMine?.id === m.id && m.status && (
@@ -312,6 +401,11 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.correct },
   messages: { padding: Spacing.md, gap: Spacing.sm, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   line: { gap: 4 },
+  systemLine: { alignSelf: 'center', backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: Spacing.sm + 4, paddingVertical: 4, maxWidth: '90%' },
+  senderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: -36 },
+  pinnedZone: { borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: 6, gap: 2, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
+  pinnedHead: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 28 },
+  pinnedItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 22, minHeight: 26 },
   bubble: { maxWidth: '82%', borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 4, paddingVertical: Spacing.sm, gap: 4 },
   mine: { backgroundColor: '#3A1F17', borderBottomRightRadius: 6 },
   theirs: { backgroundColor: Colors.surface, borderBottomLeftRadius: 6 },
