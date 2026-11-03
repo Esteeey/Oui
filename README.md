@@ -31,7 +31,8 @@ Serveur :
 
 Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 
-- Comptes invités (jeton gardé sur l'appareil) ; connexion par e-mail à venir.
+- **Comptes** : invité au départ, puis adresse e-mail confirmée par code (connexion sur plusieurs appareils, sans mot de passe).
+- **Notifications push** (téléphone) : messages avec aperçu masquable, notifications communautaires selon les préférences.
 - **Notifications** : centre complet (likes regroupés, commentaires, mentions, abonnements, progression, classements, défis, annonces), préférences, temps réel. Les notifications push sur téléphone arrivent plus tard.
 - **Défis** entre joueurs liés par un abonnement, revanche après un duel.
 - **Recherche** de joueurs et de thèmes depuis tous les onglets, page **Découvrir des joueurs**, suggestions pendant la saisie d'une mention.
@@ -63,6 +64,10 @@ Médias : en local, les images sont rangées dans `services/game/data/media` et 
 | `MEDIA_PUBLIC_URL` | Adresse publique des images (CDN) quand elles sont servies par un stockage objet. |
 | `QU1Z_NETWORK_SALT` | Sel secret de l’empreinte réseau (anti-contournement des bannissements). À définir en production. |
 | `QU1Z_TRUST_PROXY` | `1` si le serveur est derrière un proxy de confiance (lecture de `x-forwarded-for`). |
+| `RESEND_API_KEY`, `MAIL_FROM` | Envoi réel des e-mails de connexion (sinon les codes s’affichent dans le terminal du serveur). |
+| `QU1Z_REQUIRE_EMAIL` | `1` ou `0` : e-mail confirmé exigé pour la messagerie, les publications et les groupes (par défaut : oui si `RESEND_API_KEY`). |
+| `QU1Z_APP_URL` | Adresse ouverte par le lien magique (par défaut `qu1z://`, ou l’adresse du site web). |
+| `EXPO_ACCESS_TOKEN` | Jeton Expo si la sécurité renforcée des push est activée ; `QU1Z_PUSH=0` coupe les push. |
 
 Nommer le premier administrateur (serveur de jeu arrêté en local) :
 

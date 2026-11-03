@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  attachmentLabel,
   isSticker,
   MAX_FIRST_MESSAGE_LENGTH,
   MAX_MESSAGE_LENGTH,
@@ -19,6 +20,8 @@ import {
 import type { Database, Queryable } from './db/database';
 import { validateGif, type GifProvider } from './gifs';
 import { mediaUrl, mediaView, type Media } from './media';
+import type { Notifier } from './notifier';
+import type { Push, PushMessage } from './push';
 import type { RateLimiter } from './rate-limit';
 import { SocialError } from './social';
 
@@ -106,6 +109,44 @@ export class Messaging {
     return r ? summary(r) : null;
   }
 
+  /** Branchés par le serveur : notifications push des messages (séparées des notifications communautaires). */
+  push?: Push;
+  notifier?: Notifier;
+
+  /**
+   * Push d'un nouveau message (ou d'une demande) aux destinataires hors de l'application,
+   * avec aperçu sauf si le destinataire a choisi de masquer les aperçus.
+   */
+  async pushMessage(sender: string, recipients: string[], content: { conversationId?: string; kind: string; text: string | null; request?: boolean }) {
+    if (!this.push || !this.notifier) return;
+    const [who] = await this.db.query<{ pseudo: string }>('SELECT pseudo FROM profiles WHERE user_id = $1', [sender]);
+    const [conv] = content.conversationId
+      ? await this.db.query<{ kind: string; name: string | null }>('SELECT kind, name FROM conversations WHERE id = $1', [content.conversationId])
+      : [];
+    const preview = (content.text ?? attachmentLabel(content.kind)).slice(0, 120);
+    await this.push.notify(recipients, async (userId): Promise<Omit<PushMessage, 'to'> | null> => {
+      const prefs = await this.notifier!.prefs(userId);
+      if (!prefs.messagePush) return null;
+      if (await this.blocked(userId, sender)) return null;
+      const hidden = prefs.hideMessagePreviews;
+      if (content.request) {
+        return {
+          title: 'Nouvelle demande de message',
+          body: hidden || !content.text ? `${who?.pseudo ?? 'Un joueur'} veut t’écrire` : `${who?.pseudo} : ${preview}`,
+          data: { kind: 'message_request' },
+          channelId: 'messages',
+        };
+      }
+      const isGroup = conv?.kind === 'group';
+      return {
+        title: isGroup ? (conv?.name ?? 'Groupe') : (who?.pseudo ?? 'Qu1z'),
+        body: hidden ? 'Nouveau message' : isGroup ? `${who?.pseudo} : ${preview}` : preview,
+        data: { kind: 'message', conversationId: content.conversationId ?? '' },
+        channelId: 'messages',
+      };
+    });
+  }
+
   /** Prévient en temps réel tous les membres actifs d'une conversation. */
   async signalMembers(conversationId: string, extra: string[] = []): Promise<void> {
     const rows = await this.db.query<{ user_id: string }>(
@@ -152,6 +193,7 @@ export class Messaging {
     this.limit('messageRequest', from);
     await this.db.query('INSERT INTO message_requests (id, from_id, to_id, first_message) VALUES ($1, $2, $3, $4)', [randomUUID(), from, to, text]);
     this.signal([to]);
+    await this.pushMessage(from, [to], { kind: 'text', text, request: true });
     return { status: 'requested' };
   }
 
@@ -484,6 +526,7 @@ export class Messaging {
       ]);
     });
     this.signal([viewer, ...others], conversationId);
+    await this.pushMessage(viewer, others, { conversationId, kind, text: text || null });
     return (await this.conversation(viewer, conversationId)).messages.find((m) => m.id === id)!;
   }
 

@@ -65,6 +65,8 @@ export interface NotificationPrefs {
   friendsOnline: boolean;
   /** Masquer le contenu des messages dans les aperçus push. */
   hideMessagePreviews: boolean;
+  /** Push pour les messages privés et de groupe (séparés des notifications communautaires). */
+  messagePush: boolean;
 }
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
@@ -79,6 +81,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   },
   friendsOnline: false,
   hideMessagePreviews: false,
+  messagePush: true,
 };
 
 export interface ChallengeView {

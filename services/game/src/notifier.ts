@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  notificationText,
   DEFAULT_NOTIFICATION_PREFS,
   MAX_NOTIFICATIONS,
   levelFromXp,
@@ -13,6 +14,7 @@ import {
 
 import type { Database, Queryable } from './db/database';
 import { mediaUrl } from './media';
+import type { Push } from './push';
 
 /** Acteurs distincts conservés par notification regroupée (le compteur reste exact jusque-là). */
 const MAX_ACTORS = 200;
@@ -82,7 +84,24 @@ export class Notifier {
       await this.enforceCap(tx, userId);
       return true;
     });
-    if (created) this.send(userId, { type: 'notification', unread: await this.unread(userId) });
+    if (created) {
+      this.send(userId, { type: 'notification', unread: await this.unread(userId) });
+      await this.pushFor([userId], input.category);
+    }
+  }
+
+  /** Branché par le serveur : notifications push (respecte les préférences par catégorie). */
+  push?: Push;
+
+  /** Push de la dernière notification, pour les joueurs hors de l'application qui l'ont activé pour cette catégorie. */
+  private async pushFor(userIds: string[], category: NotificationCategory): Promise<void> {
+    if (!this.push) return;
+    await this.push.notify(userIds, async (userId) => {
+      if (!(await this.prefs(userId)).push[category]) return null;
+      const [latest] = await this.list(userId);
+      if (!latest) return null;
+      return { title: 'Qu1z', body: notificationText(latest), data: { kind: 'notification', notificationId: latest.id }, channelId: 'community' };
+    });
   }
 
   /** Plafond de 50 : au-delà, les plus anciennes disparaissent, lues ou non. */
@@ -116,6 +135,11 @@ export class Notifier {
       return rows;
     });
     for (const { id } of count) this.send(id, { type: 'notification' });
+    // Push : seulement les comptes qui ont un appareil enregistré.
+    if (this.push) {
+      const withDevice = await this.db.query<{ user_id: string }>('SELECT DISTINCT user_id FROM push_tokens');
+      await this.pushFor(withDevice.map((r) => r.user_id), input.category);
+    }
     return count.length;
   }
 
@@ -193,6 +217,7 @@ export class Notifier {
       push: { ...DEFAULT_NOTIFICATION_PREFS.push, ...(stored.push ?? {}) },
       friendsOnline: stored.friendsOnline ?? DEFAULT_NOTIFICATION_PREFS.friendsOnline,
       hideMessagePreviews: stored.hideMessagePreviews ?? DEFAULT_NOTIFICATION_PREFS.hideMessagePreviews,
+      messagePush: stored.messagePush ?? DEFAULT_NOTIFICATION_PREFS.messagePush,
     };
   }
 
@@ -206,6 +231,7 @@ export class Notifier {
     }
     if (typeof patch.friendsOnline === 'boolean') current.friendsOnline = patch.friendsOnline;
     if (typeof patch.hideMessagePreviews === 'boolean') current.hideMessagePreviews = patch.hideMessagePreviews;
+    if (typeof patch.messagePush === 'boolean') current.messagePush = patch.messagePush;
     await this.db.query(
       'INSERT INTO notification_preferences (user_id, prefs) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET prefs = $2',
       [userId, current],

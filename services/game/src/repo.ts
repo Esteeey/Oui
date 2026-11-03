@@ -67,8 +67,10 @@ export class Repo {
   }
 
   async userByTokenHash(tokenHash: string): Promise<UserRow | null> {
+    // Jeton d'origine du compte, ou session ouverte par connexion e-mail sur un autre appareil.
     const rows = await this.db.query<UserRow>(
-      'SELECT id, role, status, xp, pending_result_duel_id FROM users WHERE token_hash = $1',
+      `SELECT id, role, status, xp, pending_result_duel_id FROM users
+       WHERE token_hash = $1 OR id = (SELECT user_id FROM sessions WHERE token_hash = $1)`,
       [tokenHash],
     );
     return rows[0] ?? null;

@@ -33,6 +33,8 @@ export const DEFAULT_LIMITS: Limits = {
   message: { max: 60, windowMs: MINUTE },
   upload: { max: 30, windowMs: 10 * MINUTE },
   groupCreate: { max: 10, windowMs: DAY },
+  emailCode: { max: 5, windowMs: 60 * MINUTE },
+  emailCodeTo: { max: 5, windowMs: 60 * MINUTE },
   gifSearch: { max: 60, windowMs: MINUTE },
 };
 

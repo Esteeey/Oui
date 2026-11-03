@@ -297,6 +297,15 @@ export class Groups {
       invitee,
     ]);
     this.messaging.signal([invitee]);
+    if (this.messaging.push) {
+      const [[g], inviter] = [await this.db.query<{ name: string }>('SELECT name FROM conversations WHERE id = $1', [groupId]), await this.pseudo(viewer)];
+      await this.messaging.push.notify([invitee], async () => ({
+        title: 'Invitation de groupe',
+        body: `${inviter} t’invite dans le groupe « ${g?.name ?? ''} »`,
+        data: { kind: 'group_invitation' },
+        channelId: 'messages',
+      }));
+    }
     return { invitationId: id };
   }
 

@@ -10,6 +10,8 @@ import type { GifProvider } from './gifs';
 import type { Groups } from './groups';
 import type { Media } from './media';
 import type { Moderation } from './moderation';
+import type { Accounts } from './accounts';
+import type { Push } from './push';
 import type { Messaging } from './messaging';
 import type { Game } from './game';
 import type { Notifier } from './notifier';
@@ -86,6 +88,7 @@ type Handler = (ctx: {
   query: URLSearchParams;
   body: () => Promise<Record<string, unknown>>;
   raw: () => Promise<Buffer>;
+  token: string;
 }) => Promise<unknown>;
 
 /**
@@ -103,6 +106,8 @@ export function createApi(
   gifs: GifProvider | null,
   groups: Groups,
   moderation: Moderation,
+  accounts: Accounts,
+  push: Push,
 ) {
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
@@ -124,6 +129,23 @@ export function createApi(
       const p = await game.profile(target);
       return { stats: p.stats, history: p.history.slice(0, 10) };
     }],
+
+    // Compte e-mail (connexion sans mot de passe) et appareils
+    ['GET', /^\/api\/me\/account$/, async ({ userId }) => accounts.account(userId)],
+    ['POST', /^\/api\/auth\/email\/start$/, async ({ userId, body }) => accounts.start(userId, (await body()).email)],
+    ['POST', /^\/api\/auth\/email\/verify$/, async ({ userId, body }) => {
+      const b = await body();
+      return accounts.verify(userId, b.email, b.code);
+    }],
+    ['POST', /^\/api\/auth\/logout$/, async ({ userId, token, body }) => {
+      const b = await body();
+      return accounts.logout(userId, token, typeof b.pushToken === 'string' ? b.pushToken : undefined);
+    }],
+    ['PUT', /^\/api\/me\/push-tokens$/, async ({ userId, body }) => {
+      const b = await body();
+      return push.register(userId, b.token, b.platform);
+    }],
+    ['DELETE', /^\/api\/me\/push-tokens$/, async ({ userId, body }) => push.unregister(userId, String((await body()).token ?? ''))],
 
     // Signalements, sanctions et appels (joueurs)
     ['POST', /^\/api\/reports$/, async ({ userId, body }) => {
@@ -434,6 +456,14 @@ export function createApi(
     if (user.status === 'banned' && !BANNED_ALLOWED.some(([m, re]) => m === req.method && re.test(url.pathname))) {
       return json(res, 403, { error: 'banned' });
     }
+    // Messagerie, publications et groupes : e-mail vérifié exigé (si activé), pour que le bannissement soit efficace.
+    if (
+      accounts.emailRequired &&
+      RESTRICTED.some(([m, re, r]) => m === req.method && re.test(url.pathname) && (r === 'messages' || r === 'posts')) &&
+      !(await accounts.hasVerifiedEmail(user.id))
+    ) {
+      return json(res, 403, { error: 'email_required' });
+    }
     // Suspension : les fonctionnalités restreintes par l'équipe de modération sont refusées.
     const restriction = RESTRICTED.find(([m, re]) => m === req.method && re.test(url.pathname))?.[2];
     if (restriction && (await moderation.restrictions(user.id)).restricted.has(restriction)) {
@@ -452,6 +482,7 @@ export function createApi(
           query: url.searchParams,
           body: () => readBody(req),
           raw: () => readRaw(req),
+          token,
         });
         return json(res, 200, result ?? { ok: true });
       } catch (err) {

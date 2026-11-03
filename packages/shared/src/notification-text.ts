@@ -1,4 +1,5 @@
-import { getTheme, type NotificationView } from '@qu1z/shared';
+import { getTheme } from './catalog';
+import type { NotificationView } from './notifications';
 
 const OUTCOME: Record<string, string> = { win: 'une victoire', loss: 'une défaite', draw: 'une égalité' };
 

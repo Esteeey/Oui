@@ -11,6 +11,8 @@ import { Discovery } from './discovery';
 import { Messaging } from './messaging';
 import { Groups } from './groups';
 import { Moderation, networkHash } from './moderation';
+import { Accounts, emailSenderFromEnv, type EmailSender } from './accounts';
+import { Push, type PushSender } from './push';
 import { gifProviderFromEnv, type GifProvider } from './gifs';
 import { Media, MemoryStore, type MediaStore } from './media';
 import { Notifier } from './notifier';
@@ -28,6 +30,8 @@ export interface GameServer {
   media: Media;
   groups: Groups;
   moderation: Moderation;
+  accounts: Accounts;
+  push: Push;
   http: Server;
   port: number;
   close: () => Promise<void>;
@@ -42,6 +46,12 @@ export interface ServerOptions extends Omit<GameOptions, 'send'> {
   mediaStore?: MediaStore;
   /** Catalogue de GIF (par défaut : GIPHY_API_KEY ou TENOR_API_KEY ; sinon aucun). */
   gifs?: GifProvider | null;
+  /** Envoi des e-mails (par défaut : Resend si RESEND_API_KEY, sinon la console). */
+  email?: EmailSender;
+  /** Messagerie, publications et groupes réservés aux comptes avec e-mail vérifié. */
+  requireVerifiedEmail?: boolean;
+  /** Notifications push (par défaut : aucune ; index.ts branche Expo). */
+  pushSender?: PushSender | null;
 }
 
 /** Nettoyage des médias jamais rattachés. */
@@ -73,8 +83,18 @@ export async function startServer(port: number, options: ServerOptions): Promise
       ws.close();
     }
   };
-  const moderation = new Moderation(game.repo.db, game.limiter, social, messaging, notifier, disconnect);
-  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation);
+  const push = new Push(game.repo.db, options.pushSender ?? null, (id) => game.isOnline(id));
+  notifier.push = push;
+  messaging.push = push;
+  messaging.notifier = notifier;
+  const moderation = new Moderation(game.repo.db, game.limiter, social, messaging, notifier, (userId) => {
+    disconnect(userId);
+    // Un compte banni ne reçoit plus de push et toutes ses sessions sont fermées.
+    void push.removeAll(userId);
+    void game.repo.db.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+  });
+  const accounts = new Accounts(game.repo.db, game.limiter, options.email ?? emailSenderFromEnv(), options.requireVerifiedEmail ?? false);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation, accounts, push);
   const sweep = setInterval(() => void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err)), ORPHAN_SWEEP_MS);
   sweep.unref();
   const http = createServer((req, res) => void api(req, res));
@@ -177,6 +197,8 @@ export async function startServer(port: number, options: ServerOptions): Promise
     media,
     groups,
     moderation,
+    accounts,
+    push,
     http,
     port: typeof address === 'object' && address ? address.port : port,
     close: async () => {

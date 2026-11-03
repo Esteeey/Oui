@@ -14,3 +14,4 @@ export * from './notifications';
 export * from './messaging';
 export * from './media';
 export * from './moderation';
+export * from './notification-text';
