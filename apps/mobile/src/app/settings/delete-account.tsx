@@ -34,7 +34,7 @@ export default function DeleteAccountScreen() {
     setError(null);
     try {
       await api('POST', '/api/me/delete', { confirm: CONFIRMATION });
-      // L'appareil repart de zéro avec un nouveau compte invité.
+      // L'appareil revient à la page de connexion.
       await AsyncStorage.multiRemove([TOKEN_KEY, 'qu1z.pushToken']);
       switchAccount();
       setTimeout(invalidateAll, 800);

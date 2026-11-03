@@ -6,6 +6,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Colors } from '@/constants/theme';
 import { listenToPushTaps } from '@/net/push';
 import { BannedScreen } from '@/components/banned-screen';
+import { LoginScreen } from '@/components/login-screen';
 import { GameServerProvider, useGameServer } from '@/state/game-server';
 
 SplashScreen.preventAutoHideAsync();
@@ -70,8 +71,12 @@ export default function RootLayout() {
   );
 }
 
-/** Compte banni : seul l'écran des sanctions (et de l'appel) reste accessible. */
+/**
+ * Sans compte connecté : seule la page de connexion est affichée (pas de mode invité).
+ * Compte banni : seul l'écran des sanctions (et de l'appel) reste accessible.
+ */
 function BannedGate({ children }: { children: ReactNode }) {
-  const { banned } = useGameServer();
+  const { banned, signedOut } = useGameServer();
+  if (signedOut) return <LoginScreen />;
   return banned ? <BannedScreen /> : children;
 }

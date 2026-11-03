@@ -10,7 +10,7 @@ import { Challenges } from './challenges';
 import { Discovery } from './discovery';
 import { Messaging } from './messaging';
 import { Groups } from './groups';
-import { Moderation, networkHash } from './moderation';
+import { Moderation, requestNetwork } from './moderation';
 import { AccountDeletion } from './account-deletion';
 import { Accounts, emailSenderFromEnv, type EmailSender } from './accounts';
 import { Push, type PushSender } from './push';
@@ -110,9 +110,7 @@ export async function startServer(port: number, options: ServerOptions): Promise
 
   wss.on('connection', (ws, req) => {
     // Indice anti-contournement : empreinte du réseau (jamais l'adresse en clair).
-    // L'en-tête x-forwarded-for n'est cru que derrière un proxy de confiance (QU1Z_TRUST_PROXY=1).
-    const forwarded = process.env.QU1Z_TRUST_PROXY === '1' ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '';
-    const network = networkHash(forwarded || req.socket.remoteAddress || 'unknown');
+    const network = requestNetwork(req);
     let playerId: string | null = null;
     let helloStarted = false;
     let alive = true;
@@ -131,7 +129,8 @@ export async function startServer(port: number, options: ServerOptions): Promise
         helloStarted = true;
         const outcome = await game.hello(typeof msg.token === 'string' ? msg.token : undefined);
         if ('error' in outcome) {
-          ws.send(JSON.stringify({ type: 'error', code: outcome.error, message: 'Ce compte a été banni.' } satisfies ServerMessage));
+          const message = outcome.error === 'banned' ? 'Ce compte a été banni.' : 'Connecte-toi pour jouer.';
+          ws.send(JSON.stringify({ type: 'error', code: outcome.error, message } satisfies ServerMessage));
           ws.close();
           return;
         }

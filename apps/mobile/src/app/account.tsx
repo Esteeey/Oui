@@ -16,8 +16,8 @@ interface Account {
 }
 
 /**
- * Compte et e-mail : ajouter son adresse (connexion sans mot de passe), retrouver son compte sur un
- * autre appareil, se déconnecter. Le lien magique reçu par e-mail ouvre cet écran avec le code déjà rempli.
+ * Compte et e-mail : confirmer son adresse avec un code, se déconnecter. Le lien magique reçu par
+ * e-mail ouvre cet écran avec le code déjà rempli.
  */
 export default function AccountScreen() {
   const params = useLocalSearchParams<{ email?: string; code?: string }>();
@@ -30,6 +30,10 @@ export default function AccountScreen() {
   const [busy, setBusy] = useState(false);
   const autoVerified = useRef(false);
   const a = account.data;
+  // L'adresse donnée à l'inscription est proposée pour la confirmation.
+  useEffect(() => {
+    if (a?.email && !email) setEmail(a.email);
+  }, [a?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const start = async () => {
     setBusy(true);
@@ -60,7 +64,7 @@ export default function AccountScreen() {
         }, 800);
         setMessage({ ok: true, text: 'Tu es connecté à ton compte.' });
       } else {
-        setMessage({ ok: true, text: 'Adresse e-mail confirmée. Ton compte est protégé.' });
+        setMessage({ ok: true, text: 'Adresse e-mail confirmée.' });
       }
       setStep('email');
       setCode('');
@@ -102,22 +106,16 @@ export default function AccountScreen() {
           </AppText>
           <AppText>{a.email}</AppText>
           <AppText variant="caption" muted>
-            Pour retrouver ton compte sur un autre appareil, entre cette adresse sur l’écran « Compte et e-mail » : tu recevras un code.
+            Pour retrouver ton compte sur un autre appareil, connecte-toi avec cette adresse et ton mot de passe.
           </AppText>
         </Card>
       ) : (
         <Card>
-          <AppText variant="label">Protège ton compte</AppText>
-          <AppText muted>
-            Ajoute ton adresse e-mail pour ne jamais perdre ta progression et te connecter sur un autre appareil. Pas de mot de passe : tu reçois un
-            code.
-          </AppText>
+          <AppText variant="label">Confirme ton adresse e-mail</AppText>
+          <AppText muted>Tu reçois un code à 6 chiffres : il prouve que l’adresse est bien la tienne.</AppText>
           {a?.emailRequired && (
             <AppText color={Colors.gold}>Une adresse confirmée est nécessaire pour la messagerie, les publications et les groupes.</AppText>
           )}
-          <AppText variant="caption" muted>
-            Tu as déjà un compte avec e-mail ? Entre la même adresse : tu seras connecté à ce compte.
-          </AppText>
         </Card>
       )}
 
@@ -158,14 +156,10 @@ export default function AccountScreen() {
 
       {message && <AppText color={message.ok ? Colors.correct : Colors.wrong}>{message.text}</AppText>}
 
-      {a?.emailVerified && (
-        <>
-          <Button label="Se déconnecter de cet appareil" variant="outline" color={Colors.wrong} onPress={logout} />
-          <AppText variant="caption" muted>
-            Tu pourras te reconnecter avec ton adresse e-mail. Cet appareil ne recevra plus tes notifications.
-          </AppText>
-        </>
-      )}
+      <Button label="Se déconnecter de cet appareil" variant="outline" color={Colors.wrong} onPress={logout} />
+      <AppText variant="caption" muted>
+        Tu pourras te reconnecter avec ton adresse e-mail et ton mot de passe. Cet appareil ne recevra plus tes notifications.
+      </AppText>
     </Screen>
   );
 }

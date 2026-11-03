@@ -59,7 +59,7 @@ async function bulk(n: number, prefix = 'Joueur'): Promise<string[]> {
   const repo = server.game.repo;
   const ids: string[] = [];
   for (let i = 0; i < n; i++) {
-    const u = await repo.createGuest(hashToken(`${prefix}-${i}-${Math.random()}`));
+    const u = await repo.createAccount(hashToken(`${prefix}-${i}-${Math.random()}`));
     await db.query('UPDATE profiles SET pseudo = $2 WHERE user_id = $1', [u.id, `${prefix}${String(i).padStart(2, '0')}`]);
     ids.push(u.id);
   }

@@ -1,9 +1,34 @@
-import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+
+import { PSEUDO_PATTERN } from '@qu1z/shared';
 
 import type { Database } from './db/database';
 import { emailHash } from './moderation';
 import type { RateLimiter } from './rate-limit';
+import { Repo } from './repo';
 import { SocialError } from './social';
+
+const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
+export const PASSWORD_MIN_LENGTH = 8;
+
+/** Empreinte d'un mot de passe : `scrypt$sel$empreinte` (base64). */
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16);
+  const key = await scryptAsync(password, salt, 64);
+  return `scrypt$${salt.toString('base64')}$${key.toString('base64')}`;
+}
+
+async function checkPassword(password: string, stored: string): Promise<boolean> {
+  const [scheme, salt, key] = stored.split('$');
+  if (scheme !== 'scrypt' || !salt || !key) return false;
+  const expected = Buffer.from(key, 'base64');
+  const actual = await scryptAsync(password, Buffer.from(salt, 'base64'), expected.length);
+  return timingSafeEqual(actual, expected);
+}
+
+// Empreinte factice : une adresse inconnue coûte le même temps de calcul qu'un mauvais mot de passe.
+const DUMMY_HASH = hashPassword(randomBytes(16).toString('hex'));
 
 /** Envoi des e-mails : un service réel (Resend) en production, la console en développement, la mémoire en test. */
 export interface EmailSender {
@@ -64,9 +89,9 @@ export interface AccountView {
 }
 
 /**
- * Comptes e-mail : connexion sans mot de passe par code à 6 chiffres (ou lien magique qui le contient).
- * Une adresse inconnue est ajoutée au compte courant ; une adresse déjà vérifiée connecte à ce compte
- * (nouvel appareil). Une adresse bannie est refusée.
+ * Comptes : inscription (e-mail, pseudo, mot de passe) et connexion par e-mail et mot de passe ; aucun compte sans connexion.
+ * Code à 6 chiffres par e-mail (ou lien magique qui le contient) : confirme l'adresse du compte, ou connecte
+ * au compte qui possède une adresse déjà vérifiée. Une adresse bannie est refusée.
  */
 export class Accounts {
   constructor(
@@ -77,6 +102,47 @@ export class Accounts {
     /** Adresse de l'application pour le lien magique (ex. https://qu1z.app ou qu1z://). */
     private readonly appUrl = process.env.QU1Z_APP_URL ?? 'qu1z://',
   ) {}
+
+  /** Inscription : crée le compte et renvoie son jeton de session. `network` : réseau d'origine (limite anti-spam). */
+  async register(network: string, raw: { email?: unknown; pseudo?: unknown; password?: unknown }): Promise<{ token: string; userId: string }> {
+    const email = String(raw.email ?? '').trim().toLowerCase();
+    const pseudo = String(raw.pseudo ?? '').trim();
+    const password = String(raw.password ?? '');
+    if (!EMAIL.test(email) || email.length > 254) throw new SocialError(400, 'invalid_email');
+    if (!PSEUDO_PATTERN.test(pseudo)) throw new SocialError(400, 'invalid_pseudo');
+    if (password.length < PASSWORD_MIN_LENGTH || password.length > 200) throw new SocialError(400, 'weak_password');
+    if (!this.limiter.allow('register', network)) throw new SocialError(429, 'rate_limited');
+    if ((await this.db.query('SELECT 1 FROM banned_emails WHERE email_hash = $1', [emailHash(email)])).length) {
+      throw new SocialError(403, 'email_banned');
+    }
+    if ((await this.db.query('SELECT 1 FROM users WHERE lower(email) = $1', [email])).length) throw new SocialError(409, 'email_taken');
+    if ((await this.db.query('SELECT 1 FROM profiles WHERE lower(pseudo) = lower($1)', [pseudo])).length) throw new SocialError(409, 'pseudo_taken');
+    const token = randomBytes(32).toString('hex');
+    try {
+      const user = await new Repo(this.db).createAccount(hashToken(token), { email, pseudo, passwordHash: await hashPassword(password) });
+      return { token, userId: user.id };
+    } catch (err) {
+      // Inscription simultanée avec la même adresse ou le même pseudo : les index uniques tranchent.
+      if ((err as { code?: string }).code === '23505') throw new SocialError(409, String(err).includes('pseudo') ? 'pseudo_taken' : 'email_taken');
+      throw err;
+    }
+  }
+
+  /** Connexion : ouvre une session sur cet appareil. Même réponse pour une adresse inconnue ou un mauvais mot de passe. */
+  async login(network: string, rawEmail: unknown, rawPassword: unknown): Promise<{ token: string; userId: string }> {
+    const email = String(rawEmail ?? '').trim().toLowerCase();
+    const password = String(rawPassword ?? '');
+    if (!this.limiter.allow('login', network) || !this.limiter.allow('loginTo', email)) throw new SocialError(429, 'rate_limited');
+    const [user] = await this.db.query<{ id: string; password_hash: string | null }>(
+      "SELECT id, password_hash FROM users WHERE lower(email) = $1 AND status <> 'deleted'",
+      [email],
+    );
+    const ok = await checkPassword(password, user?.password_hash ?? (await DUMMY_HASH));
+    if (!user?.password_hash || !ok) throw new SocialError(401, 'invalid_credentials');
+    const token = randomBytes(32).toString('hex');
+    await this.db.query('INSERT INTO sessions (token_hash, user_id) VALUES ($1, $2)', [hashToken(token), user.id]);
+    return { token, userId: user.id };
+  }
 
   async account(userId: string): Promise<AccountView> {
     const [u] = await this.db.query<{ email: string | null; email_verified_at: Date | null }>('SELECT email, email_verified_at FROM users WHERE id = $1', [
@@ -160,8 +226,12 @@ export class Accounts {
 
   /** Déconnexion de cet appareil (le jeton est révoqué ; les jetons push de l'appareil aussi). */
   async logout(userId: string, token: string, pushToken?: string): Promise<void> {
-    // Sans e-mail vérifié, se déconnecter ferait perdre le compte pour toujours.
-    if (!(await this.hasVerifiedEmail(userId))) throw new SocialError(409, 'email_required_to_logout');
+    // Sans mot de passe ni e-mail vérifié, se déconnecter ferait perdre le compte pour toujours.
+    const [u] = await this.db.query<{ ok: boolean }>(
+      'SELECT password_hash IS NOT NULL OR email_verified_at IS NOT NULL AS ok FROM users WHERE id = $1',
+      [userId],
+    );
+    if (!u?.ok) throw new SocialError(409, 'email_required_to_logout');
     const h = hashToken(token);
     await this.db.query('DELETE FROM sessions WHERE token_hash = $1', [h]);
     // Jeton d'origine du compte : remplacé par une valeur impossible à retrouver.

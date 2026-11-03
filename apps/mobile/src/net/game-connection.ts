@@ -21,14 +21,16 @@ export function gameServerUrl(): string {
 
 /**
  * Connexion au serveur de jeu, avec reconnexion automatique (attente croissante, retour au premier
- * plan, retour du réseau). Le jeton du compte invité est gardé sur l'appareil ; la partie en cours,
- * elle, est retrouvée par le serveur à chaque reconnexion.
+ * plan, retour du réseau). Le jeton du compte (obtenu à la connexion) est gardé sur l'appareil ; la partie
+ * en cours, elle, est retrouvée par le serveur à chaque reconnexion. Sans jeton valable, aucune
+ * reconnexion n'est tentée tant que le joueur ne s'est pas connecté.
  */
 export class GameConnection {
   private ws: WebSocket | null = null;
   private backoff = 500;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  private signedOut = false;
   private cleanups: (() => void)[] = [];
 
   constructor(
@@ -69,6 +71,7 @@ export class GameConnection {
   /** Changement de compte : ferme la connexion actuelle et se reconnecte avec le jeton enregistré. */
   restart(): void {
     if (this.stopped) return;
+    this.signedOut = false;
     const old = this.ws;
     this.ws = null;
     old?.close();
@@ -78,7 +81,7 @@ export class GameConnection {
   }
 
   reconnectNow(): void {
-    if (this.stopped || this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
+    if (this.stopped || this.signedOut || this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.backoff = 500;
     this.open();
@@ -88,6 +91,7 @@ export class GameConnection {
     if (this.stopped) return;
     this.onStatus('connecting');
     const token = await AsyncStorage.getItem(TOKEN_KEY).catch(() => null);
+    if (!token) return this.signOut();
     const ws = new WebSocket(this.url);
     this.ws = ws;
     ws.onopen = () => {
@@ -105,16 +109,29 @@ export class GameConnection {
         AsyncStorage.setItem(TOKEN_KEY, message.token).catch(() => {});
         this.onStatus('online');
       }
+      if (message.type === 'error' && message.code === 'unauthenticated') {
+        // Jeton révoqué ou inconnu : on l'oublie et on attend une nouvelle connexion.
+        AsyncStorage.removeItem(TOKEN_KEY).catch(() => {});
+        this.ws = null;
+        ws.close();
+        return this.signOut();
+      }
       this.onMessage(message);
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.ws = null;
       this.onStatus('offline');
-      if (this.stopped) return;
+      if (this.stopped || this.signedOut) return;
       this.retryTimer = setTimeout(() => this.open(), this.backoff);
       this.backoff = Math.min(this.backoff * 2, MAX_BACKOFF_MS);
     };
     ws.onerror = () => ws.close();
+  }
+
+  private signOut(): void {
+    this.signedOut = true;
+    this.onStatus('offline');
+    this.onMessage({ type: 'error', code: 'unauthenticated', message: 'Connecte-toi pour jouer.' });
   }
 }

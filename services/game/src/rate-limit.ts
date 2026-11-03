@@ -35,6 +35,10 @@ export const DEFAULT_LIMITS: Limits = {
   groupCreate: { max: 10, windowMs: DAY },
   emailCode: { max: 5, windowMs: 60 * MINUTE },
   emailCodeTo: { max: 5, windowMs: 60 * MINUTE },
+  // Inscriptions par réseau ; essais de connexion par réseau et par adresse (contre la devinette de mots de passe).
+  register: { max: 10, windowMs: 60 * MINUTE },
+  login: { max: 30, windowMs: 15 * MINUTE },
+  loginTo: { max: 10, windowMs: 15 * MINUTE },
   gifSearch: { max: 60, windowMs: MINUTE },
 };
 

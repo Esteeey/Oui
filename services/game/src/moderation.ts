@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 
 import {
   attachmentLabel,
@@ -48,6 +49,15 @@ function userOf(r: Row, prefix: string): UserSummary | null {
 /** Empreinte d'un réseau (adresse IP salée et hachée) : jamais stockée en clair. */
 export function networkHash(ip: string, salt = process.env.QU1Z_NETWORK_SALT ?? 'qu1z-dev-salt'): string {
   return createHash('sha256').update(`${salt}:${ip}`).digest('hex');
+}
+
+/**
+ * Empreinte du réseau d'une requête HTTP ou WebSocket. L'en-tête x-forwarded-for n'est cru que derrière
+ * un proxy de confiance (QU1Z_TRUST_PROXY=1).
+ */
+export function requestNetwork(req: IncomingMessage): string {
+  const forwarded = process.env.QU1Z_TRUST_PROXY === '1' ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '';
+  return networkHash(forwarded || req.socket.remoteAddress || 'unknown');
 }
 
 /** Empreinte d'une adresse e-mail (bannissements). */

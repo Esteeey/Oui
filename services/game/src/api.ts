@@ -9,7 +9,7 @@ import type { Discovery } from './discovery';
 import type { GifProvider } from './gifs';
 import type { Groups } from './groups';
 import type { Media } from './media';
-import type { Moderation } from './moderation';
+import { requestNetwork, type Moderation } from './moderation';
 import type { AccountDeletion } from './account-deletion';
 import type { Accounts } from './accounts';
 import type { Push } from './push';
@@ -297,7 +297,7 @@ export function createApi(
       const b = await body();
       const target =
         b.target === 'theme' ? { kind: 'theme' as const, themeId: String(b.themeId ?? '') } : { kind: 'profile' as const };
-      return social.createPost(userId, target, b.text, b.mediaId ? uuid(b.mediaId) : undefined);
+      return social.createPost(userId, target, b.text, b.mediaId ? uuid(b.mediaId) : undefined, b.stickerId);
     }],
     ['GET', /^\/api\/posts\/([^/]+)$/, async ({ userId, params }) => social.post(userId, uuid(params[0]))],
     ['PUT', /^\/api\/posts\/([^/]+)\/like$/, async ({ userId, params }) => social.setLike(userId, uuid(params[0]), true)],
@@ -480,6 +480,23 @@ export function createApi(
       return void res.end(file.data);
     }
     if (!url.pathname.startsWith('/api/')) return json(res, 404, { error: 'not_found' });
+
+    // Inscription et connexion : seules routes ouvertes sans jeton (il n'y a pas de compte invité).
+    if (req.method === 'POST' && (url.pathname === '/api/auth/register' || url.pathname === '/api/auth/login')) {
+      try {
+        const body = await readBody(req);
+        const result =
+          url.pathname === '/api/auth/register'
+            ? await accounts.register(requestNetwork(req), body)
+            : await accounts.login(requestNetwork(req), body.email, body.password);
+        return json(res, 200, result);
+      } catch (err) {
+        if (err instanceof SocialError) return json(res, err.status, { error: err.code });
+        if (err instanceof SyntaxError) return json(res, 400, { error: 'bad_request' });
+        console.error(err);
+        return json(res, 500, { error: 'server_error' });
+      }
+    }
 
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
     const user = token ? await game.authenticate(token, { allowBanned: true }) : null;

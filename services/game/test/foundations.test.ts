@@ -50,9 +50,9 @@ describe('base de données', () => {
   it('pseudo unique sans tenir compte de la casse', async () => {
     db = await openDatabase();
     const repo = new Repo(db);
-    const a = await repo.createGuest(hashToken('a'));
+    const a = await repo.createAccount(hashToken('a'));
     const pseudo = await repo.pseudo(a.id);
-    const b = await repo.createGuest(hashToken('b'));
+    const b = await repo.createAccount(hashToken('b'));
     await expect(db.query('UPDATE profiles SET pseudo = $2 WHERE user_id = $1', [b.id, pseudo.toUpperCase()])).rejects.toThrow();
   });
 

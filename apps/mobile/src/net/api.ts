@@ -35,6 +35,14 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data;
 }
 
+/** Inscription ou connexion (seuls appels sans jeton) : renvoie le jeton du compte. */
+export async function authRequest(path: '/api/auth/register' | '/api/auth/login', body: Record<string, string>): Promise<{ token: string; userId: string }> {
+  const res = await fetch(`${apiBase()}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const data = (await res.json().catch(() => ({}))) as { token: string; userId: string; error?: string };
+  if (!res.ok) throw new ApiError(res.status, data.error ?? 'error');
+  return data;
+}
+
 // Après une action (POST, PUT, PATCH, DELETE), toutes les données affichées sont rechargées.
 const listeners = new Set<() => void>();
 function invalidateIfMutation(method: string): void {
@@ -144,6 +152,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   email_banned: 'Cette adresse e-mail ne peut pas être utilisée.',
   already_verified: 'Cette adresse est déjà confirmée sur ton compte.',
   email_taken: 'Cette adresse est déjà utilisée par un autre compte.',
+  invalid_credentials: 'Adresse e-mail ou mot de passe incorrect.',
+  weak_password: 'Le mot de passe doit faire au moins 8 caractères.',
   email_required_to_logout: 'Confirme d’abord ton adresse e-mail, sinon tu perdrais ton compte.',
   email_failed: 'L’e-mail n’a pas pu être envoyé. Réessaie.',
   invalid_push_token: 'Notifications push indisponibles sur cet appareil.',

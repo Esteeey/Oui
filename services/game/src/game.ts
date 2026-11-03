@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import {
   BOT_NAME,
@@ -83,18 +83,12 @@ export class Game {
 
   // ---- Comptes -----------------------------------------------------------------------------
 
-  /** Retrouve un joueur par son jeton, ou crée un compte invité. Refuse les comptes bannis. */
-  async hello(token?: string): Promise<{ user: UserRow; token: string } | { error: 'banned' | 'suspended' }> {
-    if (token) {
-      const user = await this.repo.userByTokenHash(hashToken(token));
-      if (user) {
-        if (user.status === 'banned') return { error: 'banned' };
-        return { user, token };
-      }
-    }
-    const newToken = randomBytes(32).toString('hex');
-    const user = await this.repo.createGuest(hashToken(newToken));
-    return { user, token: newToken };
+  /** Retrouve un joueur par son jeton (obtenu à l'inscription ou à la connexion). Refuse les comptes bannis. */
+  async hello(token?: string): Promise<{ user: UserRow; token: string } | { error: 'banned' | 'unauthenticated' }> {
+    const user = token ? await this.repo.userByTokenHash(hashToken(token)) : null;
+    if (!user || !token) return { error: 'unauthenticated' };
+    if (user.status === 'banned') return { error: 'banned' };
+    return { user, token };
   }
 
   /** Compte associé au jeton ; un compte banni n'est renvoyé que si `allowBanned` (consultation des sanctions et appel). */

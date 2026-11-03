@@ -8,7 +8,7 @@ import { MemoryStore } from '../src/media';
 import { MemoryPushSender } from '../src/push';
 import { Repo } from '../src/repo';
 import { startServer, type GameServer } from '../src/server';
-import { FAST, TestClient, sleep } from './helpers';
+import { FAST, TestClient, register, sleep } from './helpers';
 
 let server: GameServer;
 let db: Database;
@@ -85,10 +85,10 @@ async function goOffline(u: U) {
 }
 
 describe('M8 : comptes e-mail', () => {
-  it('ajoute une adresse au compte invité avec un code à 6 chiffres (lien magique inclus)', async () => {
+  it('vérifie une adresse avec un code à 6 chiffres (lien magique inclus)', async () => {
     await boot();
     const ana = await user('Ana');
-    expect(await ok(call(ana.token, 'GET', '/api/me/account'))).toEqual({ email: null, emailVerified: false, emailRequired: false });
+    expect(await ok(call(ana.token, 'GET', '/api/me/account'))).toMatchObject({ emailVerified: false, emailRequired: false });
     await ok(call(ana.token, 'POST', '/api/auth/email/start', { email: '  Ana@Example.com ' }));
     const sent = mail.sent[0];
     expect(sent.to).toBe('ana@example.com');
@@ -118,7 +118,7 @@ describe('M8 : comptes e-mail', () => {
     await boot();
     const ana = await user('Ana');
     await verifyEmail(ana, 'ana@example.com');
-    // Nouvel appareil : un compte invité temporaire demande un code pour la même adresse.
+    // Nouvel appareil : un autre compte demande un code pour la même adresse.
     const phone = await user('Temp1');
     await ok(call(phone.token, 'POST', '/api/auth/email/start', { email: 'ana@example.com' }));
     expect(mail.sent.at(-1)!.subject).toBe('Ton code de connexion Qu1z');
@@ -132,9 +132,35 @@ describe('M8 : comptes e-mail', () => {
     await ok(call(r.token, 'POST', '/api/auth/logout', {}));
     expect((await call(r.token, 'GET', '/api/me')).status).toBe(401);
     expect((await call(ana.token, 'GET', '/api/me')).status).toBe(200);
-    // Sans e-mail vérifié, la déconnexion est refusée (le compte serait perdu).
-    const guest = await user('Invite');
-    expect(await error(call(guest.token, 'POST', '/api/auth/logout', {}))).toBe('409 email_required_to_logout');
+    // Un compte avec mot de passe peut toujours se déconnecter : il se reconnecte avec.
+    const other = await user('Autre');
+    await ok(call(other.token, 'POST', '/api/auth/logout', {}));
+  });
+
+  it('inscription et connexion par e-mail et mot de passe ; aucun compte sans connexion', async () => {
+    await boot();
+    const post = (path: string, body: unknown) => call('', 'POST', path, body);
+    const ana = await register(server.port, { email: 'Ana@Example.com', pseudo: 'Ana', password: 'secret-ana' });
+    expect((await ok(call<{ profile: { name: string } }>(ana.token, 'GET', '/api/me'))).profile.name).toBe('Ana');
+    // Adresse, pseudo et mot de passe validés ; doublons refusés (sans tenir compte des majuscules).
+    expect(await error(post('/api/auth/register', { email: 'ana@example.com', pseudo: 'Bob', password: 'secret-bob' }))).toBe('409 email_taken');
+    expect(await error(post('/api/auth/register', { email: 'bob@example.com', pseudo: 'ANA', password: 'secret-bob' }))).toBe('409 pseudo_taken');
+    expect(await error(post('/api/auth/register', { email: 'bob@example.com', pseudo: 'Bob', password: 'court' }))).toBe('400 weak_password');
+    expect(await error(post('/api/auth/register', { email: 'bob', pseudo: 'Bob', password: 'secret-bob' }))).toBe('400 invalid_email');
+    expect(await error(post('/api/auth/register', { email: 'bob@example.com', pseudo: 'B', password: 'secret-bob' }))).toBe('400 invalid_pseudo');
+    // Connexion : nouveau jeton pour le même compte ; mauvais mot de passe ou adresse inconnue refusés pareil.
+    const login = await ok(post('/api/auth/login', { email: ' ANA@example.com', password: 'secret-ana' }));
+    expect(login).toMatchObject({ userId: ana.userId });
+    expect(await error(post('/api/auth/login', { email: 'ana@example.com', password: 'mauvais-mdp' }))).toBe('401 invalid_credentials');
+    expect(await error(post('/api/auth/login', { email: 'personne@example.com', password: 'secret-ana' }))).toBe('401 invalid_credentials');
+    // Le temps réel exige un compte : sans jeton (ou avec un faux), aucun joueur n'est créé.
+    for (const token of [undefined, 'faux-jeton']) {
+      const ws = new TestClient(server.port);
+      await expect(ws.connect(token ?? '')).rejects.toThrow();
+      expect(ws.messages.find((m) => m.type === 'error')).toMatchObject({ code: 'unauthenticated' });
+      clients.push(ws);
+    }
+    expect((await db.query('SELECT count(*)::int AS n FROM users'))[0]).toEqual({ n: 1 });
   });
 
   it('adresse bannie : impossible de recréer un compte avec ; débloquée si l’appel est accepté', async () => {

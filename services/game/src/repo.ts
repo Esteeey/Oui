@@ -51,10 +51,23 @@ export class Repo {
 
   // ---- Comptes -----------------------------------------------------------------------------
 
-  async createGuest(tokenHash: string): Promise<UserRow> {
+  /**
+   * Crée un compte. Inscription : e-mail, empreinte du mot de passe et pseudo choisi (déjà validés).
+   * Sans pseudo (comptes créés par les tests et les outils), un pseudo `Joueur_1234` libre est tiré.
+   */
+  async createAccount(tokenHash: string, account: { email?: string; passwordHash?: string; pseudo?: string } = {}): Promise<UserRow> {
     const id = randomUUID();
     return this.db.transaction(async (tx) => {
-      await tx.query('INSERT INTO users (id, token_hash) VALUES ($1, $2)', [id, tokenHash]);
+      await tx.query('INSERT INTO users (id, token_hash, email, password_hash) VALUES ($1, $2, $3, $4)', [
+        id,
+        tokenHash,
+        account.email ?? null,
+        account.passwordHash ?? null,
+      ]);
+      if (account.pseudo) {
+        await tx.query('INSERT INTO profiles (user_id, pseudo) VALUES ($1, $2)', [id, account.pseudo]);
+        return (await tx.query<UserRow>('SELECT id, role, status, xp, pending_result_duel_id FROM users WHERE id = $1', [id]))[0];
+      }
       for (let attempt = 0; ; attempt++) {
         const pseudo = `Joueur_${1000 + Math.floor(Math.random() * 9000)}${attempt > 5 ? attempt : ''}`;
         const taken = await tx.query('SELECT 1 FROM profiles WHERE lower(pseudo) = lower($1)', [pseudo]);

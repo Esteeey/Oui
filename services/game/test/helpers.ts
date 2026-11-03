@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { WebSocket } from 'ws';
 
 import type { ClientMessage, DuelSnapshot, ServerMessage } from '@qu1z/shared';
@@ -15,6 +17,21 @@ export const FAST: Timing = {
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Inscrit un nouveau joueur par l'API, depuis un réseau qui lui est propre. */
+export async function register(
+  port: number,
+  account: { email?: string; pseudo?: string; password?: string } = {},
+): Promise<{ token: string; userId: string }> {
+  const id = randomUUID().slice(0, 8);
+  const res = await fetch(`http://localhost:${port}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.${id}` },
+    body: JSON.stringify({ email: `j${id}@test.fr`, pseudo: `Joueur_${id}`, password: 'motdepasse', ...account }),
+  });
+  if (!res.ok) throw new Error(`Inscription refusée : ${res.status} ${await res.text()}`);
+  return (await res.json()) as { token: string; userId: string };
+}
+
 /** Client de test : enregistre tous les messages reçus et permet d'attendre une condition. */
 export class TestClient {
   ws!: WebSocket;
@@ -24,7 +41,9 @@ export class TestClient {
 
   constructor(private readonly port: number) {}
 
+  /** Sans jeton, crée d'abord un compte (il n'y a pas de compte invité). */
   async connect(token?: string): Promise<this> {
+    token ??= (await register(this.port)).token;
     this.ws = new WebSocket(`ws://localhost:${this.port}`);
     this.ws.on('message', (raw) => this.messages.push(JSON.parse(String(raw))));
     await new Promise<void>((resolve, reject) => {

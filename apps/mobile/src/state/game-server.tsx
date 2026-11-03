@@ -24,6 +24,8 @@ interface GameServerState {
   lastError: string | null;
   /** Compte banni : l'application ne montre plus que les sanctions et l'appel. */
   banned: boolean;
+  /** Aucun compte connecté sur l'appareil : l'application ne montre que la page de connexion. */
+  signedOut: boolean;
   /** Dernière demande de duel (pour « Rejouer »). */
   lastRequest: DuelRequest | null;
   /** Notifications non lues (mises à jour en temps réel). */
@@ -34,7 +36,7 @@ interface GameServerState {
   forfeit: () => void;
   ackResult: (duelId: string) => void;
   retry: () => void;
-  /** Après une connexion par e-mail ou une déconnexion : reconnexion avec le nouveau jeton. */
+  /** Après une connexion ou une déconnexion : reconnexion avec le nouveau jeton. */
   switchAccount: () => void;
 }
 
@@ -50,6 +52,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const [queued, setQueued] = useState<GameServerState['queued']>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [banned, setBanned] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
   const [lastRequest, setLastRequest] = useState<DuelRequest | null>(null);
   const [unreadNotifications, setUnread] = useState(0);
   const connection = useRef<GameConnection | null>(null);
@@ -58,6 +61,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     const handle = (m: ServerMessage) => {
       switch (m.type) {
         case 'welcome':
+          setSignedOut(false);
           setPlayerId(m.playerId);
           setProfile(m.profile);
           // Rattrapage après (re)connexion : compteur et écrans à jour.
@@ -92,6 +96,13 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
           invalidateAll();
           break;
         case 'error':
+          if (m.code === 'unauthenticated') {
+            setSignedOut(true);
+            setPlayerId(null);
+            setProfile(null);
+            setUnread(0);
+            break;
+          }
           setLastError(m.message);
           if (m.code === 'banned') {
             setBanned(true);
@@ -117,6 +128,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     queued,
     lastError,
     banned,
+    signedOut,
     lastRequest,
     unreadNotifications,
     play: (request) => {
@@ -138,6 +150,8 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     switchAccount: () => {
       setDuel(null);
       setQueued(null);
+      setLastError(null);
+      setBanned(false);
       connection.current?.restart();
     },
   };
