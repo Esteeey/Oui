@@ -1,4 +1,4 @@
-import type { MediaView } from './media';
+import type { MediaView, StickerId } from './media';
 
 /** Données sociales échangées entre le serveur et l'application (API HTTP). */
 
@@ -91,6 +91,8 @@ export interface PostView {
   text: string;
   /** Photo jointe (facultative ; le texte peut alors être vide). */
   media: MediaView | null;
+  /** Sticker du pack Qu1z (à la place d'une photo). */
+  sticker: StickerId | null;
   createdAt: number;
   likes: number;
   likedByMe: boolean;

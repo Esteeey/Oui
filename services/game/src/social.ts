@@ -8,6 +8,7 @@ import {
   extractMentions,
   getTheme,
   isCountryCode,
+  isSticker,
   levelFromXp,
   seasonOf,
   unlockedTitles,
@@ -392,10 +393,12 @@ export class Social {
 
   // ---- Publications ------------------------------------------------------------------------
 
-  /** Publication : texte, photo (déjà envoyée), ou les deux. */
-  async createPost(viewer: string, target: PostTarget, rawText: unknown, mediaId?: string): Promise<PostView> {
+  /** Publication : texte, avec au choix une photo (déjà envoyée) ou un sticker du pack Qu1z. */
+  async createPost(viewer: string, target: PostTarget, rawText: unknown, mediaId?: string, stickerId?: unknown): Promise<PostView> {
     const text = String(rawText ?? '').trim();
-    if ((!text && !mediaId) || text.length > MAX_POST_LENGTH) throw new SocialError(400, 'invalid_text');
+    const sticker = stickerId === undefined || stickerId === null ? null : stickerId;
+    if (sticker !== null && (!isSticker(sticker) || mediaId)) throw new SocialError(400, 'invalid_sticker');
+    if ((!text && !mediaId && !sticker) || text.length > MAX_POST_LENGTH) throw new SocialError(400, 'invalid_text');
     if (mediaId && !this.media) throw new SocialError(503, 'media_unavailable');
     this.limit('post', viewer);
     const id = randomUUID();
@@ -407,13 +410,14 @@ export class Social {
         if (!sub.length) throw new SocialError(403, 'not_subscribed');
       }
       const media = mediaId ? await this.media!.attach(tx, viewer, mediaId, 'post') : null;
-      await tx.query('INSERT INTO posts (id, author_id, target, theme_id, text, media_id) VALUES ($1, $2, $3, $4, $5, $6)', [
+      await tx.query('INSERT INTO posts (id, author_id, target, theme_id, text, media_id, sticker_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
         id,
         viewer,
         target.kind,
         target.kind === 'theme' ? target.themeId : null,
         text,
         media?.id ?? null,
+        sticker,
       ]);
       mentioned = await this.resolveMentions(viewer, text, tx);
       await this.saveMentions(tx, 'post', id, viewer, mentioned);
@@ -440,9 +444,10 @@ export class Social {
         media_width: number | null;
         media_height: number | null;
         media_animated: boolean | null;
+        sticker_id: string | null;
       }
     >(
-      `SELECT po.id AS post_id, po.target, po.theme_id, po.text, po.created_at, ${SUMMARY_COLUMNS},
+      `SELECT po.id AS post_id, po.target, po.theme_id, po.text, po.created_at, po.sticker_id, ${SUMMARY_COLUMNS},
          md.id AS media_id, md.storage_key AS media_key, md.width AS media_width, md.height AS media_height, md.animated AS media_animated,
          (SELECT count(*)::int FROM post_likes l WHERE l.post_id = po.id) AS likes,
          EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id = po.id AND l.user_id = $1) AS liked,
@@ -450,6 +455,10 @@ export class Social {
        FROM posts po JOIN users u ON u.id = po.author_id JOIN profiles p ON p.user_id = u.id
        LEFT JOIN media md ON md.id = po.media_id AND md.removed_by_moderation_at IS NULL
        WHERE po.removed_at IS NULL AND u.status <> 'banned' AND ${canSee('po.author_id')} AND (${where})
+         -- Fil d'un thème : réservé à ses abonnés (l'auteur et les personnes mentionnées voient toujours la publication).
+         AND (po.target <> 'theme' OR po.author_id = $1
+           OR EXISTS (SELECT 1 FROM theme_subscriptions ts WHERE ts.user_id = $1 AND ts.theme_id = po.theme_id)
+           OR EXISTS (SELECT 1 FROM mentions mn WHERE mn.content_type = 'post' AND mn.content_id = po.id AND mn.mentioned_user_id = $1))
          AND ($${params.length + 2}::timestamptz IS NULL OR po.created_at < $${params.length + 2})
        ORDER BY po.created_at DESC, po.id DESC LIMIT ${PAGE}`,
       [viewer, ...params, before ? new Date(before) : null],
@@ -464,6 +473,7 @@ export class Social {
         r.media_id && r.media_key
           ? mediaView({ id: r.media_id, storage_key: r.media_key, width: r.media_width!, height: r.media_height!, animated: !!r.media_animated })
           : null,
+      sticker: isSticker(r.sticker_id) ? r.sticker_id : null,
       createdAt: new Date(r.created_at).getTime(),
       likes: r.likes,
       likedByMe: r.liked,
@@ -491,7 +501,10 @@ export class Social {
     return view;
   }
 
+  /** Fil d'un thème : cadenassé tant que le joueur ne suit pas le thème. */
   async themeFeed(viewer: string, themeId: string, before?: number): Promise<PostView[]> {
+    const sub = await this.db.query('SELECT 1 FROM theme_subscriptions WHERE user_id = $1 AND theme_id = $2', [viewer, themeId]);
+    if (!sub.length) throw new SocialError(403, 'not_subscribed');
     return this.postViews(viewer, "po.target = 'theme' AND po.theme_id = $2", [themeId], before);
   }
 

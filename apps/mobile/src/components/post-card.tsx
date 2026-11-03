@@ -8,6 +8,7 @@ import { getCategory, getTheme, type PostView } from '@qu1z/shared';
 import { Photo } from '@/components/attachments';
 import { ReportSheet } from '@/components/report-sheet';
 import { RichText } from '@/components/rich-text';
+import { Sticker } from '@/components/sticker';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { api } from '@/net/api';
@@ -79,6 +80,7 @@ export function PostCard({
 
       {post.text ? <RichText text={post.text} mentions={post.mentions} style={{ lineHeight: 23 }} /> : null}
       {post.media && <Photo media={post.media} maxWidth={560} maxHeight={420} />}
+      {post.sticker && <Sticker id={post.sticker} size={140} />}
 
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Bravo, ${likes}`} accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>

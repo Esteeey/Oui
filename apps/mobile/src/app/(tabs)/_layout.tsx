@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
-import { Platform, StyleSheet, Text } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import type { IconName } from '@/components/social';
 import { Colors, Gradients, Radius } from '@/constants/theme';
@@ -69,10 +70,13 @@ export default function TabsLayout() {
   );
 }
 
+/** Le même « VS » peint au pinceau que l'écran d'avant-duel : l'identité visuelle de Qu1z. */
+const VS_IMAGE = require('../../../assets/images/vs.png');
+
 function VsButton({ focused }: { focused: boolean }) {
   return (
     <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.vs, focused && styles.vsFocused]}>
-      <Text style={styles.vsText}>VS</Text>
+      <Image source={VS_IMAGE} style={styles.vsImage} contentFit="contain" accessibilityIgnoresInvertColors />
     </LinearGradient>
   );
 }
@@ -85,10 +89,12 @@ const styles = StyleSheet.create({
     marginTop: -30,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     borderWidth: 4,
     borderColor: Colors.surface,
     boxShadow: '0 6px 16px rgba(229, 21, 95, 0.4)',
   },
   vsFocused: { borderColor: '#FFD3E3' },
-  vsText: { color: Colors.onAccent, fontSize: 28, fontWeight: '900', fontStyle: 'italic', letterSpacing: -1 },
+  // L'image garde son halo sombre : agrandie et rognée par le rond, le pinceau remplit le bouton.
+  vsImage: { width: 96, height: 96 },
 });

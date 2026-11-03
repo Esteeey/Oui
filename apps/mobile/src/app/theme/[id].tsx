@@ -1,143 +1,501 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
-import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel, type PostView, type ThemeInfo } from '@qu1z/shared';
+import {
+  getCategory,
+  getTheme,
+  levelFromXp,
+  questionsOf,
+  titleForLevel,
+  unlockedTitles,
+  type ChallengeView,
+  type PostView,
+  type ThemeInfo,
+} from '@qu1z/shared';
 
 import { Composer } from '@/components/composer';
 import { LeaderboardPanel } from '@/components/leaderboard-panel';
+import { UserRow } from '@/components/player-row';
 import { PostCard } from '@/components/post-card';
-import { ThemeCover } from '@/components/theme-cover';
 import { OutcomeBar } from '@/components/profile-view';
-import { DivisionBadge, SectionHeader } from '@/components/social';
-import { AppText, Button, Card, ProgressBar, Screen, Stat } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
+import { DivisionBadge } from '@/components/social';
+import { AppText, Button, Card, ProgressBar, Stat } from '@/components/ui';
+import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { themeCover } from '@/game/theme-covers';
+import { api, errorMessage, useApi } from '@/net/api';
 import { useThemeStats } from '@/state/progress';
-import { api, useApi } from '@/net/api';
 import { formatCount } from '@/utils/format';
+
+/** Page de thème, comme la maquette validée : haut bleu nuit traversé d'une vague rose, puis fond clair. */
+const Page = {
+  background: '#F6F5F8',
+  surface: '#FFFFFF',
+  soft: '#F7F3F5',
+  pink: '#E8146C',
+  navy: '#0B1630',
+  play: ['#F52A7E', '#E0105E'],
+} as const;
+
+/** Hauteur du haut sombre (sous la barre d'état), jusque sous les boutons. */
+const HERO_HEIGHT = 470;
+const ICON_SIZE = 112;
+
+type Tab = 'feed' | 'quiz' | 'challenges' | 'ranking';
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'feed', label: "Fil d'actualité" },
+  { value: 'quiz', label: 'Quiz' },
+  { value: 'challenges', label: 'Défis' },
+  { value: 'ranking', label: 'Classement' },
+];
+
+/** Niveau auquel le prochain titre se débloque (le titre actuel s'il n'y en a plus). */
+function nextTitleLevel(level: number): number | null {
+  const thresholds = [1, 5, 10, 25, 50];
+  return thresholds.find((min) => min > level) ?? null;
+}
 
 export default function ThemeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
   const theme = getTheme(id);
   const stats = useThemeStats(id);
   const info = useApi<{ themes: ThemeInfo[] }>('/api/themes');
-  const posts = useApi<{ posts: PostView[] }>(theme ? `/api/themes/${theme.id}/posts` : null);
+  const themeInfo = info.data?.themes.find((t) => t.themeId === theme?.id);
+  const subscribed = themeInfo?.subscribed ?? false;
+  // Le fil n'est chargé (et visible) qu'une fois le thème suivi.
+  const posts = useApi<{ posts: PostView[] }>(theme && subscribed ? `/api/themes/${theme.id}/posts` : null);
+  const [tab, setTab] = useState<Tab>('feed');
+  const [menuOpen, setMenuOpen] = useState(false);
   if (!theme) return <Redirect href="/" />;
   const category = getCategory(theme.categoryId)!;
   const level = levelFromXp(stats.xp);
-  const themeInfo = info.data?.themes.find((t) => t.themeId === theme.id);
-  const subscribed = themeInfo?.subscribed ?? false;
-  const feed = posts.data?.posts ?? [];
+  const nextTitle = nextTitleLevel(level.level);
   const toggleSubscription = () =>
     api(subscribed ? 'DELETE' : 'PUT', `/api/themes/${theme.id}/subscription`).catch(() => {});
-
-  const precision = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0;
-  const avgTime = stats.correct ? (stats.totalCorrectResponseMs / stats.correct / 1000).toFixed(1) : '–';
+  const openLeaderboard = () => router.push({ pathname: '/leaderboard', params: { theme: theme.id } });
+  const duel = (mode?: 'pvp') =>
+    router.push({ pathname: '/duel/[themeId]', params: mode ? { themeId: theme.id, mode } : { themeId: theme.id } });
 
   return (
-    <Screen back title="Thème">
-      <View style={styles.cover}>
-        <ThemeCover themeId={theme.id} height={190} fadeTo={Colors.background} />
-      </View>
-      <View style={styles.hero}>
-        <AppText variant="caption" color={category.color}>
-          {category.icon} {category.name.toUpperCase()}
-        </AppText>
-        <AppText variant="title" style={{ textAlign: 'center' }}>
-          {theme.name}
-        </AppText>
-        <AppText muted style={{ textAlign: 'center' }}>
-          {theme.description}
-        </AppText>
-        <Button
-          label={subscribed ? 'Abonné ✓' : "S'abonner au thème"}
-          variant={subscribed ? 'outline' : 'solid'}
-          color={subscribed ? Colors.textMuted : category.color}
-          onPress={toggleSubscription}
-          style={{ marginTop: Spacing.sm, alignSelf: 'stretch' }}
-        />
-        <AppText variant="caption" muted>
-          {themeInfo ? `${formatCount(themeInfo.subscribers)} abonné${themeInfo.subscribers > 1 ? 's' : ''}` : ''}
-        </AppText>
-      </View>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }} showsVerticalScrollIndicator={false}>
+        <HeroBackground themeId={theme.id} height={HERO_HEIGHT + insets.top} />
+        <View style={[styles.column, { paddingTop: insets.top + 132 }]}>
+          <View style={styles.hero}>
+            <View style={[styles.icon, { backgroundColor: category.color }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0)']} style={StyleSheet.absoluteFill} />
+              <AppText style={styles.iconEmoji}>{category.icon}</AppText>
+            </View>
+            <AppText style={styles.name}>{theme.name}</AppText>
+            <AppText style={styles.tagline}>{theme.description}</AppText>
 
+            <View style={styles.actions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Jouer un duel classé" onPress={() => duel('pvp')} style={styles.playWrap}>
+                <LinearGradient colors={Page.play} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.play}>
+                  <Ionicons name="play" size={24} color="#FFFFFF" />
+                  <AppText style={styles.playLabel}>Jouer</AppText>
+                </LinearGradient>
+              </Pressable>
+              <SoftButton icon={<Ionicons name="trophy-outline" size={21} color={Colors.text} />} label="Classement" onPress={() => setTab('ranking')} grow={1.15} />
+              <SoftButton
+                icon={<Ionicons name={subscribed ? 'checkmark' : 'add'} size={22} color={Colors.text} />}
+                label={subscribed ? 'Suivi' : 'Suivre'}
+                onPress={toggleSubscription}
+                grow={0.9}
+              />
+            </View>
+
+            <View style={styles.stats}>
+              <StatTile icon={<Ionicons name="ribbon" size={28} color={Page.pink} />} label="Niveau" value={String(level.level)} />
+              <View style={styles.statDivider} />
+              <StatTile
+                icon={<Ionicons name="people" size={28} color={Page.pink} />}
+                label="Abonnés"
+                value={themeInfo ? formatCount(themeInfo.subscribers) : '–'}
+              />
+              <View style={styles.statDivider} />
+              <StatTile
+                icon={<MaterialCommunityIcons name="crown" size={28} color={Page.pink} />}
+                label="Prochain titre"
+                value={nextTitle ? `Niveau ${nextTitle}` : titleForLevel(level.level)}
+              />
+            </View>
+          </View>
+
+          <View style={styles.tabs} accessibilityRole="tablist">
+            {TABS.map((t) => {
+              const active = t.value === tab;
+              return (
+                <Pressable key={t.value} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(t.value)} style={styles.tab}>
+                  <AppText style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
+                    {t.label}
+                  </AppText>
+                  {active && <View style={styles.underline} />}
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.body}>
+            {tab === 'feed' &&
+              (subscribed ? (
+                <FeedTab themeId={theme.id} themeName={theme.name} posts={posts.data?.posts ?? []} />
+              ) : (
+                <LockedFeed loading={!info.data} onFollow={toggleSubscription} />
+              ))}
+            {tab === 'quiz' && <QuizTab themeId={theme.id} categoryColor={category.color} onDuel={duel} />}
+            {tab === 'challenges' && <ChallengesTab themeId={theme.id} />}
+            {tab === 'ranking' && (
+              <>
+                <LeaderboardPanel themeId={theme.id} limit={10} />
+                <Button label="Voir tout le classement" variant="outline" color={Colors.text} onPress={openLeaderboard} />
+              </>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      <View style={[styles.topBar, { top: insets.top + Spacing.sm }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Retour" hitSlop={12} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={styles.topButton}>
+          <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Plus d'options" hitSlop={12} onPress={() => setMenuOpen((o) => !o)} style={styles.topButton}>
+          <Ionicons name="ellipsis-horizontal" size={26} color="#FFFFFF" />
+        </Pressable>
+      </View>
+      {menuOpen && (
+        <View style={[styles.menu, { top: insets.top + 56 }]}>
+          <MenuItem
+            label="Classement complet"
+            onPress={() => {
+              setMenuOpen(false);
+              openLeaderboard();
+            }}
+          />
+          <MenuItem
+            label="Duel d'entraînement (bot)"
+            onPress={() => {
+              setMenuOpen(false);
+              duel();
+            }}
+          />
+          <MenuItem
+            label={subscribed ? 'Ne plus suivre ce thème' : 'Suivre ce thème'}
+            onPress={() => {
+              setMenuOpen(false);
+              toggleSubscription();
+            }}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Haut de la page : bleu nuit, points décoratifs, image du thème en haut à droite, vague rose qui
+ * descend vers la gauche, puis fondu vers le fond clair sous les boutons.
+ */
+function HeroBackground({ themeId, height }: { themeId: string; height: number }) {
+  const cover = themeCover(themeId);
+  return (
+    <View pointerEvents="none" style={[styles.heroBg, { height }]}>
+      {cover !== null && (
+        <View style={styles.art}>
+          <Image source={cover} contentFit="cover" style={StyleSheet.absoluteFill} accessibilityIgnoresInvertColors />
+          <LinearGradient
+            colors={['rgba(11,22,48,0.6)', 'rgba(11,22,48,0)']}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 0.7, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
+      )}
+      <View style={styles.dots}>
+        {Array.from({ length: 9 }, (_, i) => (
+          <View key={i} style={styles.dot} />
+        ))}
+      </View>
+      <Svg width="100%" height="100%" viewBox="0 0 400 470" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <SvgGradient id="wave" x1="1" y1="0.2" x2="0" y2="0.9">
+            <Stop offset="0" stopColor="#FF2D8A" stopOpacity="1" />
+            <Stop offset="0.55" stopColor="#D6177A" stopOpacity="0.85" />
+            <Stop offset="1" stopColor="#7A1460" stopOpacity="0.55" />
+          </SvgGradient>
+          <SvgGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={Page.background} stopOpacity="0" />
+            <Stop offset="0.55" stopColor="#FCE3EE" stopOpacity="0.75" />
+            <Stop offset="1" stopColor={Page.background} stopOpacity="1" />
+          </SvgGradient>
+        </Defs>
+        <Path d="M400 150 C 330 250, 190 300, 0 330 L 0 470 L 400 470 Z" fill="url(#wave)" />
+        <Path d="M400 120 C 320 230, 200 280, 60 300" stroke="#FF5FA8" strokeOpacity={0.35} strokeWidth={2} fill="none" />
+        <Path d="M0 330 L 400 330 L 400 470 L 0 470 Z" fill="url(#fade)" />
+      </Svg>
+    </View>
+  );
+}
+
+function SoftButton({ icon, label, onPress, grow }: { icon: ReactNode; label: string; onPress: () => void; grow: number }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.soft, { flex: grow }]}>
+      {icon}
+      <AppText style={styles.softLabel} numberOfLines={1}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <View style={styles.statTile}>
+      {icon}
+      <View style={{ alignItems: 'center', flexShrink: 1, gap: 2 }}>
+        <AppText style={styles.statLabel} numberOfLines={1}>
+          {label}
+        </AppText>
+        <AppText style={styles.statValue} numberOfLines={1}>
+          {value}
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
+function MenuItem({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="menuitem" onPress={onPress} style={styles.menuItem}>
+      <AppText variant="label">{label}</AppText>
+    </Pressable>
+  );
+}
+
+/** Fil cadenassé : visible seulement par les abonnés du thème. */
+function LockedFeed({ loading, onFollow }: { loading: boolean; onFollow: () => void }) {
+  if (loading) return null;
+  return (
+    <View style={styles.locked}>
+      <View style={styles.lockIcon}>
+        <Ionicons name="lock-closed" size={30} color={Page.pink} />
+      </View>
+      <AppText style={styles.lockedTitle}>Fil réservé aux abonnés</AppText>
+      <AppText muted style={{ textAlign: 'center' }}>
+        Suis ce thème pour voir toutes ses publications, publier des photos et des stickers, aimer et commenter.
+      </AppText>
+      <Pressable accessibilityRole="button" onPress={onFollow} style={styles.lockedButton}>
+        <LinearGradient colors={Page.play} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.lockedButtonFill}>
+          <Ionicons name="add" size={22} color="#FFFFFF" />
+          <AppText style={styles.playLabel}>Suivre ce thème</AppText>
+        </LinearGradient>
+      </Pressable>
+    </View>
+  );
+}
+
+function FeedTab({ themeId, themeName, posts }: { themeId: string; themeName: string; posts: PostView[] }) {
+  return (
+    <>
+      <Composer target={{ kind: 'theme', themeId }} placeholder={`Écris dans le fil « ${themeName} »…`} />
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} showTheme={false} />
+      ))}
+      {posts.length === 0 && (
+        <AppText muted style={{ textAlign: 'center' }}>
+          Personne n'a encore publié ici.
+        </AppText>
+      )}
+    </>
+  );
+}
+
+function QuizTab({ themeId, categoryColor, onDuel }: { themeId: string; categoryColor: string; onDuel: (mode?: 'pvp') => void }) {
+  const stats = useThemeStats(themeId);
+  const level = levelFromXp(stats.xp);
+  const precision = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0;
+  const avgTime = stats.correct ? (stats.totalCorrectResponseMs / stats.correct / 1000).toFixed(1) : '–';
+  const titles = unlockedTitles(level.level);
+  return (
+    <>
       <Card>
         <View style={styles.levelRow}>
           <AppText variant="heading">Niveau {level.level}</AppText>
-          <AppText variant="label" color={category.color}>
-            {titleForLevel(level.level)}
+          <AppText variant="label" color={categoryColor}>
+            {titles[0] ?? titleForLevel(level.level)}
           </AppText>
         </View>
-        <ProgressBar progress={level.progress} color={category.color} />
+        <ProgressBar progress={level.progress} color={Page.pink} />
         <AppText variant="caption" muted>
           {level.current} / {level.needed} XP avant le niveau {level.level + 1}
         </AppText>
         <DivisionBadge rating={stats.rating} />
       </Card>
-
-      <Card style={styles.stats}>
+      <Card style={{ flexDirection: 'row' }}>
         <Stat label="Duels" value={String(stats.duels)} />
         <Stat label="Victoires" value={String(stats.wins)} />
         <Stat label="Précision" value={`${precision} %`} />
         <Stat label="Temps moyen" value={avgTime === '–' ? avgTime : `${avgTime} s`} />
       </Card>
-
       <Card>
         <OutcomeBar wins={stats.wins} draws={stats.draws} losses={stats.duels - stats.wins - stats.draws} />
       </Card>
-
-      <Button
-        label="Duel classé"
-        color={category.color}
-        onPress={() => router.push({ pathname: '/duel/[themeId]', params: { themeId: theme.id, mode: 'pvp' } })}
-      />
-      <Button
-        label="Duel d'entraînement (bot)"
-        variant="outline"
-        color={Colors.text}
-        onPress={() => router.push({ pathname: '/duel/[themeId]', params: { themeId: theme.id } })}
-      />
-
+      <Button label="Duel classé" color={Page.pink} onPress={() => onDuel('pvp')} />
+      <Button label="Duel d'entraînement (bot)" variant="outline" color={Colors.text} onPress={() => onDuel()} />
       <AppText variant="caption" muted style={{ textAlign: 'center' }}>
-        {questionsOf(theme.id).length} questions · 7 par duel · 10 s par question
+        {questionsOf(themeId).length} questions · 7 par duel · 10 s par question
       </AppText>
+    </>
+  );
+}
 
-      <SectionHeader
-        title="Classement"
-        action={
-          <Pressable accessibilityRole="link" hitSlop={8} onPress={() => router.push({ pathname: '/leaderboard', params: { theme: theme.id } })}>
-            <AppText variant="label" color={Colors.accent}>
-              Voir tout
-            </AppText>
-          </Pressable>
-        }
-      />
-      <LeaderboardPanel themeId={theme.id} limit={10} />
-
-      <SectionHeader title={`Fil du thème · ${feed.length}`} />
-      {subscribed ? (
-        <Composer target={{ kind: 'theme', themeId: theme.id }} placeholder={`Écris dans le fil « ${theme.name} »…`} />
-      ) : (
-        <Card style={{ alignItems: 'center' }}>
+function ChallengesTab({ themeId }: { themeId: string }) {
+  const challenges = useApi<{ challenges: ChallengeView[] }>('/api/challenges');
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const list = (challenges.data?.challenges ?? []).filter((c) => c.themeId === themeId);
+  const act = (path: string) => {
+    setMessage(null);
+    api('POST', path).catch((e) => setMessage({ ok: false, text: errorMessage(e) }));
+  };
+  return (
+    <>
+      {message && <AppText color={message.ok ? Colors.correct : Colors.wrong}>{message.text}</AppText>}
+      {list.map((c) =>
+        c.incoming ? (
+          <UserRow
+            key={c.id}
+            user={c.from}
+            subtitle={c.kind === 'rematch' ? 'Te propose une revanche' : 'Te défie'}
+            right={
+              <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/decline`)} />
+                <Button label="Jouer" color={Page.pink} onPress={() => act(`/api/challenges/${c.id}/accept`)} />
+              </View>
+            }
+          />
+        ) : (
+          <UserRow
+            key={c.id}
+            user={c.to}
+            subtitle="Défi envoyé · en attente"
+            right={<Button label="Annuler" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/cancel`)} />}
+          />
+        ),
+      )}
+      {list.length === 0 && (
+        <View style={styles.note}>
           <AppText muted style={{ textAlign: 'center' }}>
-            Abonne-toi à ce thème pour publier dans son fil et voir ses publications dans ton accueil.
+            Aucun défi sur ce thème. Défie un joueur depuis son profil ou depuis le classement.
           </AppText>
-        </Card>
+        </View>
       )}
-      {feed.map((post) => (
-        <PostCard key={post.id} post={post} showTheme={false} />
-      ))}
-      {feed.length === 0 && (
-        <AppText muted style={{ textAlign: 'center' }}>
-          Personne n'a encore publié ici.
-        </AppText>
-      )}
-    </Screen>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  cover: { borderRadius: 20, overflow: 'hidden', marginBottom: -Spacing.lg },
-  hero: { alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
+  screen: { flex: 1, backgroundColor: Page.background },
+  heroBg: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: Page.navy, overflow: 'hidden' },
+  art: { position: 'absolute', top: 18, right: -36, width: 250, height: 250, borderRadius: 125, overflow: 'hidden', opacity: 0.85 },
+  dots: { position: 'absolute', top: 170, left: 22, width: 110, flexDirection: 'row', flexWrap: 'wrap', gap: 30 },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' },
+  column: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
+  hero: { alignItems: 'center', paddingHorizontal: Spacing.md },
+  icon: {
+    width: ICON_SIZE,
+    height: ICON_SIZE,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    boxShadow: '0 8px 22px rgba(0, 0, 0, 0.35)',
+  },
+  iconEmoji: { fontSize: 60, lineHeight: 72 },
+  name: { marginTop: Spacing.md, fontSize: 32, fontWeight: '800', letterSpacing: -0.6, color: '#FFFFFF', textAlign: 'center' },
+  tagline: { marginTop: Spacing.xs, fontSize: 17, color: 'rgba(255,255,255,0.88)', textAlign: 'center' },
+  actions: { flexDirection: 'row', gap: Spacing.sm + 2, marginTop: Spacing.lg, alignSelf: 'stretch' },
+  playWrap: { flex: 1.1, borderRadius: 26, boxShadow: '0 8px 18px rgba(232, 20, 108, 0.38)' },
+  play: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, height: 56, borderRadius: 26 },
+  playLabel: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
+  soft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    height: 56,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 26,
+    backgroundColor: Page.soft,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.9)',
+    boxShadow: '0 4px 12px rgba(18, 26, 51, 0.12)',
+  },
+  softLabel: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  stats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.md,
+    alignSelf: 'stretch',
+    backgroundColor: Page.surface,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md,
+    boxShadow: '0 4px 16px rgba(18, 26, 51, 0.08)',
+  },
+  statTile: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 4 },
+  statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: '#ECE8EC' },
+  statLabel: { fontSize: 12.5, color: Colors.text, fontWeight: '500' },
+  statValue: { fontSize: 17, color: '#0F0F14', fontWeight: '800' },
+  tabs: {
+    flexDirection: 'row',
+    marginTop: Spacing.lg,
+    marginHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E6E3E8',
+  },
+  tab: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 2, paddingBottom: Spacing.sm + 4 },
+  tabLabel: { fontSize: 15, fontWeight: '700', color: '#9A97A0' },
+  tabLabelActive: { color: '#0F0F14', fontWeight: '800' },
+  underline: { position: 'absolute', bottom: -1, left: 6, right: 6, height: 5, borderRadius: 3, backgroundColor: Page.pink },
+  body: { gap: Spacing.md, padding: Spacing.md },
+  note: { backgroundColor: Page.surface, borderRadius: Radius.md, padding: Spacing.md, boxShadow: '0 2px 12px rgba(18, 26, 51, 0.06)' },
   levelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stats: { flexDirection: 'row' },
+  locked: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Page.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    boxShadow: '0 4px 16px rgba(18, 26, 51, 0.08)',
+  },
+  lockIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDE7F0' },
+  lockedTitle: { fontSize: 19, fontWeight: '800', color: '#0F0F14', textAlign: 'center' },
+  lockedButton: { alignSelf: 'stretch', marginTop: Spacing.sm, borderRadius: 26, boxShadow: '0 8px 18px rgba(232, 20, 108, 0.3)' },
+  lockedButtonFill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, height: 52, borderRadius: 26 },
+  topBar: { position: 'absolute', left: Spacing.md, right: Spacing.md, flexDirection: 'row', justifyContent: 'space-between' },
+  topButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(11, 22, 48, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  menu: {
+    position: 'absolute',
+    right: Spacing.md,
+    backgroundColor: Page.surface,
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing.xs,
+    boxShadow: '0 8px 24px rgba(18, 26, 51, 0.18)',
+  },
+  menuItem: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4 },
 });

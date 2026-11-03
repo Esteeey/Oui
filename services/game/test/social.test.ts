@@ -161,6 +161,31 @@ describe('thèmes, publications, fils', () => {
     expect((await themeFeed(a, 'sports-jo')).map((p) => p.text)).toEqual(['Salut le fil JO']);
   });
 
+  it('fil d’un thème cadenassé aux non-abonnés ; en suivant, on voit les publications d’avant', async () => {
+    const a = await user('Thomas');
+    const b = await user('Paul');
+    await subscribe(a, 'sports-jo');
+    const p = await post(a, 'Avant ton arrivée', 'sports-jo');
+    expect((await call(b, 'GET', '/api/themes/sports-jo/posts')).status).toBe(403);
+    expect((await call(b, 'GET', `/api/posts/${p.id}`)).status).toBe(404);
+    expect((await call(b, 'PUT', `/api/posts/${p.id}/like`)).status).toBe(404);
+    expect((await call(b, 'POST', `/api/posts/${p.id}/comments`, { text: 'Coucou' })).status).toBe(404);
+    await subscribe(b, 'sports-jo');
+    expect((await themeFeed(b, 'sports-jo')).map((x) => x.text)).toEqual(['Avant ton arrivée']);
+    await ok(call(b, 'PUT', `/api/posts/${p.id}/like`));
+    await ok(call(b, 'POST', `/api/posts/${p.id}/comments`, { text: 'Coucou' }));
+    expect((await themeFeed(b, 'sports-jo'))[0]).toMatchObject({ likes: 1, comments: 1 });
+  });
+
+  it('publication avec un sticker (seul ou avec du texte, jamais avec une photo)', async () => {
+    const a = await user('Thomas');
+    await subscribe(a, 'sports-jo');
+    const s = await ok(call<PostView>(a, 'POST', '/api/posts', { target: 'theme', themeId: 'sports-jo', text: '', stickerId: 'gg' }));
+    expect(s).toMatchObject({ sticker: 'gg', media: null, text: '' });
+    expect((await call(a, 'POST', '/api/posts', { target: 'theme', themeId: 'sports-jo', text: 'x', stickerId: 'inconnu' })).status).toBe(400);
+    expect((await themeFeed(a, 'sports-jo'))[0].sticker).toBe('gg');
+  });
+
   it('accueil : murs des personnes suivies et thèmes suivis seulement', async () => {
     const me = await user('Moi');
     const followed = await user('Suivi');
@@ -216,6 +241,7 @@ describe('thèmes, publications, fils', () => {
     await subscribe(priv, 'geo-capitales');
     await ok(call(priv, 'PATCH', '/api/me/profile', { isPrivate: true }));
     await post(priv, 'Publication privée', 'geo-capitales');
+    await subscribe(other, 'geo-capitales');
     expect(await themeFeed(other, 'geo-capitales')).toEqual([]);
   });
 });
@@ -225,7 +251,7 @@ describe('blocage dans les fils (règles du cahier des charges)', () => {
     const thomas = await user('Thomas');
     const paul = await user('Paul');
     const toi = await user('Toi');
-    await subscribe(thomas, 'sports-jo');
+    for (const u of [thomas, paul, toi]) await subscribe(u, 'sports-jo');
     const p = await post(thomas, 'Thomas parle de foot', 'sports-jo');
     await ok(call(paul, 'POST', `/api/posts/${p.id}/comments`, { text: 'Commentaire de Paul' }));
     return { thomas, paul, toi, p };
