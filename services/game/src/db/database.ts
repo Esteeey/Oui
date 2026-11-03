@@ -38,7 +38,10 @@ export async function openPglite(dataDir?: string): Promise<Database> {
 
 /** PostgreSQL réel (production), via `DATABASE_URL`. */
 export async function openPostgres(url: string): Promise<Database> {
-  const pool = new pg.Pool({ connectionString: url, max: 10 });
+  // Base distante : connexion chiffrée et certificat vérifié. Supabase signe ses certificats avec sa propre autorité :
+  // son certificat racine (Database > SSL Configuration) va dans DATABASE_CA_CERT.
+  const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
+  const pool = new pg.Pool({ connectionString: url, max: 10, ssl: local ? false : { ca: process.env.DATABASE_CA_CERT } });
   return {
     query: async <T,>(sql: string, params: unknown[] = []) => (await pool.query(sql, params)).rows as T[],
     transaction: async <T,>(fn: (tx: Queryable) => Promise<T>) => {
