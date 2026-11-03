@@ -15,6 +15,7 @@ import {
 import type { Database, Queryable } from './db/database';
 import { mediaUrl, type Media } from './media';
 import type { Messaging } from './messaging';
+import { writeLog } from './moderation-log';
 import type { RateLimiter } from './rate-limit';
 import { SocialError } from './social';
 
@@ -108,6 +109,11 @@ export class Groups {
     );
     if (!m) throw new SocialError(404, 'not_found');
     return m.role;
+  }
+
+  /** Journal interne : toute action de gestion d'un groupe est enregistrée. */
+  private async log(q: Queryable, actor: string, role: GroupRole, action: string, groupId: string, details: Record<string, unknown> = {}) {
+    await writeLog(q, { actorId: actor, actorRole: role === 'creator' ? 'group_creator' : 'group_admin', action, targetType: 'group', targetId: groupId, details });
   }
 
   private async pseudo(userId: string, q: Queryable = this.db): Promise<string> {
@@ -205,7 +211,7 @@ export class Groups {
     const exclusions = manager
       ? await this.db.query<Row & { until: Date | null }>(
           `SELECT ${USER_COLUMNS('u', 'p')}, ge.until FROM group_exclusions ge JOIN users u ON u.id = ge.user_id JOIN profiles p ON p.user_id = u.id
-           WHERE ge.conversation_id = $1 AND (ge.until IS NULL OR ge.until > now()) ORDER BY ge.created_at DESC`,
+           WHERE ge.conversation_id = $1 AND NOT ge.official AND (ge.until IS NULL OR ge.until > now()) ORDER BY ge.created_at DESC`,
           [groupId],
         )
       : [];
@@ -379,6 +385,7 @@ export class Groups {
       if (current === role) return;
       await tx.query('UPDATE conversation_members SET role = $3 WHERE conversation_id = $1 AND user_id = $2', [groupId, target, role]);
       await this.system(tx, groupId, role === 'admin' ? 'admin_added' : 'admin_removed', viewer, target);
+      await this.log(tx, viewer, 'creator', role === 'admin' ? 'admin_added' : 'admin_removed', groupId, { userId: target });
     });
     await this.messaging.signalMembers(groupId);
   }
@@ -392,6 +399,7 @@ export class Groups {
       await tx.query("UPDATE conversation_members SET role = 'creator' WHERE conversation_id = $1 AND user_id = $2", [groupId, target]);
       await tx.query("UPDATE conversation_members SET role = 'member' WHERE conversation_id = $1 AND user_id = $2", [groupId, viewer]);
       await this.system(tx, groupId, 'creator_transferred', viewer, target);
+      await this.log(tx, viewer, 'creator', 'creator_transferred', groupId, { userId: target });
     });
     await this.messaging.signalMembers(groupId);
   }
@@ -441,14 +449,27 @@ export class Groups {
         );
       }
       await this.system(tx, groupId, exclusion ? 'excluded' : 'removed', viewer, target);
+      await this.log(tx, viewer, role, exclusion ? 'member_excluded' : 'member_removed', groupId, {
+        userId: target,
+        ...(exclusion ? { hours: exclusion.hours } : {}),
+      });
     });
     await this.messaging.signalMembers(groupId, [target]);
   }
 
   /** Lever une exclusion (créateur et administrateurs) : le joueur peut de nouveau être invité. */
   async liftExclusion(viewer: string, groupId: string, target: string): Promise<void> {
-    if (!groupRights(await this.roleOf(viewer, groupId)).invite) throw new SocialError(403, 'forbidden');
-    await this.db.query('DELETE FROM group_exclusions WHERE conversation_id = $1 AND user_id = $2', [groupId, target]);
+    const role = await this.roleOf(viewer, groupId);
+    if (!groupRights(role).invite) throw new SocialError(403, 'forbidden');
+    await this.db.transaction(async (tx) => {
+      // Une exclusion décidée par la modération officielle ne peut pas être levée par le groupe.
+      const rows = await tx.query('DELETE FROM group_exclusions WHERE conversation_id = $1 AND user_id = $2 AND NOT official RETURNING user_id', [
+        groupId,
+        target,
+      ]);
+      if (!rows.length) throw new SocialError(404, 'not_found');
+      await this.log(tx, viewer, role, 'exclusion_lifted', groupId, { userId: target });
+    });
   }
 
   /** Supprimer définitivement le groupe (créateur seulement) : fermé pour tous les membres. */
@@ -460,6 +481,7 @@ export class Groups {
     await this.db.transaction(async (tx) => {
       // Les messages restent en base (preuves pour la modération) mais ne sont plus accessibles.
       await tx.query('UPDATE conversations SET deleted_at = now() WHERE id = $1', [groupId]);
+      await this.log(tx, viewer, 'creator', 'group_deleted', groupId);
       await tx.query(
         "UPDATE group_invitations SET status = 'cancelled', responded_at = now() WHERE conversation_id = $1 AND status = 'pending'",
         [groupId],

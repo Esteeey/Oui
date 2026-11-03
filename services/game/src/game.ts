@@ -97,9 +97,11 @@ export class Game {
     return { user, token: newToken };
   }
 
-  async authenticate(token: string): Promise<UserRow | null> {
+  /** Compte associé au jeton ; un compte banni n'est renvoyé que si `allowBanned` (consultation des sanctions et appel). */
+  async authenticate(token: string, options: { allowBanned?: boolean } = {}): Promise<UserRow | null> {
     const user = await this.repo.userByTokenHash(hashToken(token));
-    return user && user.status !== 'banned' ? user : null;
+    if (!user) return null;
+    return user.status !== 'banned' || options.allowBanned ? user : null;
   }
 
   profile(playerId: string): Promise<Profile> {

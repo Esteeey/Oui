@@ -109,14 +109,17 @@ describe('API et sécurité', () => {
     expect(codes).toEqual([200, 200, 200, 429]);
   });
 
-  it('un compte banni ne peut plus se connecter ni utiliser l’API', async () => {
+  it('un compte banni ne peut plus se connecter ni utiliser l’API (sauf pour faire appel)', async () => {
     await boot();
     const a = await client();
     await server!.game.repo.setStatus(a.playerId, 'banned');
     const again = new TestClient(server!.port);
     await expect(again.connect(a.token)).rejects.toThrow();
     expect(again.messages.some((m) => m.type === 'error' && m.code === 'banned')).toBe(true);
-    expect((await api(a.token, 'GET', '/api/me')).status).toBe(401);
+    // Seuls le compte, les sanctions et l'appel restent consultables (M7) ; tout le reste est refusé.
+    expect((await api(a.token, 'GET', '/api/me')).body.status).toBe('banned');
+    expect((await api(a.token, 'GET', '/api/feed')).status).toBe(403);
+    expect((await api(a.token, 'GET', '/api/messages')).status).toBe(403);
   });
 
   it('rôle visible par l’API (joueur par défaut, modérateur attribuable)', async () => {

@@ -10,6 +10,7 @@ import { Challenges } from './challenges';
 import { Discovery } from './discovery';
 import { Messaging } from './messaging';
 import { Groups } from './groups';
+import { Moderation, networkHash } from './moderation';
 import { gifProviderFromEnv, type GifProvider } from './gifs';
 import { Media, MemoryStore, type MediaStore } from './media';
 import { Notifier } from './notifier';
@@ -26,6 +27,7 @@ export interface GameServer {
   messaging: Messaging;
   media: Media;
   groups: Groups;
+  moderation: Moderation;
   http: Server;
   port: number;
   close: () => Promise<void>;
@@ -64,13 +66,25 @@ export async function startServer(port: number, options: ServerOptions): Promise
   const discovery = new Discovery(game.repo.db);
   const messaging = new Messaging(game.repo.db, game.limiter, (id) => game.isOnline(id), send, media, gifs);
   const groups = new Groups(game.repo.db, game.limiter, messaging, media);
-  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups);
+  // Bannissement : toutes les connexions du joueur sont fermées immédiatement.
+  const disconnect = (userId: string) => {
+    for (const ws of sockets.get(userId) ?? []) {
+      ws.send(JSON.stringify({ type: 'error', code: 'banned', message: 'Ce compte a été banni.' } satisfies ServerMessage));
+      ws.close();
+    }
+  };
+  const moderation = new Moderation(game.repo.db, game.limiter, social, messaging, notifier, disconnect);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation);
   const sweep = setInterval(() => void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err)), ORPHAN_SWEEP_MS);
   sweep.unref();
   const http = createServer((req, res) => void api(req, res));
   const wss = new WebSocketServer({ server: http, maxPayload: 8 * 1024 });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    // Indice anti-contournement : empreinte du réseau (jamais l'adresse en clair).
+    // L'en-tête x-forwarded-for n'est cru que derrière un proxy de confiance (QU1Z_TRUST_PROXY=1).
+    const forwarded = process.env.QU1Z_TRUST_PROXY === '1' ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '';
+    const network = networkHash(forwarded || req.socket.remoteAddress || 'unknown');
     let playerId: string | null = null;
     let helloStarted = false;
     let alive = true;
@@ -95,6 +109,7 @@ export async function startServer(port: number, options: ServerOptions): Promise
         }
         const id = outcome.user.id;
         playerId = id;
+        await game.repo.db.query('UPDATE users SET last_network_hash = $2 WHERE id = $1', [id, network]);
         const set = sockets.get(id) ?? new Set();
         set.add(ws);
         sockets.set(id, set);
@@ -161,6 +176,7 @@ export async function startServer(port: number, options: ServerOptions): Promise
     messaging,
     media,
     groups,
+    moderation,
     http,
     port: typeof address === 'object' && address ? address.port : port,
     close: async () => {

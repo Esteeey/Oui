@@ -38,7 +38,10 @@ export type NotificationType =
   | 'rank_lost_first'
   | 'rank_left_top10'
   | 'announcement'
-  | 'friend_online';
+  | 'friend_online'
+  | 'sanction'
+  | 'appeal_decision'
+  | 'report_closed';
 
 export interface NotificationView {
   id: string;

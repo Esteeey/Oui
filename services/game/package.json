@@ -8,7 +8,8 @@
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "import-json": "tsx src/import-json.ts"
+    "import-json": "tsx src/import-json.ts",
+    "set-role": "tsx src/set-role.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.14",

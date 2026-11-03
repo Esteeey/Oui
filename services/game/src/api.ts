@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { MEDIA_MAX_BYTES, THEMES } from '@qu1z/shared';
+import { MEDIA_MAX_BYTES, THEMES, type Restriction } from '@qu1z/shared';
 
 import { randomUUID } from 'node:crypto';
 
@@ -9,6 +9,7 @@ import type { Discovery } from './discovery';
 import type { GifProvider } from './gifs';
 import type { Groups } from './groups';
 import type { Media } from './media';
+import type { Moderation } from './moderation';
 import type { Messaging } from './messaging';
 import type { Game } from './game';
 import type { Notifier } from './notifier';
@@ -50,6 +51,30 @@ async function readRaw(req: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
+const BANNED_ALLOWED: [string, RegExp][] = [
+  ['GET', /^\/api\/me$/],
+  ['GET', /^\/api\/me\/sanctions$/],
+  ['POST', /^\/api\/me\/sanctions\/[^/]+\/appeal$/],
+];
+
+/** Actions refusées pendant une suspension, selon les restrictions choisies par la modération. */
+const RESTRICTED: [string, RegExp, Restriction][] = [
+  ['POST', /^\/api\/messages\/requests$/, 'messages'],
+  ['POST', /^\/api\/messages\/[^/]+$/, 'messages'],
+  ['POST', /^\/api\/groups$/, 'messages'],
+  ['POST', /^\/api\/groups\/[^/]+\/invitations$/, 'messages'],
+  ['POST', /^\/api\/groups\/invitations\/[^/]+\/accept$/, 'messages'],
+  ['POST', /^\/api\/media$/, 'messages'],
+  ['POST', /^\/api\/posts$/, 'posts'],
+  ['POST', /^\/api\/posts\/[^/]+\/comments$/, 'posts'],
+  ['POST', /^\/api\/users\/[^/]+\/follow$/, 'interactions'],
+  ['PUT', /^\/api\/posts\/[^/]+\/like$/, 'interactions'],
+  ['PUT', /^\/api\/messages\/reactions\/[^/]+$/, 'interactions'],
+  ['POST', /^\/api\/challenges$/, 'interactions'],
+  ['PATCH', /^\/api\/me\/profile$/, 'interactions'],
+  ['POST', /^\/api\/me\/avatar$/, 'interactions'],
+];
+
 function uuid(value: unknown): string {
   if (typeof value !== 'string' || !UUID.test(value)) throw new SocialError(400, 'invalid_id');
   return value;
@@ -77,6 +102,7 @@ export function createApi(
   media: Media,
   gifs: GifProvider | null,
   groups: Groups,
+  moderation: Moderation,
 ) {
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
@@ -98,6 +124,66 @@ export function createApi(
       const p = await game.profile(target);
       return { stats: p.stats, history: p.history.slice(0, 10) };
     }],
+
+    // Signalements, sanctions et appels (joueurs)
+    ['POST', /^\/api\/reports$/, async ({ userId, body }) => {
+      const b = await body();
+      return moderation.report(userId, { targetType: b.targetType, targetId: uuid(b.targetId), reason: b.reason, details: b.details });
+    }],
+    ['GET', /^\/api\/me\/sanctions$/, async ({ userId }) => ({ sanctions: await moderation.mySanctions(userId) })],
+    ['POST', /^\/api\/me\/sanctions\/([^/]+)\/appeal$/, async ({ userId, params, body }) => {
+      const b = await body();
+      return moderation.appeal(userId, uuid(params[0]), b.text, b.evidence);
+    }],
+
+    // Panneau de modération (rôles moderator et admin, vérifiés dans le service)
+    ['GET', /^\/api\/mod\/reports$/, async ({ userId, query }) => ({
+      reports: await moderation.listReports(userId, (query.get('status') as 'open') || 'open'),
+    })],
+    ['GET', /^\/api\/mod\/reports\/([^/]+)$/, async ({ userId, params }) => moderation.reportDetail(userId, uuid(params[0]))],
+    ['POST', /^\/api\/mod\/reports\/([^/]+)\/status$/, async ({ userId, params, body }) => {
+      const b = await body();
+      return moderation.setReportStatus(userId, uuid(params[0]), b.status as 'open', b.resolution);
+    }],
+    ['POST', /^\/api\/mod\/remove$/, async ({ userId, body }) => {
+      const b = await body();
+      const type = b.type === 'post' || b.type === 'comment' ? b.type : 'message';
+      return moderation.removeContent(userId, type, uuid(b.id), b.reportId ? uuid(b.reportId) : undefined);
+    }],
+    ['GET', /^\/api\/mod\/groups\/([^/]+)$/, async ({ userId, params }) => moderation.groupView(userId, uuid(params[0]))],
+    ['POST', /^\/api\/mod\/groups\/([^/]+)\/exclusions$/, async ({ userId, params, body }) => {
+      const b = await body();
+      const hours = b.hours === null || b.hours === undefined ? null : Number(b.hours);
+      return moderation.groupExclude(userId, uuid(params[0]), uuid(b.userId), hours, b.reportId ? uuid(b.reportId) : undefined);
+    }],
+    ['POST', /^\/api\/mod\/groups\/([^/]+)\/close$/, async ({ userId, params, body }) => {
+      const b = await body();
+      return moderation.closeGroup(userId, uuid(params[0]), b.reportId ? uuid(b.reportId) : undefined);
+    }],
+    ['POST', /^\/api\/mod\/sanctions$/, async ({ userId, body }) => {
+      const b = await body();
+      return moderation.sanction(userId, {
+        userId: uuid(b.userId),
+        level: b.level,
+        reason: b.reason,
+        hours: b.hours,
+        restrictions: b.restrictions,
+        reportId: b.reportId ? uuid(b.reportId) : undefined,
+      });
+    }],
+    ['POST', /^\/api\/mod\/sanctions\/([^/]+)\/revoke$/, async ({ userId, params, body }) =>
+      moderation.revokeSanction(userId, uuid(params[0]), (await body()).reason)],
+    ['GET', /^\/api\/mod\/appeals$/, async ({ userId, query }) => ({
+      appeals: await moderation.listAppeals(userId, (query.get('status') as 'open') || 'open'),
+    })],
+    ['POST', /^\/api\/mod\/appeals\/([^/]+)$/, async ({ userId, params, body }) => {
+      const b = await body();
+      return moderation.decideAppeal(userId, uuid(params[0]), b.status as 'accepted', b.decision);
+    }],
+    ['GET', /^\/api\/mod\/log$/, async ({ userId, query }) => ({
+      entries: await moderation.journal(userId, query.get('target') ? uuid(query.get('target')) : undefined),
+    })],
+    ['PUT', /^\/api\/admin\/users\/([^/]+)\/role$/, async ({ userId, params, body }) => moderation.setStaffRole(userId, uuid(params[0]), (await body()).role)],
 
     // Médias : le fichier est envoyé brut (corps de la requête), puis rattaché par son id.
     ['POST', /^\/api\/media$/, async ({ userId, query, raw }) => {
@@ -342,8 +428,18 @@ export function createApi(
     if (!url.pathname.startsWith('/api/')) return json(res, 404, { error: 'not_found' });
 
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
-    const user = token ? await game.authenticate(token) : null;
+    const user = token ? await game.authenticate(token, { allowBanned: true }) : null;
     if (!user) return json(res, 401, { error: 'unauthorized' });
+    // Compte banni : accès interdit, sauf pour consulter ses sanctions et faire appel.
+    if (user.status === 'banned' && !BANNED_ALLOWED.some(([m, re]) => m === req.method && re.test(url.pathname))) {
+      return json(res, 403, { error: 'banned' });
+    }
+    // Suspension : les fonctionnalités restreintes par l'équipe de modération sont refusées.
+    const restriction = RESTRICTED.find(([m, re]) => m === req.method && re.test(url.pathname))?.[2];
+    if (restriction && (await moderation.restrictions(user.id)).restricted.has(restriction)) {
+      const { until } = await moderation.restrictions(user.id);
+      return json(res, 403, { error: 'suspended', until });
+    }
     if (!game.limiter.allow('http', user.id)) return json(res, 429, { error: 'rate_limited' });
 
     for (const [method, pattern, handler] of routes) {

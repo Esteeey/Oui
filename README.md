@@ -38,7 +38,7 @@ Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 - **Messagerie privée** : demandes de message, conversations texte, réponses, réactions, Envoyé / Lu, présence (abonnés mutuels), épinglage.
 - **Médias** : photo de profil, photos dans les messages et les publications (galerie ou appareil photo), 12 stickers originaux, GIF (avec une clé GIPHY ou Tenor). Images vérifiées, nettoyées (EXIF, position) et redimensionnées par le serveur.
 - **Groupes** : création, invitations acceptées ou refusées, rôles créateur / administrateur / membre, transfert, exclusions, messages épinglés, messages système, suppression par le créateur.
-- Pas encore de modération officielle (signalements, sanctions).
+- **Modération** : signalements avec preuves, panneau de modération, interventions invisibles dans les groupes, avertissement / suspension / bannissement, appels, journal, annonces.
 
 ## Lancer le projet
 
@@ -61,6 +61,14 @@ Médias : en local, les images sont rangées dans `services/game/data/media` et 
 | `GIPHY_API_KEY` ou `TENOR_API_KEY` | Active les GIF dans la messagerie (sinon « Les GIF arrivent bientôt »). |
 | `QU1Z_MEDIA_DIR` | Dossier des images en local (par défaut `data/media`). |
 | `MEDIA_PUBLIC_URL` | Adresse publique des images (CDN) quand elles sont servies par un stockage objet. |
+| `QU1Z_NETWORK_SALT` | Sel secret de l’empreinte réseau (anti-contournement des bannissements). À définir en production. |
+| `QU1Z_TRUST_PROXY` | `1` si le serveur est derrière un proxy de confiance (lecture de `x-forwarded-for`). |
+
+Nommer le premier administrateur (serveur de jeu arrêté en local) :
+
+```bash
+pnpm --filter @qu1z/game-server set-role MonPseudo admin
+```
 
 Sur un téléphone, l'application doit connaître l'adresse de l'ordinateur sur le réseau local, par exemple :
 
