@@ -38,10 +38,11 @@ export async function openPglite(dataDir?: string): Promise<Database> {
 
 /** PostgreSQL réel (production), via `DATABASE_URL`. */
 export async function openPostgres(url: string): Promise<Database> {
-  // Base distante : connexion chiffrée et certificat vérifié. Supabase signe ses certificats avec sa propre autorité :
-  // son certificat racine (Database > SSL Configuration) va dans DATABASE_CA_CERT.
+  // Base distante : connexion chiffrée et certificat vérifié. Supabase signe ses certificats avec sa propre autorité,
+  // dont le certificat racine public est fourni dans certs/ (SHA-256 80:70:25:AD…CA:FA, valable jusqu'en 2031).
   const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
-  const pool = new pg.Pool({ connectionString: url, max: 10, ssl: local ? false : { ca: process.env.DATABASE_CA_CERT } });
+  const ca = /\.supabase\.(com|co)[:/]/.test(url) ? readFileSync(SUPABASE_CA, 'utf8') : undefined;
+  const pool = new pg.Pool({ connectionString: url, max: 10, ssl: local ? false : { ca } });
   return {
     query: async <T,>(sql: string, params: unknown[] = []) => (await pool.query(sql, params)).rows as T[],
     transaction: async <T,>(fn: (tx: Queryable) => Promise<T>) => {
@@ -63,6 +64,7 @@ export async function openPostgres(url: string): Promise<Database> {
 }
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
+const SUPABASE_CA = join(dirname(fileURLToPath(import.meta.url)), '../../certs/supabase-root-2021.crt');
 
 /** Applique, dans l'ordre et une seule fois, les fichiers `NNN_nom.sql` du dossier des migrations. */
 export async function migrate(db: Database): Promise<string[]> {
