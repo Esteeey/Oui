@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, type ReactNode } from 'react';
 
 import { Colors } from '@/constants/theme';
+import { listenToPushTaps } from '@/net/push';
 import { BannedScreen } from '@/components/banned-screen';
 import { GameServerProvider, useGameServer } from '@/state/game-server';
 
@@ -24,6 +25,8 @@ const navigationTheme = {
 export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync();
+    // Toucher une notification push ouvre la conversation ou le centre de notifications.
+    return listenToPushTaps();
   }, []);
 
   return (
@@ -50,6 +53,7 @@ export default function RootLayout() {
             <Stack.Screen name="settings/blocked" />
             <Stack.Screen name="settings/notifications" />
             <Stack.Screen name="settings/sanctions" />
+            <Stack.Screen name="account" />
             <Stack.Screen name="moderation/index" />
             <Stack.Screen name="moderation/report/[id]" />
             <Stack.Screen name="announcement/[id]" />

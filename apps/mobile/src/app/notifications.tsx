@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { ChallengeView, NotificationView, UserSummary } from '@qu1z/shared';
+import { notificationText, type ChallengeView, type NotificationView, type UserSummary } from '@qu1z/shared';
 
 import { BackButton } from '@/components/back-button';
 import type { IconName } from '@/components/social';
@@ -11,7 +11,7 @@ import { AppText, Avatar, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
-import { notificationText } from '@/utils/notification-text';
+
 import { timeAgo } from '@/utils/time';
 
 /** Icône des notifications sans acteur (progression, classement, système). */

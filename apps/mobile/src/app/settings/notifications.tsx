@@ -43,6 +43,12 @@ export default function NotificationSettingsScreen() {
       <SectionHeader title="Messages" />
       <Card style={{ gap: Spacing.md }}>
         <Row
+          label="Notifications push des messages"
+          hint="Messages privés, groupes, demandes et invitations. Séparées des notifications communautaires."
+          value={p?.messagePush ?? true}
+          onChange={(v) => save({ messagePush: v })}
+        />
+        <Row
           label="Masquer le contenu des aperçus"
           hint="Les notifications push de messages n’afficheront pas le texte."
           value={p?.hideMessagePreviews ?? false}

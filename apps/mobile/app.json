@@ -39,6 +39,12 @@
           "photosPermission": "Qu1z accède à tes photos pour que tu puisses en envoyer et choisir ta photo de profil.",
           "cameraPermission": "Qu1z utilise l’appareil photo pour que tu puisses prendre une photo à envoyer."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF6B57"
+        }
       ]
     ],
     "experiments": {

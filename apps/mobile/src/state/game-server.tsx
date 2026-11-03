@@ -4,6 +4,7 @@ import { createContext, use, useEffect, useRef, useState, type ReactNode } from 
 import type { DuelSnapshot, Profile, ServerMessage } from '@qu1z/shared';
 
 import { api, invalidateAll } from '@/net/api';
+import { registerForPush } from '@/net/push';
 import { GameConnection, gameServerUrl, type ConnectionStatus } from '@/net/game-connection';
 
 export interface DuelRequest {
@@ -33,6 +34,8 @@ interface GameServerState {
   forfeit: () => void;
   ackResult: (duelId: string) => void;
   retry: () => void;
+  /** Après une connexion par e-mail ou une déconnexion : reconnexion avec le nouveau jeton. */
+  switchAccount: () => void;
 }
 
 const GameServerContext = createContext<GameServerState | null>(null);
@@ -61,6 +64,8 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
           setTimeout(() => {
             api<{ unread: number }>('GET', '/api/notifications').then((r) => setUnread(r.unread)).catch(() => {});
             invalidateAll();
+            // Appareil enregistré pour les push (téléphone uniquement, une fois la permission accordée).
+            void registerForPush();
           }, 0);
           break;
         case 'notification':
@@ -130,6 +135,11 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     forfeit: () => duel && send({ type: 'forfeit', duelId: duel.duelId }),
     ackResult: (duelId) => send({ type: 'ackResult', duelId }),
     retry: () => connection.current?.reconnectNow(),
+    switchAccount: () => {
+      setDuel(null);
+      setQueued(null);
+      connection.current?.restart();
+    },
   };
 
   return (

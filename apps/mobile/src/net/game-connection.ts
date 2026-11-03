@@ -66,6 +66,17 @@ export class GameConnection {
     return true;
   }
 
+  /** Changement de compte : ferme la connexion actuelle et se reconnecte avec le jeton enregistré. */
+  restart(): void {
+    if (this.stopped) return;
+    const old = this.ws;
+    this.ws = null;
+    old?.close();
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.backoff = 500;
+    void this.open();
+  }
+
   reconnectNow(): void {
     if (this.stopped || this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
     if (this.retryTimer) clearTimeout(this.retryTimer);
