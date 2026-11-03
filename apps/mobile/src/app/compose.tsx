@@ -4,7 +4,6 @@ import { ScrollView } from 'react-native';
 
 import { getCategory, getTheme, type PostTarget, type ThemeInfo } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { Composer } from '@/components/composer';
 import { Chip } from '@/components/social';
 import { AppText, Screen } from '@/components/ui';
@@ -20,13 +19,11 @@ export default function ComposeScreen() {
   const themeName = targetId === 'profile' ? undefined : getTheme(targetId)?.name;
 
   return (
-    <Screen>
-      <BackButton label="← Annuler" />
-      <AppText variant="title">Nouvelle publication</AppText>
+    <Screen title="Nouvelle publication" back="close">
       <AppText variant="label" muted>
         Publier sur
       </AppText>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.sm }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: Spacing.sm, alignItems: 'flex-start' }}>
         <Chip label="Mon mur" active={targetId === 'profile'} onPress={() => setTargetId('profile')} />
         {subscribed.map(({ themeId }) => {
           const theme = getTheme(themeId);
@@ -35,7 +32,7 @@ export default function ComposeScreen() {
             <Chip
               key={themeId}
               label={theme.name}
-              color={getCategory(theme.categoryId)?.color ?? Colors.player}
+              color={getCategory(theme.categoryId)?.color ?? Colors.accent}
               active={targetId === themeId}
               onPress={() => setTargetId(themeId)}
             />

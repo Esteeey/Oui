@@ -50,6 +50,10 @@ export interface ParticipantView {
   id: string;
   name: string;
   color: string | null;
+  /** Photo de profil (URL), `null` sans photo. */
+  avatar: string | null;
+  /** Photo de couverture (URL), fond de sa moitié de l'écran « VS » ; `null` sans photo. */
+  cover: string | null;
   isBot: boolean;
   connected: boolean;
   forfeited: boolean;

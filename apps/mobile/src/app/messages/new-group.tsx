@@ -4,7 +4,6 @@ import { StyleSheet, TextInput } from 'react-native';
 
 import { MAX_GROUP_NAME_LENGTH, type UserSummary } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { PlayerPicker } from '@/components/group';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -30,9 +29,7 @@ export default function NewGroupScreen() {
   };
 
   return (
-    <Screen>
-      <BackButton label="← Annuler" />
-      <AppText variant="title">Nouveau groupe</AppText>
+    <Screen title="Nouveau groupe" back="close">
       <Card>
         <AppText variant="label">Nom du groupe</AppText>
         <TextInput

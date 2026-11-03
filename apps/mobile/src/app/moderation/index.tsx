@@ -12,7 +12,6 @@ import {
   type ReportSummary,
 } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { Chip } from '@/components/social';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -65,17 +64,14 @@ export default function ModerationScreen() {
 
   if (me.data && !staff) {
     return (
-      <Screen>
-        <BackButton />
+      <Screen back title="Modération">
         <AppText muted>Accès réservé à l’équipe de modération.</AppText>
       </Screen>
     );
   }
 
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Modération</AppText>
+    <Screen title="Modération" back>
       <View style={styles.tabs}>
         <Chip label="Signalements" active={tab === 'reports'} onPress={() => setTab('reports')} />
         <Chip label="Appels" active={tab === 'appeals'} onPress={() => setTab('appeals')} />

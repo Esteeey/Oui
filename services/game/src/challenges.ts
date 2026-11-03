@@ -49,7 +49,7 @@ export class Challenges {
   async create(from: string, to: string, themeId: string, rematchOf?: string): Promise<ChallengeView> {
     if (from === to) throw new SocialError(400, 'self');
     if (!getTheme(themeId)) throw new SocialError(404, 'unknown_theme');
-    if (!(await this.db.query("SELECT 1 FROM users WHERE id = $1 AND status <> 'banned'", [to])).length) throw new SocialError(404, 'not_found');
+    if (!(await this.db.query("SELECT 1 FROM users WHERE id = $1 AND status NOT IN ('banned', 'deleted')", [to])).length) throw new SocialError(404, 'not_found');
     const blocked = await this.db.query(
       'SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)',
       [from, to],

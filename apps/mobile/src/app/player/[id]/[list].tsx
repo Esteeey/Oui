@@ -1,13 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import type { PublicProfile, UserSummary } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { UserRow } from '@/components/player-row';
-import { SearchButton } from '@/components/search-button';
+import { HeaderButton } from '@/components/header';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
@@ -24,9 +23,11 @@ export default function FollowListScreen() {
   const isMine = profile.data?.relationship.isMe ?? false;
 
   return (
-    <Screen>
+    <Screen
+      back
+      title={which === 'followers' ? 'Abonnés' : 'Abonnements'}
+      headerRight={<HeaderButton icon="search" label="Rechercher" onPress={() => router.push('/search')} />}>
       <View style={styles.top}>
-        <BackButton />
         <View style={styles.search}>
           <Ionicons name="search" size={16} color={Colors.textMuted} />
           <TextInput
@@ -38,12 +39,12 @@ export default function FollowListScreen() {
             style={styles.input}
           />
         </View>
-        <SearchButton />
       </View>
-      <AppText variant="title">
-        {which === 'followers' ? 'Abonnés' : 'Abonnements'}
-        {profile.data ? ` de ${profile.data.pseudo}` : ''}
-      </AppText>
+      {profile.data && (
+        <AppText variant="heading">
+          {which === 'followers' ? 'Abonnés' : 'Abonnements'} de {profile.data.pseudo}
+        </AppText>
+      )}
       {users.error && (
         <AppText muted>{users.error.code === 'hidden' ? 'Cette liste est masquée par son propriétaire.' : 'Liste indisponible.'}</AppText>
       )}

@@ -1,15 +1,16 @@
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
-import { MAX_BIO_LENGTH, type PublicProfile } from '@qu1z/shared';
+import { COUNTRIES, MAX_BIO_LENGTH, countryFlag, countryName, type PublicProfile } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { Chip, SectionHeader } from '@/components/social';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
-import { pickImage, uploadImage } from '@/net/media';
+import { mediaUri, pickImage, uploadImage } from '@/net/media';
 import { avatarColor } from '@/utils/avatar';
 import { useGameServer } from '@/state/game-server';
 
@@ -21,6 +22,7 @@ export default function ProfileSettingsScreen() {
   const [pseudo, setPseudo] = useState('');
   const [bio, setBio] = useState('');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pickCountry, setPickCountry] = useState(false);
 
   useEffect(() => {
     if (me.data) {
@@ -39,52 +41,76 @@ export default function ProfileSettingsScreen() {
     }
   };
 
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const changePhoto = async (source: 'library' | 'camera') => {
+  const [photoBusy, setPhotoBusy] = useState<'avatar' | 'cover' | null>(null);
+  const PICTURES = {
+    avatar: { aspect: [1, 1] as [number, number], done: 'Photo de profil mise à jour.', removed: 'Photo de profil retirée.' },
+    cover: { aspect: [3, 1] as [number, number], done: 'Photo de couverture mise à jour.', removed: 'Photo de couverture retirée.' },
+  };
+  const changePhoto = async (kind: 'avatar' | 'cover', source: 'library' | 'camera') => {
     setMessage(null);
     try {
-      const picked = await pickImage(source, { square: true });
+      const picked = await pickImage(source, { aspect: PICTURES[kind].aspect });
       if (!picked) return;
-      setPhotoBusy(true);
-      await uploadImage(picked, '/api/me/avatar');
-      setMessage({ ok: true, text: 'Photo de profil mise à jour.' });
+      setPhotoBusy(kind);
+      await uploadImage(picked, `/api/me/${kind}`);
+      setMessage({ ok: true, text: PICTURES[kind].done });
     } catch (e) {
       setMessage({ ok: false, text: errorMessage(e) });
     } finally {
-      setPhotoBusy(false);
+      setPhotoBusy(null);
     }
   };
-  const removePhoto = async () => {
+  const removePhoto = async (kind: 'avatar' | 'cover') => {
     setMessage(null);
     try {
-      await api('DELETE', '/api/me/avatar');
-      setMessage({ ok: true, text: 'Photo de profil retirée.' });
+      await api('DELETE', `/api/me/${kind}`);
+      setMessage({ ok: true, text: PICTURES[kind].removed });
     } catch (e) {
       setMessage({ ok: false, text: errorMessage(e) });
     }
   };
+  const photoButtons = (kind: 'avatar' | 'cover', current: string | null | undefined) => (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }}>
+      <Button
+        label={photoBusy === kind ? 'Envoi…' : 'Galerie'}
+        variant="outline"
+        color={Colors.text}
+        disabled={!!photoBusy}
+        onPress={() => changePhoto(kind, 'library')}
+      />
+      {Platform.OS !== 'web' && (
+        <Button label="Appareil photo" variant="outline" color={Colors.text} disabled={!!photoBusy} onPress={() => changePhoto(kind, 'camera')} />
+      )}
+      {current && <Button label="Retirer" variant="outline" color={Colors.wrong} onPress={() => removePhoto(kind)} />}
+    </View>
+  );
 
   const p = me.data;
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Mon profil</AppText>
+    <Screen title="Mon profil" back>
 
-      <Card style={styles.photoCard}>
-        <Avatar name={p?.pseudo ?? '?'} color={playerId ? avatarColor(playerId) : Colors.player} uri={p?.avatar} size={84} />
-        <View style={{ flex: 1, gap: Spacing.sm }}>
-          <AppText variant="label">Photo de profil</AppText>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }}>
-            <Button label={photoBusy ? 'Envoi…' : 'Galerie'} variant="outline" color={Colors.text} disabled={photoBusy} onPress={() => changePhoto('library')} />
-            {Platform.OS !== 'web' && (
-              <Button label="Appareil photo" variant="outline" color={Colors.text} disabled={photoBusy} onPress={() => changePhoto('camera')} />
-            )}
-            {p?.avatar && <Button label="Retirer" variant="outline" color={Colors.wrong} onPress={removePhoto} />}
+      <Card style={{ gap: Spacing.md }}>
+        <View style={styles.photoRow}>
+          <Avatar name={p?.pseudo ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} uri={p?.avatar} size={84} />
+          <View style={{ flex: 1, gap: Spacing.sm }}>
+            <AppText variant="label">Photo de profil</AppText>
+            {photoButtons('avatar', p?.avatar)}
           </View>
-          <AppText variant="caption" muted>
-            JPEG, PNG, WebP ou GIF, 8 Mo maximum. La position et les infos de l’appareil sont retirées.
-          </AppText>
         </View>
+        <View style={{ gap: Spacing.sm }}>
+          <AppText variant="label">Photo de couverture</AppText>
+          <View style={styles.cover}>
+            {mediaUri(p?.cover) ? (
+              <Image source={{ uri: mediaUri(p?.cover)! }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel="Ma photo de couverture" />
+            ) : (
+              <LinearGradient colors={Gradients.banner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+            )}
+          </View>
+          {photoButtons('cover', p?.cover)}
+        </View>
+        <AppText variant="caption" muted>
+          JPEG, PNG, WebP ou GIF, 8 Mo maximum. La position et les infos de l’appareil sont retirées.
+        </AppText>
       </Card>
 
       <Card>
@@ -118,6 +144,34 @@ export default function ProfileSettingsScreen() {
       <AppText variant="caption" muted>
         De nouveaux titres se débloquent en montant de niveau.
       </AppText>
+
+      <SectionHeader title="Pays" />
+      <Card style={{ gap: Spacing.sm }}>
+        <Pressable accessibilityRole="button" onPress={() => setPickCountry((v) => !v)} style={styles.toggle}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText variant="label">{p?.country ? `${countryFlag(p.country)} ${countryName(p.country)}` : 'Aucun pays choisi'}</AppText>
+            <AppText variant="caption" muted>
+              Facultatif. Sert uniquement au classement « Pays » ; il n’est affiché sur ton profil pour personne.
+            </AppText>
+          </View>
+          <AppText variant="label" color={Colors.accent}>
+            {pickCountry ? 'Fermer' : 'Modifier'}
+          </AppText>
+        </Pressable>
+        {pickCountry && (
+          <View style={styles.chips}>
+            <Chip label="Aucun" active={!p?.country} onPress={() => save({ country: null }).then(() => setPickCountry(false))} />
+            {COUNTRIES.map((c) => (
+              <Chip
+                key={c.code}
+                label={`${countryFlag(c.code)} ${c.name}`}
+                active={p?.country === c.code}
+                onPress={() => save({ country: c.code }).then(() => setPickCountry(false))}
+              />
+            ))}
+          </View>
+        )}
+      </Card>
 
       <SectionHeader title="Confidentialité" />
       <Card style={{ gap: Spacing.md }}>
@@ -168,13 +222,14 @@ function Toggle({ label, hint, value, onChange }: { label: string; hint: string;
           {hint}
         </AppText>
       </View>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} trackColor={{ true: Colors.player, false: Colors.border }} />
+      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} trackColor={{ true: Colors.accent, false: Colors.border }} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  photoCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  cover: { aspectRatio: 3, borderRadius: Radius.sm, overflow: 'hidden', backgroundColor: Colors.surfaceRaised },
   input: {
     color: Colors.text,
     fontSize: 16,

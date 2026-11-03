@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { getCategory, levelFromXp, themesOf } from '@qu1z/shared';
 
 import { AppText, Screen } from '@/components/ui';
-import { BackButton } from '@/components/back-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
 import { subscribersLabel, useThemeInfos } from '@/state/themes';
@@ -17,8 +16,7 @@ export default function CategoryScreen() {
   if (!category) return <Redirect href="/" />;
 
   return (
-    <Screen>
-      <BackButton />
+    <Screen back title={category.name}>
       <View style={styles.hero}>
         <AppText style={{ fontSize: 48 }}>{category.icon}</AppText>
         <AppText variant="title">{category.name}</AppText>
@@ -42,7 +40,7 @@ export default function CategoryScreen() {
               </AppText>
             </View>
             <View style={[styles.level, { backgroundColor: category.color }]}>
-              <AppText variant="caption" color={Colors.background}>
+              <AppText variant="caption" color={Colors.onAccent}>
                 Niv. {level}
               </AppText>
             </View>

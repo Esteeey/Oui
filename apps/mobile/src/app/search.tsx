@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { getCategory, type UserSummary } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { UserRow } from '@/components/player-row';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
@@ -37,8 +36,7 @@ export default function SearchScreen() {
   }, [query]);
 
   return (
-    <Screen>
-      <BackButton />
+    <Screen back title="Recherche">
       <View style={styles.search}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />
         <TextInput

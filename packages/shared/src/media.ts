@@ -1,10 +1,10 @@
-/** Médias : photos (messages, publications, photo de profil), GIF d'un fournisseur externe, stickers originaux. */
+/** Médias : photos (messages, publications, photo de profil et de couverture), GIF d'un fournisseur externe, stickers originaux. */
 
 /** Taille maximale d'un fichier envoyé. */
 export const MEDIA_MAX_BYTES = 8 * 1024 * 1024;
 /** Formats acceptés (vérifiés sur le contenu du fichier, pas sur l'extension). */
 export const MEDIA_FORMATS = ['jpeg', 'png', 'webp', 'gif'] as const;
-export type MediaPurpose = 'message' | 'post' | 'avatar' | 'group';
+export type MediaPurpose = 'message' | 'post' | 'avatar' | 'group' | 'cover';
 
 /** Image hébergée par Qu1z (déjà validée, nettoyée de ses métadonnées et redimensionnée). */
 export interface MediaView {

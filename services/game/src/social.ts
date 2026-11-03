@@ -7,13 +7,17 @@ import {
   PSEUDO_PATTERN,
   extractMentions,
   getTheme,
+  isCountryCode,
   levelFromXp,
+  seasonOf,
   unlockedTitles,
   type ActivityView,
   type CommentView,
   type DuelResult,
   type FeedItem,
   type LeaderboardRow,
+  type LeaderboardPeriod,
+  type LeaderboardScope,
   type PostTarget,
   type PostView,
   type PublicProfile,
@@ -85,7 +89,7 @@ export class Social {
   // ---- Utilitaires -------------------------------------------------------------------------
 
   private async exists(userId: string): Promise<boolean> {
-    return (await this.db.query("SELECT 1 FROM users WHERE id = $1 AND status <> 'banned'", [userId])).length > 0;
+    return (await this.db.query("SELECT 1 FROM users WHERE id = $1 AND status NOT IN ('banned', 'deleted')", [userId])).length > 0;
   }
 
   async isBlockedEitherWay(a: string, b: string, q: Queryable = this.db): Promise<boolean> {
@@ -108,9 +112,10 @@ export class Social {
 
   async profile(viewer: string, targetId: string): Promise<PublicProfile> {
     const [row] = await this.db.query<
-      SummaryRow & { bio: string; is_private: boolean; show_followers: boolean; show_following: boolean }
+      SummaryRow & { bio: string; is_private: boolean; show_followers: boolean; show_following: boolean; cover_key: string | null; country: string | null }
     >(
-      `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following
+      `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following, p.country,
+         (SELECT storage_key FROM media WHERE id = p.cover_media_id AND removed_by_moderation_at IS NULL) AS cover_key
        FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 AND u.status <> 'banned'`,
       [targetId],
     );
@@ -157,6 +162,8 @@ export class Social {
       canSeeContent,
       canSeeFollowers: isMe || (canSeeContent && row.show_followers),
       canSeeFollowing: isMe || (canSeeContent && row.show_following),
+      cover: mediaUrl(row.cover_key),
+      ...(isMe ? { country: row.country } : {}),
     };
   }
 
@@ -166,7 +173,15 @@ export class Social {
 
   async updateProfile(
     userId: string,
-    patch: { pseudo?: unknown; bio?: unknown; isPrivate?: unknown; showFollowers?: unknown; showFollowing?: unknown; equippedTitle?: unknown },
+    patch: {
+      pseudo?: unknown;
+      bio?: unknown;
+      isPrivate?: unknown;
+      showFollowers?: unknown;
+      showFollowing?: unknown;
+      equippedTitle?: unknown;
+      country?: unknown;
+    },
   ): Promise<PublicProfile> {
     await this.db.transaction(async (tx) => {
       if (patch.pseudo !== undefined) {
@@ -198,6 +213,10 @@ export class Social {
           [userId],
         );
         await tx.query('DELETE FROM follow_requests WHERE target_id = $1', [userId]);
+      }
+      if (patch.country !== undefined) {
+        if (patch.country !== null && !isCountryCode(patch.country)) throw new SocialError(400, 'invalid_country');
+        await tx.query('UPDATE profiles SET country = $2 WHERE user_id = $1', [userId, patch.country]);
       }
       if (patch.equippedTitle !== undefined) {
         const title = patch.equippedTitle === null ? null : String(patch.equippedTitle);
@@ -615,20 +634,40 @@ export class Social {
 
   // ---- Classements -------------------------------------------------------------------------
 
-  async leaderboard(viewer: string, themeId: string | null, scope: 'world' | 'following'): Promise<LeaderboardRow[]> {
+  async leaderboard(
+    viewer: string,
+    themeId: string | null,
+    scope: LeaderboardScope,
+    limit = 100,
+    period: LeaderboardPeriod = 'rating',
+  ): Promise<LeaderboardRow[]> {
     // Par thème : la cote du thème ; général : moyenne des 3 meilleurs thèmes ($2 nul).
     const ratingSql = `SELECT user_id, rating FROM theme_stats WHERE $2::text IS NOT NULL AND theme_id = $2
       UNION ALL
       SELECT user_id, round(avg(rating))::int AS rating FROM (
         SELECT user_id, rating, row_number() OVER (PARTITION BY user_id ORDER BY rating DESC) AS rn FROM theme_stats
       ) t WHERE $2::text IS NULL AND rn <= 3 GROUP BY user_id`;
+    // Saison : XP gagnée pendant le mois en cours (dans le thème s'il est donné).
+    const season = seasonOf(Date.now());
+    const seasonSql = `SELECT d.user_id, sum(d.xp_awarded)::int AS rating FROM duel_results d JOIN duels du ON du.id = d.duel_id
+      WHERE d.created_at >= $5 AND d.created_at < $6 AND ($2::text IS NULL OR du.theme_id = $2)
+      GROUP BY d.user_id HAVING sum(d.xp_awarded) > 0`;
     const rows = await this.db.query<SummaryRow & { rating: number }>(
-      `WITH ratings AS (${ratingSql})
+      `WITH ratings AS (${period === 'season' ? seasonSql : ratingSql})
        SELECT ${SUMMARY_COLUMNS}, r.rating FROM ratings r JOIN users u ON u.id = r.user_id JOIN profiles p ON p.user_id = u.id
        WHERE u.status <> 'banned' AND ${notBlocked('u.id')}
-         AND ($3::text = 'world' OR u.id = $1 OR u.id IN (SELECT followee_id FROM follows WHERE follower_id = $1))
-       ORDER BY r.rating DESC, u.id LIMIT 100`,
-      [viewer, themeId, scope],
+         AND ($3::text = 'world'
+           OR ($3 = 'following' AND (u.id = $1 OR u.id IN (SELECT followee_id FROM follows WHERE follower_id = $1)))
+           -- Pays : jamais de classement pour qui n'a pas choisi de pays (l'égalité avec NULL est fausse).
+           OR ($3 = 'country' AND p.country = (SELECT country FROM profiles WHERE user_id = $1)))
+       ORDER BY r.rating DESC, u.id LIMIT $4`,
+      [
+        viewer,
+        themeId,
+        scope,
+        Math.min(Math.max(1, limit), 100),
+        ...(period === 'season' ? [new Date(season.startsAt), new Date(season.endsAt)] : []),
+      ],
     );
     return rows.map((r, i) => ({ rank: i + 1, user: summary(r), rating: r.rating, isMe: r.id === viewer }));
   }

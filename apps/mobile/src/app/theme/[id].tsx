@@ -1,10 +1,10 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { getCategory, getTheme, levelFromXp, questionsOf, titleForLevel, type PostView, type ThemeInfo } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { Composer } from '@/components/composer';
+import { LeaderboardPanel } from '@/components/leaderboard-panel';
 import { PostCard } from '@/components/post-card';
 import { ThemeCover } from '@/components/theme-cover';
 import { OutcomeBar } from '@/components/profile-view';
@@ -34,8 +34,7 @@ export default function ThemeScreen() {
   const avgTime = stats.correct ? (stats.totalCorrectResponseMs / stats.correct / 1000).toFixed(1) : '–';
 
   return (
-    <Screen>
-      <BackButton />
+    <Screen back title="Thème">
       <View style={styles.cover}>
         <ThemeCover themeId={theme.id} height={190} fadeTo={Colors.background} />
       </View>
@@ -101,6 +100,18 @@ export default function ThemeScreen() {
       <AppText variant="caption" muted style={{ textAlign: 'center' }}>
         {questionsOf(theme.id).length} questions · 7 par duel · 10 s par question
       </AppText>
+
+      <SectionHeader
+        title="Classement"
+        action={
+          <Pressable accessibilityRole="link" hitSlop={8} onPress={() => router.push({ pathname: '/leaderboard', params: { theme: theme.id } })}>
+            <AppText variant="label" color={Colors.accent}>
+              Voir tout
+            </AppText>
+          </Pressable>
+        }
+      />
+      <LeaderboardPanel themeId={theme.id} limit={10} />
 
       <SectionHeader title={`Fil du thème · ${feed.length}`} />
       {subscribed ? (

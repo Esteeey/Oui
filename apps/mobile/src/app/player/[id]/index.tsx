@@ -3,15 +3,15 @@ import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { THEMES, getCategory, type DuelRecord, type PostView, type PublicProfile, type ThemeStats } from '@qu1z/shared';
+import { THEMES, getCategory, type DuelRecord, type EarnedMedal, type PostView, type PublicProfile, type ThemeStats } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { ReportSheet } from '@/components/report-sheet';
 import { PostCard } from '@/components/post-card';
-import { FollowCounts, OutcomeBar, ProfileHeader, Showcase } from '@/components/profile-view';
+import { BadgesGrid, FollowCounts, OutcomeBar, ProfileHeader, Showcase } from '@/components/profile-view';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
+import { medalBadges } from '@/game/badges';
 import { api, errorMessage, useApi } from '@/net/api';
 import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
@@ -22,6 +22,7 @@ export default function PlayerScreen() {
   const p = profile.data;
   const stats = useApi<{ stats: Record<string, ThemeStats>; history: DuelRecord[] }>(p?.canSeeContent ? `/api/users/${id}/stats` : null);
   const wall = useApi<{ posts: PostView[] }>(p?.canSeeContent ? `/api/users/${id}/posts` : null);
+  const medals = useApi<{ medals: EarnedMedal[] }>(p?.canSeeContent ? `/api/users/${id}/medals` : null);
   const { history } = useProgress();
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -32,14 +33,13 @@ export default function PlayerScreen() {
 
   if (profile.error) {
     return (
-      <Screen>
-        <BackButton />
+      <Screen back title="Profil">
         <AppText variant="heading">Profil introuvable</AppText>
         <AppText muted>Ce joueur n’existe pas ou n’est pas accessible.</AppText>
       </Screen>
     );
   }
-  if (!p) return <Screen><BackButton /></Screen>;
+  if (!p) return <Screen back title="Profil" />;
   if (p.relationship.isMe) return <Redirect href="/profile" />;
 
   const rel = p.relationship;
@@ -64,11 +64,9 @@ export default function PlayerScreen() {
   );
 
   return (
-    <Screen>
+    <Screen back title={p.pseudo}>
       <ReportSheet target={reporting ? { type: 'user', id: p.id, label: p.pseudo } : null} onClose={() => setReporting(false)} />
       <View style={styles.topRow}>
-        <BackButton />
-        <View style={{ flex: 1 }} />
         <Pressable accessibilityRole="button" accessibilityLabel="Signaler" onPress={() => setReporting(true)} style={styles.menu}>
           <Ionicons name="flag-outline" size={18} color={Colors.textMuted} />
           <AppText variant="caption" muted>
@@ -91,6 +89,7 @@ export default function PlayerScreen() {
         name={p.pseudo}
         color={avatarColor(p.id)}
         avatar={p.avatar}
+        cover={p.cover}
         title={p.title}
         bio={p.bio}
         xp={p.xp}
@@ -101,7 +100,7 @@ export default function PlayerScreen() {
               <Button
                 label={followLabel}
                 variant={rel.following || rel.requested ? 'outline' : 'solid'}
-                color={rel.following || rel.requested ? Colors.textMuted : Colors.player}
+                color={rel.following || rel.requested ? Colors.textMuted : Colors.accent}
                 onPress={onFollow}
               />
             )}
@@ -199,7 +198,7 @@ export default function PlayerScreen() {
                 FACE-À-FACE
               </AppText>
               <AppText variant="score">
-                <AppText variant="score" color={Colors.player}>
+                <AppText variant="score" color={Colors.accent}>
                   {myWins}
                 </AppText>
                 {' – '}
@@ -212,6 +211,7 @@ export default function PlayerScreen() {
           <SectionHeader title="Statistiques" />
           <OutcomeBar wins={totals.wins} draws={totals.draws} losses={totals.duels - totals.wins - totals.draws} />
           {showcase.length > 0 && <Showcase title="Thèmes phares" themes={showcase} />}
+          {medals.data && <BadgesGrid badges={medalBadges(medals.data.medals)} />}
           <SectionHeader title={`Mur de ${p.pseudo}`} />
           {(wall.data?.posts ?? []).map((post) => (
             <PostCard key={post.id} post={post} showTheme={false} />
@@ -224,7 +224,7 @@ export default function PlayerScreen() {
 }
 
 const styles = StyleSheet.create({
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
   menu: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: Spacing.sm, borderRadius: Radius.pill },
   rivalry: { alignItems: 'center' },
   option: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderRadius: Radius.sm, padding: Spacing.sm + 4, minHeight: 48 },

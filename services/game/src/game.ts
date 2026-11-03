@@ -212,6 +212,8 @@ export class Game {
       playerId,
       name: await this.repo.pseudo(playerId),
       color: null,
+      avatar: await this.repo.avatar(playerId),
+      cover: await this.repo.cover(playerId),
       isBot: false,
       rating: await this.repo.themeRating(playerId, themeId),
       connected: this.online.has(playerId),

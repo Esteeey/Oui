@@ -67,12 +67,12 @@ export function ResultBanner({ text, color, dark }: { text: string; color: strin
   );
 }
 
-/** Bouton principal « Rejouer » : orange #FF6B35, extrémité droite en pointe, aplat. */
+/** Bouton principal « Rejouer » : rose de l'accent, extrémité droite en pointe, aplat. */
 export function ReplayButton({ onPress }: { onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Rejouer" onPress={onPress} style={({ pressed }) => [styles.replay, pressed && { opacity: 0.85 }]}>
       <Svg width="100%" height="100%" viewBox="0 0 340 60" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-        <Path d="M12 0 H316 L340 30 L316 60 H12 A12 12 0 0 1 0 48 V12 A12 12 0 0 1 12 0 Z" fill="#FF6B35" />
+        <Path d="M12 0 H316 L340 30 L316 60 H12 A12 12 0 0 1 0 48 V12 A12 12 0 0 1 12 0 Z" fill="#E5155F" />
       </Svg>
       <Ionicons name="play" size={26} color="#FFFFFF" style={{ position: 'absolute', left: 28 }} />
       <AppText style={styles.replayText}>Rejouer</AppText>

@@ -5,6 +5,7 @@ import { INITIAL_RATING, type DuelRecord, type DuelResult, type Profile, type Th
 import type { Database, Queryable } from './db/database';
 import type { DuelState } from './duel';
 import { mediaUrl } from './media';
+import { awardMedals } from './medals';
 
 export type Role = 'player' | 'moderator' | 'admin';
 export type AccountStatus = 'active' | 'suspended' | 'banned';
@@ -95,6 +96,22 @@ export class Repo {
 
   async pseudo(id: string): Promise<string> {
     return (await this.db.query<{ pseudo: string }>('SELECT pseudo FROM profiles WHERE user_id = $1', [id]))[0]?.pseudo ?? '?';
+  }
+
+  async avatar(id: string): Promise<string | null> {
+    const [row] = await this.db.query<{ avatar_key: string | null }>(
+      'SELECT (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key FROM profiles p WHERE p.user_id = $1',
+      [id],
+    );
+    return mediaUrl(row?.avatar_key);
+  }
+
+  async cover(id: string): Promise<string | null> {
+    const [row] = await this.db.query<{ cover_key: string | null }>(
+      'SELECT (SELECT storage_key FROM media WHERE id = p.cover_media_id AND removed_by_moderation_at IS NULL) AS cover_key FROM profiles p WHERE p.user_id = $1',
+      [id],
+    );
+    return mediaUrl(row?.cover_key);
   }
 
   async profile(id: string): Promise<Profile> {
@@ -220,6 +237,7 @@ export class Repo {
         ],
       );
       await tx.query('UPDATE users SET xp = xp + $2, pending_result_duel_id = $3 WHERE id = $1', [userId, result.rewards.total, duelId]);
+      await awardMedals(tx, userId);
       return result;
     });
   }

@@ -10,6 +10,8 @@ export * from './rewards';
 export * from './bot';
 export * from './protocol';
 export * from './social';
+export * from './countries';
+export * from './medals';
 export * from './notifications';
 export * from './messaging';
 export * from './media';

@@ -37,7 +37,8 @@ function userOf(r: Row, prefix: string): UserSummary | null {
   if (!r[`${prefix}id`]) return null;
   return {
     id: r[`${prefix}id`],
-    pseudo: r[`${prefix}pseudo`],
+    // Compte supprimé : preuves conservées sans profil.
+    pseudo: r[`${prefix}pseudo`] ?? 'Compte supprimé',
     title: r[`${prefix}title`] ?? null,
     level: levelFromXp(Number(r[`${prefix}xp`] ?? 0)).level,
     avatar: mediaUrl(r[`${prefix}avatar`]),
@@ -362,7 +363,7 @@ export class Moderation {
   private reportSelect(where: string) {
     return `SELECT r.*, ${USER_COLS('ur', 'pr', 'r_')}, ${USER_COLS('ut', 'pt', 't_')}, ${USER_COLS('uh', 'ph', 'h_')}
       FROM reports r
-      JOIN users ur ON ur.id = r.reporter_id JOIN profiles pr ON pr.user_id = ur.id
+      JOIN users ur ON ur.id = r.reporter_id LEFT JOIN profiles pr ON pr.user_id = ur.id
       LEFT JOIN users ut ON ut.id = r.target_user_id LEFT JOIN profiles pt ON pt.user_id = ut.id
       LEFT JOIN users uh ON uh.id = r.handled_by LEFT JOIN profiles ph ON ph.user_id = uh.id
       WHERE ${where}`;

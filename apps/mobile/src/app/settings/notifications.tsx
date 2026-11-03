@@ -2,7 +2,6 @@ import { Switch, View } from 'react-native';
 
 import { NOTIFICATION_CATEGORIES, type NotificationCategory, type NotificationPrefs } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { SectionHeader } from '@/components/social';
 import { AppText, Card, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
@@ -16,9 +15,7 @@ export default function NotificationSettingsScreen() {
     api('PATCH', '/api/me/notification-preferences', patch).catch(() => {});
 
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Notifications</AppText>
+    <Screen title="Notifications" back>
 
       <SectionHeader title="Notifications push" />
       <AppText variant="caption" muted>
@@ -70,7 +67,7 @@ function Row({ label, hint, value, onChange }: { label: string; hint?: string; v
           </AppText>
         )}
       </View>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} trackColor={{ true: Colors.player, false: Colors.border }} />
+      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} trackColor={{ true: Colors.accent, false: Colors.border }} />
     </View>
   );
 }

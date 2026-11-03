@@ -3,7 +3,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 
-import { BackButton } from '@/components/back-button';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, invalidateAll, TOKEN_KEY, useApi } from '@/net/api';
@@ -94,9 +93,7 @@ export default function AccountScreen() {
   };
 
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Compte et e-mail</AppText>
+    <Screen title="Compte et e-mail" back>
 
       {a?.emailVerified ? (
         <Card>

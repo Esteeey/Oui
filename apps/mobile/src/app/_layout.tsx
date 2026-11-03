@@ -1,4 +1,4 @@
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, type ReactNode } from 'react';
@@ -11,13 +11,13 @@ import { GameServerProvider, useGameServer } from '@/state/game-server';
 SplashScreen.preventAutoHideAsync();
 
 const navigationTheme = {
-  ...DarkTheme,
+  ...DefaultTheme,
   colors: {
-    ...DarkTheme.colors,
+    ...DefaultTheme.colors,
     background: Colors.background,
     card: Colors.background,
     text: Colors.text,
-    primary: Colors.player,
+    primary: Colors.accent,
     border: Colors.border,
   },
 };
@@ -49,7 +49,9 @@ export default function RootLayout() {
             <Stack.Screen name="messages/new-group" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="messages/group/[id]/index" />
             <Stack.Screen name="messages/group/[id]/invite" />
+            <Stack.Screen name="settings/index" />
             <Stack.Screen name="settings/profile" />
+            <Stack.Screen name="settings/delete-account" />
             <Stack.Screen name="settings/blocked" />
             <Stack.Screen name="settings/notifications" />
             <Stack.Screen name="settings/sanctions" />

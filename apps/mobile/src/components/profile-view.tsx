@@ -1,4 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -7,8 +9,9 @@ import { getCategory, getTheme, levelFromXp, titleForLevel, type PublicProfile }
 
 import { DivisionBadge, SectionHeader } from '@/components/social';
 import { AppText, Avatar, Card, ProgressBar, Stat } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import type { Badge } from '@/game/badges';
+import { mediaUri } from '@/net/media';
 
 export interface ShowcaseTheme {
   themeId: string;
@@ -20,6 +23,7 @@ export function ProfileHeader({
   name,
   color,
   avatar,
+  cover,
   title,
   bio,
   xp,
@@ -28,6 +32,8 @@ export function ProfileHeader({
   name: string;
   color: string;
   avatar?: string | null;
+  /** Photo de couverture (bandeau 3:1), sinon dégradé de l'application. */
+  cover?: string | null;
   /** Titre équipé par le joueur (sinon, le titre de son niveau). */
   title?: string | null;
   bio?: string;
@@ -35,9 +41,19 @@ export function ProfileHeader({
   actions?: ReactNode;
 }) {
   const level = levelFromXp(xp);
+  const coverUri = mediaUri(cover);
   return (
     <View style={styles.header}>
-      <Avatar name={name} color={color} size={96} uri={avatar} />
+      <View style={styles.cover}>
+        {coverUri ? (
+          <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`Couverture de ${name}`} />
+        ) : (
+          <LinearGradient colors={Gradients.banner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        )}
+      </View>
+      <View style={styles.avatarOnCover}>
+        <Avatar name={name} color={color} size={96} uri={avatar} />
+      </View>
       <AppText variant="title">{name}</AppText>
       <AppText variant="label" color={Colors.gold}>
         {title ?? titleForLevel(level.level)} · Niveau {level.level}
@@ -98,7 +114,7 @@ export function OutcomeBar({ wins, draws, losses }: { wins: number; draws: numbe
   const segments = [
     { value: wins, color: Colors.opponent },
     { value: draws, color: Colors.text },
-    { value: losses, color: Colors.player },
+    { value: losses, color: Colors.accent },
   ].filter((s) => s.value > 0);
 
   return (
@@ -127,7 +143,7 @@ export function OutcomeBar({ wins, draws, losses }: { wins: number; draws: numbe
             {pct(wins)} % victoires
           </AppText>
           <AppText variant="caption">{pct(draws)} % nuls</AppText>
-          <AppText variant="caption" color={Colors.player}>
+          <AppText variant="caption" color={Colors.accent}>
             {pct(losses)} % défaites
           </AppText>
         </View>
@@ -171,12 +187,12 @@ export function BadgesGrid({ badges }: { badges: Badge[] }) {
   const unlocked = badges.filter((b) => b.unlocked).length;
   return (
     <>
-      <SectionHeader title={`Badges · ${unlocked}/${badges.length}`} />
+      <SectionHeader title={`Médailles · ${unlocked}/${badges.length}`} />
       <View style={styles.badges}>
         {badges.map((b) => (
           <View key={b.id} style={[styles.badge, !b.unlocked && { opacity: 0.35 }]}>
             <View style={[styles.badgeIcon, b.unlocked && { backgroundColor: Colors.gold }]}>
-              <Ionicons name={b.unlocked ? b.icon : 'lock-closed'} size={22} color={b.unlocked ? Colors.background : Colors.textMuted} />
+              <Ionicons name={b.unlocked ? b.icon : 'lock-closed'} size={22} color={b.unlocked ? Colors.onAccent : Colors.textMuted} />
             </View>
             <AppText variant="caption" style={{ textAlign: 'center' }} numberOfLines={1}>
               {b.name}
@@ -193,6 +209,9 @@ export function BadgesGrid({ badges }: { badges: Badge[] }) {
 
 const styles = StyleSheet.create({
   header: { alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm },
+  cover: { alignSelf: 'stretch', aspectRatio: 3, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surfaceRaised },
+  /** La photo de profil chevauche le bas de la couverture. */
+  avatarOnCover: { marginTop: -48 - Spacing.sm, borderRadius: 999, boxShadow: '0 4px 14px rgba(18, 26, 51, 0.18)' },
   counts: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xl },
   count: { alignItems: 'center', paddingHorizontal: Spacing.sm, minHeight: 44, justifyContent: 'center' },
   theme: {

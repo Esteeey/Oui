@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { groupRights, MAX_GROUP_NAME_LENGTH, type GroupDetail, type GroupMemberView, type MediaView } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { GroupAvatar, RoleBadge } from '@/components/group';
 import { ReportSheet } from '@/components/report-sheet';
 import { SectionHeader } from '@/components/social';
@@ -49,8 +48,7 @@ export default function GroupInfoScreen() {
 
   if (group.error) {
     return (
-      <Screen>
-        <BackButton />
+      <Screen back title="Groupe">
         <AppText muted>Ce groupe n’est plus disponible.</AppText>
       </Screen>
     );
@@ -113,8 +111,7 @@ export default function GroupInfoScreen() {
   };
 
   return (
-    <Screen>
-      <BackButton />
+    <Screen back title="Groupe">
       {g && (
         <>
           <View style={styles.head}>
@@ -169,7 +166,7 @@ export default function GroupInfoScreen() {
                   accessibilityRole="button"
                   onPress={() => router.push({ pathname: '/messages/group/[id]/invite', params: { id } })}
                   style={{ padding: Spacing.xs }}>
-                  <AppText variant="label" color={Colors.player}>
+                  <AppText variant="label" color={Colors.accent}>
                     + Inviter
                   </AppText>
                 </Pressable>

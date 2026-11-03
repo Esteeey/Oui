@@ -4,7 +4,6 @@ import { StyleSheet, TextInput, View } from 'react-native';
 
 import { MAX_FIRST_MESSAGE_LENGTH, type PublicProfile, type UserSummary } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { UserRow } from '@/components/player-row';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -55,9 +54,7 @@ export default function NewMessageScreen() {
   };
 
   return (
-    <Screen>
-      <BackButton label="← Annuler" />
-      <AppText variant="title">Nouveau message</AppText>
+    <Screen title="Nouveau message" back="close">
 
       {!userId ? (
         <>

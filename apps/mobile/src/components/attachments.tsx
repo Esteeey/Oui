@@ -139,7 +139,7 @@ export function AttachmentTray({
 function TrayButton({ icon, label, onPress, active }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; active?: boolean }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[styles.trayButton, active && { backgroundColor: Colors.surfaceRaised }]}>
-      <Ionicons name={icon} size={20} color={active ? Colors.player : Colors.text} />
+      <Ionicons name={icon} size={20} color={active ? Colors.accent : Colors.text} />
       <AppText variant="caption">{label}</AppText>
     </Pressable>
   );

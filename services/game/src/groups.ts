@@ -267,7 +267,7 @@ export class Groups {
     const role = await this.roleOf(viewer, groupId);
     if (!groupRights(role).invite) throw new SocialError(403, 'forbidden');
     if (invitee === viewer) throw new SocialError(400, 'self');
-    const [target] = await this.db.query("SELECT 1 FROM users WHERE id = $1 AND status <> 'banned'", [invitee]);
+    const [target] = await this.db.query("SELECT 1 FROM users WHERE id = $1 AND status NOT IN ('banned', 'deleted')", [invitee]);
     if (!target) throw new SocialError(404, 'not_found');
     if ((await this.db.query(`SELECT 1 WHERE ${blockedSql('$1::uuid', '$2::uuid')}`, [viewer, invitee])).length) {
       throw new SocialError(403, 'blocked');

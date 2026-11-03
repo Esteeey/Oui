@@ -78,8 +78,9 @@ let publicUrl: (key: string) => string = (key) => `/media/${key}`;
 export const mediaUrl = (key: string | null | undefined): string | null => (key ? publicUrl(key) : null);
 
 /** Dimensions maximales après redimensionnement. */
-const MAX_SIDE = { message: 1600, post: 1600, avatar: 512, group: 512 } as const;
-const isSquare = (purpose: MediaPurpose) => purpose === 'avatar' || purpose === 'group';
+const MAX_SIDE = { message: 1600, post: 1600, avatar: 512, group: 512, cover: 1500 } as const;
+/** Images recadrées (largeur / hauteur) : photos de profil et de groupe en carré, couverture en bandeau. */
+const CROP_RATIO: Partial<Record<MediaPurpose, number>> = { avatar: 1, group: 1, cover: 3 };
 const MAX_ANIMATED_SIDE = 720;
 const MAX_INPUT_PIXELS = 40_000_000;
 const MAX_FRAMES = 300;
@@ -105,7 +106,7 @@ export const mediaView = (r: MediaRow): MediaView => ({
 /**
  * Envoi de médias : type vérifié sur le contenu (pas sur l'extension ni l'en-tête), 8 Mo maximum,
  * métadonnées (EXIF, GPS…) supprimées, orientation appliquée, image redimensionnée et réencodée en WebP.
- * Un GIF animé reste animé (WebP animé) ; une photo de profil est recadrée en carré.
+ * Un GIF animé reste animé (WebP animé) ; une photo de profil est recadrée en carré, une couverture en bandeau.
  */
 export class Media {
   constructor(
@@ -128,7 +129,8 @@ export class Media {
       throw new SocialError(415, 'unsupported_format');
     }
     if (!meta.format || !(MEDIA_FORMATS as readonly string[]).includes(meta.format)) throw new SocialError(415, 'unsupported_format');
-    const animated = !isSquare(purpose) && (meta.pages ?? 1) > 1;
+    const ratio = CROP_RATIO[purpose];
+    const animated = !ratio && (meta.pages ?? 1) > 1;
     if (animated && (meta.pages ?? 1) > MAX_FRAMES) throw new SocialError(413, 'too_many_frames');
 
     let output: { data: Buffer; info: OutputInfo };
@@ -136,10 +138,9 @@ export class Media {
       const side = animated ? MAX_ANIMATED_SIDE : MAX_SIDE[purpose];
       // Sans `.withMetadata()`, sharp n'écrit aucune métadonnée : EXIF, GPS, XMP et ICC sont supprimés.
       let img = sharp(input, { animated, limitInputPixels: MAX_INPUT_PIXELS }).rotate();
-      img =
-        isSquare(purpose)
-          ? img.resize(side, side, { fit: 'cover', position: 'attention' })
-          : img.resize(side, side, { fit: 'inside', withoutEnlargement: true });
+      img = ratio
+        ? img.resize(side, Math.round(side / ratio), { fit: 'cover', position: 'attention' })
+        : img.resize(side, side, { fit: 'inside', withoutEnlargement: true });
       output = await img.webp({ quality: animated ? 70 : 82, effort: 4 }).toBuffer({ resolveWithObject: true });
     } catch {
       throw new SocialError(415, 'unsupported_format');
@@ -174,18 +175,28 @@ export class Media {
 
   /** Photo de profil : remplace l'ancienne (supprimée du stockage). `null` la retire. */
   async setAvatar(owner: string, mediaId: string | null): Promise<{ avatar: string | null }> {
+    return { avatar: await this.setPicture(owner, mediaId, 'avatar') };
+  }
+
+  /** Photo de couverture : même fonctionnement que la photo de profil. */
+  async setCover(owner: string, mediaId: string | null): Promise<{ cover: string | null }> {
+    return { cover: await this.setPicture(owner, mediaId, 'cover') };
+  }
+
+  private async setPicture(owner: string, mediaId: string | null, purpose: 'avatar' | 'cover'): Promise<string | null> {
+    const column = purpose === 'avatar' ? 'avatar_media_id' : 'cover_media_id';
     const result = await this.db.transaction(async (tx) => {
       const [prev] = await tx.query<{ id: string; storage_key: string }>(
-        'SELECT m.id, m.storage_key FROM profiles p JOIN media m ON m.id = p.avatar_media_id WHERE p.user_id = $1',
+        `SELECT m.id, m.storage_key FROM profiles p JOIN media m ON m.id = p.${column} WHERE p.user_id = $1`,
         [owner],
       );
-      const view = mediaId ? await this.attach(tx, owner, mediaId, 'avatar') : null;
-      await tx.query('UPDATE profiles SET avatar_media_id = $2 WHERE user_id = $1', [owner, view?.id ?? null]);
+      const view = mediaId ? await this.attach(tx, owner, mediaId, purpose) : null;
+      await tx.query(`UPDATE profiles SET ${column} = $2 WHERE user_id = $1`, [owner, view?.id ?? null]);
       if (prev) await tx.query('DELETE FROM media WHERE id = $1', [prev.id]);
-      return { avatar: view?.url ?? null, oldKey: prev?.storage_key };
+      return { url: view?.url ?? null, oldKey: prev?.storage_key };
     });
     if (result.oldKey) await this.store.delete(result.oldKey);
-    return { avatar: result.avatar };
+    return result.url;
   }
 
   /** Supprime les médias jamais rattachés (envoi abandonné). Renvoie le nombre de fichiers supprimés. */

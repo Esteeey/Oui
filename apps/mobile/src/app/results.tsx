@@ -7,12 +7,21 @@ import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getTheme, levelFromXp, type DuelOutcome, type ParticipantView } from '@qu1z/shared';
+import {
+  formatSeconds,
+  getTheme,
+  levelFromXp,
+  shareResultText,
+  speedSummary,
+  type DuelOutcome,
+  type ParticipantView,
+  type SpeedSummary,
+} from '@qu1z/shared';
 
 import { Celebration, Crown, GOLD, ReplayButton, ResultBanner } from '@/components/results-art';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
+import { Colors, Gradients, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
@@ -30,6 +39,9 @@ const R = {
   draw: '#F59E0B',
   line: '#2E2E33',
 };
+
+/** Accent rose de l'identité Qu1z (plus d'orange). */
+const PINK = '#FF3B83';
 
 const BANNER: Record<DuelOutcome, { text: string; color: string; dark: string }> = {
   win: { text: 'VICTOIRE !', color: R.win, dark: R.winDark },
@@ -65,8 +77,17 @@ export default function ResultsScreen() {
   };
   const share = () =>
     Share.share({
-      message: `${banner.text} ${duel.me.points} à ${duel.opponent.points} contre ${duel.opponent.name} en « ${theme?.name} » sur Qu1z. Viens me défier !`,
+      message: shareResultText({
+        outcome: result.outcome,
+        themeName: theme?.name ?? '',
+        myPoints: duel.me.points,
+        opponentPoints: duel.opponent.points,
+        opponentName: duel.opponent.name,
+        answers: record.player,
+      }),
     }).catch(() => {});
+  const mySpeed = speedSummary(record.player);
+  const theirSpeed = speedSummary(record.opponent);
 
   return (
     <View style={styles.screen}>
@@ -120,6 +141,25 @@ export default function ResultsScreen() {
             </View>
           </Animated.View>
 
+          <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.speed}>
+            <AppText style={styles.speedTitle}>Rapidité</AppText>
+            <View style={styles.speedHead}>
+              <AppText style={[styles.speedName, { textAlign: 'left' }]} numberOfLines={1}>
+                Toi
+              </AppText>
+              <View style={{ flex: 1.2 }} />
+              <AppText style={[styles.speedName, { textAlign: 'right' }]} numberOfLines={1}>
+                {record.opponentName}
+              </AppText>
+            </View>
+            <SpeedRow label="Bonnes réponses" mine={mySpeed} theirs={theirSpeed} pick={(s) => s.correct} format={(s) => `${s.correct}/${s.total}`} higherIsBetter />
+            <SpeedRow label="Temps moyen" mine={mySpeed} theirs={theirSpeed} pick={(s) => s.averageMs} format={(s) => (s.averageMs === null ? '—' : formatSeconds(s.averageMs))} />
+            <SpeedRow label="Plus rapide" mine={mySpeed} theirs={theirSpeed} pick={(s) => s.fastestMs} format={(s) => (s.fastestMs === null ? '—' : formatSeconds(s.fastestMs))} />
+            <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
+              Temps calculés sur les bonnes réponses.
+            </AppText>
+          </Animated.View>
+
           <View style={{ gap: Spacing.sm }}>
             <View style={styles.levelRow}>
               <AppText style={styles.levelText}>Niveau {level.level}</AppText>
@@ -129,7 +169,7 @@ export default function ResultsScreen() {
             </View>
             <View style={styles.track} accessible accessibilityLabel={`Progression du niveau : ${Math.round(level.progress * 100)} %`}>
               <LinearGradient
-                colors={['#FF6B35', '#FFD60A', '#FF3EA5', '#A855F7']}
+                colors={[...Gradients.accent, '#7C5CFF']}
                 start={{ x: 0, y: 0.5 }}
                 end={{ x: 1, y: 0.5 }}
                 style={{ width: `${Math.max(2, level.progress * 100)}%`, height: '100%', borderRadius: 999 }}
@@ -147,7 +187,7 @@ export default function ResultsScreen() {
                   .catch((e) => setRematch(errorMessage(e)))
               }
               style={styles.rematch}>
-              <AppText variant="label" color="#FF6B35">
+              <AppText variant="label" color={PINK}>
                 Proposer une revanche à {duel.opponent.name}
               </AppText>
             </Pressable>
@@ -219,10 +259,38 @@ function PlayerCard({ player, outcome, self }: { player: ParticipantView; outcom
           {player.name}
         </AppText>
         <View style={[styles.ring, { borderColor: color }]}>
-          <Avatar name={player.name} color={self ? Colors.player : (player.color ?? Colors.opponent)} size={76} />
+          <Avatar name={player.name} color={self ? Colors.player : (player.color ?? Colors.opponent)} size={76} borderColor="#251F44" />
         </View>
         <AppText style={[styles.cardScore, { color }]}>{player.points}</AppText>
       </View>
+    </View>
+  );
+}
+
+/** Une ligne de comparaison ; la meilleure valeur des deux est mise en avant. */
+function SpeedRow({
+  label,
+  mine,
+  theirs,
+  pick,
+  format,
+  higherIsBetter = false,
+}: {
+  label: string;
+  mine: SpeedSummary;
+  theirs: SpeedSummary;
+  pick: (s: SpeedSummary) => number | null;
+  format: (s: SpeedSummary) => string;
+  higherIsBetter?: boolean;
+}) {
+  const a = pick(mine);
+  const b = pick(theirs);
+  const better = (x: number | null, y: number | null) => x !== null && (y === null || (higherIsBetter ? x > y : x < y));
+  return (
+    <View style={styles.speedRow}>
+      <AppText style={[styles.speedValue, { textAlign: 'left' }, better(a, b) && styles.speedBest]}>{format(mine)}</AppText>
+      <AppText style={styles.speedLabel}>{label}</AppText>
+      <AppText style={[styles.speedValue, { textAlign: 'right' }, better(b, a) && styles.speedBest]}>{format(theirs)}</AppText>
     </View>
   );
 }
@@ -286,7 +354,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#000000',
     borderWidth: 2,
-    borderColor: '#FF6B35',
+    borderColor: PINK,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
@@ -305,11 +373,19 @@ const styles = StyleSheet.create({
   rowIcon: { width: 40 },
   rowLabel: { flex: 1, color: R.text, fontSize: 17 },
   rowValue: { color: R.text, fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  speed: { borderWidth: 1, borderColor: '#3F3F46', borderRadius: 4, padding: 14, gap: 10 },
+  speedTitle: { color: R.text, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  speedHead: { flexDirection: 'row' },
+  speedName: { flex: 1, color: R.muted, fontSize: 14, fontWeight: '700' },
+  speedRow: { flexDirection: 'row', alignItems: 'center' },
+  speedLabel: { flex: 1.2, color: R.muted, fontSize: 14, textAlign: 'center' },
+  speedValue: { flex: 1, color: R.text, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  speedBest: { color: R.win },
   levelRow: { flexDirection: 'row', justifyContent: 'space-between' },
   levelText: { color: R.text, fontSize: 17, fontWeight: '800' },
   track: { height: 16, borderRadius: 999, backgroundColor: '#2A2A2E', overflow: 'hidden' },
   secondary: { flexDirection: 'row', gap: 12 },
-  rematch: { alignItems: 'center', justifyContent: 'center', minHeight: 44, borderWidth: 1.5, borderColor: '#FF6B35', borderRadius: 10 },
+  rematch: { alignItems: 'center', justifyContent: 'center', minHeight: 44, borderWidth: 1.5, borderColor: PINK, borderRadius: 10 },
   secondaryButton: { flex: 1, height: 54, borderRadius: 10, backgroundColor: '#111113', alignItems: 'center', justifyContent: 'center' },
   detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Spacing.sm },
   detail: { borderTopWidth: 1, borderTopColor: R.line, paddingTop: Spacing.sm, gap: 6 },

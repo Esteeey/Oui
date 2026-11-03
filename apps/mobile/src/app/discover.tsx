@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import type { UserSummary } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { UserRow } from '@/components/player-row';
 import { SectionHeader } from '@/components/social';
 import { AppText, Avatar, Screen } from '@/components/ui';
@@ -38,9 +37,7 @@ export default function DiscoverScreen() {
 
   const users = suggestions.data?.users ?? [];
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Découvrir des joueurs</AppText>
+    <Screen title="Découvrir des joueurs" back>
       <View style={styles.search}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />
         <TextInput

@@ -1,4 +1,6 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, usePathname } from 'expo-router';
 import type { ReactNode } from 'react';
 import {
   Pressable,
@@ -14,8 +16,11 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { GradientHeader, HEADER_OVERLAP, HeaderBack, Logo } from '@/components/header';
+import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
+import { useGameServer } from '@/state/game-server';
+import { avatarColor } from '@/utils/avatar';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'score';
 
@@ -39,29 +44,59 @@ export function AppText({
   );
 }
 
+/**
+ * Écran standard : bandeau dégradé en haut (titre, retour, actions), puis une feuille claire arrondie
+ * qui recouvre le bas du bandeau. Les onglets affichent le logo à gauche, les autres écrans un retour.
+ */
 export function Screen({
   children,
   scroll = true,
   inTabs = false,
   style,
+  title,
+  back,
+  headerLeft,
+  headerRight,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   scroll?: boolean;
   /** Écran affiché dans un onglet : la barre d'onglets gère déjà le bas de l'écran. */
   inTabs?: boolean;
   style?: StyleProp<ViewStyle>;
+  title?: ReactNode;
+  /** Bouton de retour dans le bandeau (`'close'` pour une fenêtre modale). */
+  back?: boolean | 'close';
+  headerLeft?: ReactNode;
+  headerRight?: ReactNode;
 }) {
   const content = <View style={[styles.content, style]}>{children}</View>;
+  const left = headerLeft ?? (back ? <HeaderBack close={back === 'close'} /> : inTabs ? <Logo /> : null);
   return (
-    <SafeAreaView style={styles.screen} edges={inTabs ? ['top'] : ['top', 'bottom']}>
-      {scroll ? (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {content}
-        </ScrollView>
-      ) : (
-        <View style={styles.scroll}>{content}</View>
-      )}
-    </SafeAreaView>
+    <View style={styles.screen}>
+      <GradientHeader
+        title={title}
+        left={left}
+        right={
+          inTabs ? (
+            <>
+              {headerRight}
+              <ProfileButton />
+            </>
+          ) : (
+            headerRight
+          )
+        }
+      />
+      <SafeAreaView style={styles.sheet} edges={inTabs ? [] : ['bottom']}>
+        {scroll ? (
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            {content}
+          </ScrollView>
+        ) : (
+          <View style={styles.scroll}>{content}</View>
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -72,14 +107,17 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 export function Button({
   label,
   onPress,
-  color = Colors.player,
+  color,
+  textColor,
   variant = 'solid',
   disabled,
   style,
 }: {
   label: string;
   onPress?: () => void;
+  /** Sans couleur, un bouton plein prend le dégradé rose de l'accent. */
   color?: string;
+  textColor?: string;
   variant?: 'solid' | 'outline';
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -98,11 +136,14 @@ export function Button({
       <Animated.View
         style={[
           styles.button,
-          solid ? { backgroundColor: color } : { borderColor: color, borderWidth: 2 },
+          solid ? { backgroundColor: color ?? Colors.accent } : { borderColor: color ?? Colors.accent, borderWidth: 2 },
           disabled && { opacity: 0.4 },
           animated,
         ]}>
-        <AppText variant="label" color={solid ? Colors.background : color}>
+        {solid && !color && (
+          <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        )}
+        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))}>
           {label}
         </AppText>
       </Animated.View>
@@ -130,7 +171,36 @@ export function ProgressBar({
 }
 
 /** Photo de profil, ou initiale sur fond coloré quand le joueur n'en a pas. */
-export function Avatar({ name, color, size = 56, uri }: { name: string; color: string; size?: number; uri?: string | null }) {
+/** Photo du joueur dans le bandeau des onglets : ouvre son profil (sauf sur le profil lui-même). */
+function ProfileButton() {
+  const { playerId, profile } = useGameServer();
+  const pathname = usePathname();
+  if (pathname === '/profile') return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Mon profil"
+      hitSlop={8}
+      onPress={() => router.push('/profile')}
+      style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+      <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} uri={profile?.avatar} size={36} borderColor="rgba(255, 255, 255, 0.9)" />
+    </Pressable>
+  );
+}
+
+export function Avatar({
+  name,
+  color,
+  size = 56,
+  uri,
+  borderColor = Colors.surface,
+}: {
+  name: string;
+  color: string;
+  size?: number;
+  uri?: string | null;
+  borderColor?: string;
+}) {
   const source = mediaUri(uri);
   return (
     <View
@@ -142,13 +212,13 @@ export function Avatar({ name, color, size = 56, uri }: { name: string; color: s
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: size >= 40 ? 3 : 2,
-        borderColor: Colors.surfaceRaised,
+        borderColor,
         overflow: 'hidden',
       }}>
       {source ? (
         <Image source={{ uri: source }} style={{ width: '100%', height: '100%' }} contentFit="cover" accessibilityLabel={`Photo de ${name}`} />
       ) : (
-        <AppText variant="heading" color={Colors.background} style={{ fontSize: size * 0.42 }}>
+        <AppText variant="heading" color={Colors.onAccent} style={{ fontSize: size * 0.42 }}>
           {name.slice(0, 1).toUpperCase()}
         </AppText>
       )}
@@ -178,7 +248,15 @@ const textStyles = StyleSheet.create<Record<Variant, TextStyle>>({
 });
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
+  screen: { flex: 1, backgroundColor: Colors.navy },
+  sheet: {
+    flex: 1,
+    marginTop: -HEADER_OVERLAP,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+    backgroundColor: Colors.background,
+    overflow: 'hidden',
+  },
   scroll: { flexGrow: 1, alignItems: 'center' },
   content: {
     flex: 1,
@@ -193,8 +271,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.md,
     gap: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    ...Shadow,
   },
   button: {
     minHeight: 54,
@@ -202,6 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.lg,
+    overflow: 'hidden',
   },
   track: { width: '100%', backgroundColor: Colors.surfaceRaised, overflow: 'hidden' },
   stat: { flex: 1, alignItems: 'center', gap: 2 },

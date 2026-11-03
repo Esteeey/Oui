@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { MAX_COMMENT_LENGTH, type CommentView, type PostView } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { MentionSuggestions } from '@/components/mention-suggestions';
 import { PostCard } from '@/components/post-card';
 import { RichText } from '@/components/rich-text';
@@ -26,8 +25,7 @@ export default function PostScreen() {
 
   if (post.error) {
     return (
-      <Screen>
-        <BackButton />
+      <Screen back title="Publication">
         <AppText muted>Cette publication n’est pas disponible.</AppText>
       </Screen>
     );
@@ -77,8 +75,7 @@ export default function PostScreen() {
   );
 
   return (
-    <Screen>
-      <BackButton />
+    <Screen back title="Publication">
       {post.data && <PostCard post={post.data} linkToDetail={false} />}
 
       <SectionHeader title={`Commentaires · ${comments.length}`} />

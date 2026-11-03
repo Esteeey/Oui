@@ -1,3 +1,4 @@
+import { Logo } from '@/components/header';
 import { SanctionsList } from '@/components/sanctions';
 import { AppText, Screen } from '@/components/ui';
 import { Colors } from '@/constants/theme';
@@ -5,7 +6,7 @@ import { Colors } from '@/constants/theme';
 /** Compte banni : l'accès à l'application est interdit, mais le joueur peut consulter la sanction et faire appel. */
 export function BannedScreen() {
   return (
-    <Screen>
+    <Screen title="Compte suspendu" headerLeft={<Logo />}>
       <AppText variant="title" color={Colors.wrong}>
         Compte banni
       </AppText>

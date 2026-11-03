@@ -35,6 +35,10 @@ export interface Participant {
   playerId: string;
   name: string;
   color: string | null;
+  /** Photo de profil (absente des duels enregistrés avant son ajout). */
+  avatar?: string | null;
+  /** Photo de couverture (absente des duels enregistrés avant son ajout). */
+  cover?: string | null;
   isBot: boolean;
   rating: number;
   connected: boolean;
@@ -321,6 +325,8 @@ export class Duel {
       id: p.playerId,
       name: p.name,
       color: p.color,
+      avatar: p.avatar ?? null,
+      cover: p.cover ?? null,
       isBot: p.isBot,
       connected: p.isBot || p.connected,
       forfeited: p.forfeited,

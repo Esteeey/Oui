@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { UserSummary } from '@qu1z/shared';
+import type { PeopleSections, UserSummary } from '@qu1z/shared';
 
 import { openDatabase, type Database } from '../src/db/database';
 import { hashToken } from '../src/game';
@@ -183,5 +185,84 @@ describe('Découvrir', () => {
     const me = await user('Moi');
     await bulk(2);
     expect(await discover(me)).toHaveLength(2);
+  });
+});
+
+describe('Personnes', () => {
+  const people = (u: U) => ok(call<PeopleSections>(u, 'GET', '/api/people'));
+  const ids = (s: PeopleSections) => [...s.suggestions.map((u) => u.id), ...[s.commonThemes, s.active, s.popular].flat().map((e) => e.user.id)];
+
+  /** Remplit Découvrir de figurants sans thème, duel ni abonné : les autres sections restent prévisibles. */
+  async function fillDiscover(me: U): Promise<string[]> {
+    const extras = await bulk(12, 'Figurant');
+    for (const [i, id] of extras.entries()) {
+      await db.query('INSERT INTO discover_suggestions (user_id, suggested_id, kind) VALUES ($1, $2, $3)', [me.id, id, i < 8 ? 'personalized' : 'random']);
+    }
+    return extras;
+  }
+  const subscribe = (userId: string, ...themes: string[]) =>
+    Promise.all(themes.map((t) => db.query('INSERT INTO theme_subscriptions (user_id, theme_id) VALUES ($1, $2)', [userId, t])));
+  async function playDuels(userId: string, n: number, daysAgo = 0) {
+    for (let i = 0; i < n; i++) {
+      const id = randomUUID();
+      await db.query("INSERT INTO duels (id, theme_id, mode, state, finished_at) VALUES ($1, 'sports-jo', 'bot', '{}', now())", [id]);
+      await db.query(
+        "INSERT INTO duel_results (duel_id, user_id, result, xp_awarded, created_at) VALUES ($1, $2, '{}', 0, now() - make_interval(days => $3::int))",
+        [id, userId, daysAgo],
+      );
+    }
+  }
+  async function addFollowers(userId: string, n: number, prefix: string) {
+    for (const fan of await bulk(n, prefix)) await db.query('INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2)', [fan, userId]);
+  }
+
+  it('suggestions, thèmes en commun, actifs de la semaine, populaires ; chaque joueur une seule fois', async () => {
+    const me = await user('Moi');
+    const extras = await fillDiscover(me);
+    await subscribe(me.id, 'sports-jo', 'culture-melange');
+    const [two, one, active, privateActive, popular, hidden] = await bulk(6);
+    await subscribe(two, 'sports-jo', 'culture-melange');
+    await subscribe(one, 'sports-jo', 'cinema-films');
+    await playDuels(active, 3);
+    await playDuels(active, 2, 10); // trop ancien pour compter
+    await db.query('UPDATE profiles SET is_private = true WHERE user_id = $1', [privateActive]);
+    await playDuels(privateActive, 5);
+    await addFollowers(popular, 3, 'FanA');
+    await addFollowers(hidden, 2, 'FanB');
+    await db.query('UPDATE profiles SET show_followers = false WHERE user_id = $1', [hidden]);
+
+    const r = await people(me);
+    expect(r.suggestions).toHaveLength(6);
+    for (const u of r.suggestions) expect(extras).toContain(u.id);
+    expect(r.commonThemes.map((e) => [e.user.id, e.commonThemes])).toEqual([[two, 2], [one, 1]]);
+    // Un compte privé n'apparaît pas parmi les actifs : son activité n'est pas publique.
+    expect(r.active.map((e) => [e.user.id, e.duelsThisWeek])).toEqual([[active, 3]]);
+    // Le nombre d'abonnés reste caché si le joueur le masque.
+    expect(r.popular.map((e) => [e.user.id, e.followers])).toEqual([[popular, 3], [hidden, null]]);
+    expect(new Set(ids(r)).size).toBe(ids(r).length);
+  });
+
+  it('jamais soi-même, un abonnement, une demande envoyée, un blocage (dans les deux sens) ni un banni', async () => {
+    const me = await user('Moi');
+    await fillDiscover(me);
+    await subscribe(me.id, 'sports-jo');
+    await playDuels(me.id, 2);
+    await addFollowers(me.id, 2, 'FanMoi');
+    const excluded = await bulk(5, 'Exclu');
+    for (const [i, id] of excluded.entries()) {
+      await subscribe(id, 'sports-jo');
+      await playDuels(id, 2);
+      await addFollowers(id, 1, `FanX${i}`);
+    }
+    const [followed, blockedByMe, blockingMe, banned, requested] = excluded;
+    await ok(call(me, 'POST', `/api/users/${followed}/follow`));
+    await ok(call(me, 'POST', '/api/blocks', { userId: blockedByMe }));
+    await db.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [blockingMe, me.id]);
+    await server.game.repo.setStatus(banned, 'banned');
+    await db.query('UPDATE profiles SET is_private = true WHERE user_id = $1', [requested]);
+    await ok(call(me, 'POST', `/api/users/${requested}/follow`)); // demande envoyée
+
+    const shown = ids(await people(me));
+    for (const id of [me.id, ...excluded]) expect(shown).not.toContain(id);
   });
 });

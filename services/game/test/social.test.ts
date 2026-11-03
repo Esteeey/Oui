@@ -308,4 +308,36 @@ describe('classements réels', () => {
       ['Moi', 2, true],
     ]);
   });
+
+  it('pays : choisi par le joueur, visible de lui seul ; classement de son pays, sans bloqués', async () => {
+    const me = await user('Moi');
+    const voisin = await user('Voisin');
+    const loin = await user('Lointain');
+    const blocked = await user('Bloque');
+    for (const [u, rating] of [
+      [me, 1100],
+      [voisin, 1300],
+      [loin, 1600],
+      [blocked, 1400],
+    ] as const) {
+      await db.query('INSERT INTO theme_stats (user_id, theme_id, rating) VALUES ($1, $2, $3)', [u.id, 'geo-capitales', rating]);
+    }
+    type Rows = { rows: { user: UserSummary }[] };
+    const country = () => ok(call<Rows>(me, 'GET', '/api/leaderboard?theme=geo-capitales&scope=country'));
+    // Sans pays choisi : pas de classement Pays.
+    expect((await country()).rows).toEqual([]);
+
+    expect((await call(me, 'PATCH', '/api/me/profile', { country: 'XX' })).status).toBe(400);
+    expect((await ok(call<PublicProfile>(me, 'PATCH', '/api/me/profile', { country: 'BE' }))).country).toBe('BE');
+    await ok(call(voisin, 'PATCH', '/api/me/profile', { country: 'BE' }));
+    await ok(call(blocked, 'PATCH', '/api/me/profile', { country: 'BE' }));
+    await ok(call(loin, 'PATCH', '/api/me/profile', { country: 'CA' }));
+    await block(blocked, me);
+    expect((await country()).rows.map((r) => r.user.pseudo)).toEqual(['Voisin', 'Moi']);
+    // Le pays d'un autre joueur n'est jamais renvoyé avec son profil.
+    expect('country' in (await ok(call<PublicProfile>(me, 'GET', `/api/users/${voisin.id}`)))).toBe(false);
+    // On peut le retirer.
+    await ok(call(me, 'PATCH', '/api/me/profile', { country: null }));
+    expect((await country()).rows).toEqual([]);
+  });
 });

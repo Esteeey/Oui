@@ -15,7 +15,7 @@ export const RULES = {
   /** Répit au noir entre deux questions, ajouté à la fin de la révélation. */
   transitionMs: 1_000,
   /** Présentation des deux joueurs avant la première question. */
-  introMs: 2_500,
+  introMs: 3_500,
 
   /** Points par seconde restante sur une bonne réponse (20 au maximum avec un chrono de 10 s). */
   pointsPerSecond: 2,

@@ -124,7 +124,7 @@ export class Notifier {
     const count = await this.db.transaction(async (tx) => {
       const rows = await tx.query<{ id: string }>(
         `INSERT INTO notifications (id, user_id, type, category, data)
-         SELECT gen_random_uuid(), id, $1, $2, $3 FROM users WHERE status <> 'banned' RETURNING user_id AS id`,
+         SELECT gen_random_uuid(), id, $1, $2, $3 FROM users WHERE status NOT IN ('banned', 'deleted') RETURNING user_id AS id`,
         [input.type, input.category, input.data ?? {}],
       );
       await tx.query(

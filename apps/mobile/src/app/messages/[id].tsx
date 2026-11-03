@@ -21,6 +21,7 @@ import {
 import { AttachmentTray, AttachmentView } from '@/components/attachments';
 import { GroupAvatar } from '@/components/group';
 import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
+import { GradientHeader, HeaderBack } from '@/components/header';
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -153,12 +154,13 @@ export default function ConversationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
       <ReportSheet target={reporting} onClose={() => setReporting(null)} />
-      <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages'))} style={{ padding: Spacing.sm }}>
-          <Ionicons name="chevron-back" size={24} color={Colors.text} />
-        </Pressable>
+      <GradientHeader
+        flat
+        left={<HeaderBack />}
+        title={
+          <>
         {group && (
           <Pressable
             accessibilityRole="button"
@@ -167,10 +169,10 @@ export default function ConversationScreen() {
             style={styles.who}>
             <GroupAvatar id={id} name={group.name} uri={group.avatar} size={38} />
             <View style={{ flex: 1 }}>
-              <AppText variant="label" numberOfLines={1}>
+              <AppText variant="label" color={Colors.onAccent} numberOfLines={1}>
                 {group.name}
               </AppText>
-              <AppText variant="caption" muted>
+              <AppText variant="caption" color="rgba(255,255,255,0.75)">
                 {group.memberCount} membre{group.memberCount > 1 ? 's' : ''} · infos du groupe
               </AppText>
             </View>
@@ -183,11 +185,13 @@ export default function ConversationScreen() {
             style={styles.who}>
             <Avatar name={other.pseudo} color={avatarColor(other.id)} uri={other.avatar} size={38} />
             <View>
-              <AppText variant="label">{other.pseudo}</AppText>
+              <AppText variant="label" color={Colors.onAccent}>
+                {other.pseudo}
+              </AppText>
               {presenceText(c?.presence ?? null) && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   {c?.presence?.online && <View style={styles.dot} />}
-                  <AppText variant="caption" color={c?.presence?.online ? Colors.correct : Colors.textMuted}>
+                  <AppText variant="caption" color={c?.presence?.online ? '#7CF0A6' : 'rgba(255,255,255,0.75)'}>
                     {presenceText(c?.presence ?? null)}
                   </AppText>
                 </View>
@@ -195,7 +199,9 @@ export default function ConversationScreen() {
             </View>
           </Pressable>
         )}
-      </View>
+          </>
+        }
+      />
 
       {pinned.length > 0 && (
         <View style={styles.pinnedZone}>
@@ -404,7 +410,7 @@ export default function ConversationScreen() {
               style={styles.input}
             />
             <Pressable accessibilityRole="button" accessibilityLabel="Envoyer" disabled={!canSend} onPress={send} style={[styles.send, !canSend && { opacity: 0.4 }]}>
-              <Ionicons name="send" size={20} color={Colors.background} />
+              <Ionicons name="send" size={20} color={Colors.onAccent} />
             </Pressable>
           </View>
         </View>
@@ -415,8 +421,7 @@ export default function ConversationScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border, minHeight: 56 },
-  who: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  who: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, alignSelf: 'stretch' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.correct },
   messages: { padding: Spacing.md, gap: Spacing.sm, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   line: { gap: 4 },
@@ -444,5 +449,5 @@ const styles = StyleSheet.create({
   replyBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: Spacing.sm },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
   input: { flex: 1, color: Colors.text, fontSize: 16, backgroundColor: Colors.surface, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 4, paddingVertical: 10, maxHeight: 120 },
-  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.player, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
 });

@@ -22,7 +22,7 @@ export function GroupAvatar({ id, name, uri, size = 48 }: { id: string; name: st
       {source ? (
         <Image source={{ uri: source }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
       ) : (
-        <Ionicons name="people" size={size * 0.5} color={Colors.background} />
+        <Ionicons name="people" size={size * 0.5} color={Colors.onAccent} />
       )}
     </View>
   );

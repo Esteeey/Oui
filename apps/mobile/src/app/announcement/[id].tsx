@@ -1,6 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { BackButton } from '@/components/back-button';
 import { AppText, Card, Screen } from '@/components/ui';
 import { Colors } from '@/constants/theme';
 import { useApi } from '@/net/api';
@@ -18,12 +17,11 @@ export default function AnnouncementScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const a = useApi<{ title: string; body: string; kind: string; createdAt: number }>(`/api/announcements/${id}`);
   return (
-    <Screen>
-      <BackButton />
+    <Screen back title="Annonce">
       {a.error && <AppText muted>Annonce introuvable.</AppText>}
       {a.data && (
         <Card>
-          <AppText variant="caption" color={Colors.player}>
+          <AppText variant="caption" color={Colors.accent}>
             {(KIND[a.data.kind] ?? 'Information').toUpperCase()} · {new Date(a.data.createdAt).toLocaleDateString('fr-FR')}
           </AppText>
           <AppText variant="title">{a.data.title}</AppText>

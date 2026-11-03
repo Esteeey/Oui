@@ -3,12 +3,13 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeInUp, Keyframe, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, Keyframe, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
 
 import { AppText, Avatar, Button } from '@/components/ui';
+import { VersusIntro } from '@/components/versus-intro';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
@@ -24,6 +25,8 @@ const D = {
   wrong: '#EF4444',
   gauge: '#22C55E',
   track: '#2A2A2E',
+  ring: '#251F44',
+  onButton: '#0E0B1A',
 };
 
 /**
@@ -104,7 +107,7 @@ function Waiting({ themeId }: { themeId: string }) {
       )}
       {game.lastError && <AppText color={D.wrong}>{game.lastError}</AppText>}
       <View style={{ gap: Spacing.sm, alignSelf: 'stretch', paddingHorizontal: Spacing.xl }}>
-        {game.status === 'offline' && <Button label="Réessayer" color="#FF6B35" onPress={game.retry} />}
+        {game.status === 'offline' && <Button label="Réessayer" color="#FF3B83" textColor={D.onButton} onPress={game.retry} />}
         <Button
           label="Annuler"
           variant="outline"
@@ -145,42 +148,35 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   const q = duel.question;
   const lastMine = reveal ? duel.me.answers[duel.index] : undefined;
 
+  // Confirmation d’abandon, aussi accessible depuis l’écran « VS ».
+  const quitDialog = confirmQuit && (
+    <View style={styles.overlay}>
+      <View style={styles.dialog}>
+        <AppText variant="heading" color={D.text}>
+          Abandonner le duel ?
+        </AppText>
+        <AppText color={D.muted}>
+          Ton adversaire gagne et tu ne reçois aucun XP. Une simple coupure de réseau, elle, n’est pas un abandon.
+        </AppText>
+        <Button
+          label="Abandonner"
+          color={D.wrong}
+          textColor={D.onButton}
+          onPress={() => {
+            setConfirmQuit(false);
+            game.forfeit();
+          }}
+        />
+        <Button label="Continuer à jouer" variant="outline" color={D.text} onPress={() => setConfirmQuit(false)} />
+      </View>
+    </View>
+  );
+
   if (duel.phase === 'intro') {
     return (
-      <SafeAreaView style={[styles.screen, styles.center]}>
-        <Animated.View entering={FadeInDown.springify()} style={styles.introPlayer}>
-          <Avatar name={duel.me.name} color={Colors.player} size={96} />
-          <AppText variant="heading" color={D.text}>
-            {duel.me.name}
-          </AppText>
-        </Animated.View>
-        <Animated.View entering={ZoomIn.delay(250).springify()}>
-          <AppText variant="display" color="#FF6B35" style={{ fontStyle: 'italic' }}>
-            VS
-          </AppText>
-        </Animated.View>
-        <Animated.View entering={FadeInUp.delay(120).springify()} style={styles.introPlayer}>
-          <Avatar name={duel.opponent.name} color={duel.opponent.color ?? Colors.opponent} size={96} />
-          <AppText variant="heading" color={D.text}>
-            {duel.opponent.name}
-          </AppText>
-          {duel.opponent.isBot && (
-            <AppText variant="caption" color={D.muted}>
-              Réponses simulées (bot)
-            </AppText>
-          )}
-        </Animated.View>
-        <Animated.View entering={FadeIn.delay(500)} style={{ alignItems: 'center', gap: 4 }}>
-          {category && (
-            <AppText variant="caption" color={category.color}>
-              {category.icon} {category.name.toUpperCase()}
-            </AppText>
-          )}
-          <AppText variant="title" color={D.text}>
-            {theme?.name}
-          </AppText>
-        </Animated.View>
-      </SafeAreaView>
+      <VersusIntro duel={duel} onBack={() => setConfirmQuit(true)}>
+        {quitDialog}
+      </VersusIntro>
     );
   }
 
@@ -277,33 +273,13 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
         </Pressable>
       </View>
 
-      {confirmQuit && (
-        <View style={styles.overlay}>
-          <View style={styles.dialog}>
-            <AppText variant="heading" color={D.text}>
-              Abandonner le duel ?
-            </AppText>
-            <AppText color={D.muted}>
-              Ton adversaire gagne et tu ne reçois aucun XP. Une simple coupure de réseau, elle, n’est pas un abandon.
-            </AppText>
-            <Button
-              label="Abandonner"
-              color={D.wrong}
-              onPress={() => {
-                setConfirmQuit(false);
-                game.forfeit();
-              }}
-            />
-            <Button label="Continuer à jouer" variant="outline" color={D.text} onPress={() => setConfirmQuit(false)} />
-          </View>
-        </View>
-      )}
+      {quitDialog}
     </SafeAreaView>
   );
 }
 
 function PlayerHead({ player, side }: { player: ParticipantView; side: 'left' | 'right' }) {
-  const avatar = <Avatar name={player.name} color={side === 'left' ? Colors.player : (player.color ?? Colors.opponent)} size={46} />;
+  const avatar = <Avatar name={player.name} color={side === 'left' ? Colors.player : (player.color ?? Colors.opponent)} size={46} borderColor={D.ring} />;
   const info = (
     <View style={{ alignItems: side === 'left' ? 'flex-start' : 'flex-end', flexShrink: 1 }}>
       <AppText variant="caption" color={D.muted} numberOfLines={1}>
@@ -371,7 +347,7 @@ function Choice({
   const fg = state === 'idle' ? D.buttonText : '#FFFFFF';
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.choiceRow}>
-      <View style={styles.markerSlot}>{selected && <Triangle direction="right" color="#FF6B35" label="Ta réponse" />}</View>
+      <View style={styles.markerSlot}>{selected && <Triangle direction="right" color="#FF3B83" label="Ta réponse" />}</View>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled, selected }}
@@ -418,7 +394,6 @@ function Triangle({ direction, color, label }: { direction: 'left' | 'right'; co
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: D.bg },
   center: { justifyContent: 'center', alignItems: 'center', gap: Spacing.lg, padding: Spacing.lg },
-  introPlayer: { alignItems: 'center', gap: Spacing.sm },
   content: { flex: 1, width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 20, paddingTop: Spacing.sm, gap: Spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   head: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
@@ -458,7 +433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 48,
   },
-  selected: { borderWidth: 3, borderColor: '#FF6B35' },
+  selected: { borderWidth: 3, borderColor: '#FF3B83' },
   choiceText: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
   choiceIcon: { position: 'absolute', right: 14 },
   footer: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },

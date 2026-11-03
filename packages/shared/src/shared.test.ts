@@ -6,7 +6,10 @@ import {
   THEMES,
   duelOutcome,
   duelXp,
+  formatSeconds,
   levelFromXp,
+  shareResultText,
+  speedSummary,
   prepareDuel,
   questionsOf,
   readingTimeMs,
@@ -51,6 +54,40 @@ describe('résultat du duel', () => {
     expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 0 }, { points: 100, correct: 6, totalResponseMs: 0 })).toBe('loss');
     expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 9_000 }, { points: 100, correct: 5, totalResponseMs: 10_000 })).toBe('win');
     expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 9_000 }, { points: 100, correct: 5, totalResponseMs: 9_000 })).toBe('draw');
+  });
+
+  it('rapidité : seules les bonnes réponses comptent', () => {
+    const answers = [
+      { choice: 1, responseMs: 2_000, correct: true, points: 18 },
+      { choice: 0, responseMs: 500, correct: false, points: 0 },
+      { choice: null, responseMs: 10_000, correct: false, points: 0 },
+      { choice: 2, responseMs: 4_500, correct: true, points: 12 },
+    ];
+    expect(speedSummary(answers)).toEqual({ correct: 2, total: 4, averageMs: 3_250, fastestMs: 2_000 });
+    expect(speedSummary([answers[1]])).toEqual({ correct: 0, total: 1, averageMs: null, fastestMs: null });
+    expect(formatSeconds(3_250)).toBe('3,3 s');
+  });
+
+  it('texte de partage : score, grille par question et temps moyen', () => {
+    const text = shareResultText({
+      outcome: 'win',
+      themeName: 'Capitales du monde',
+      myPoints: 98,
+      opponentPoints: 64,
+      opponentName: 'Lea',
+      answers: [
+        { choice: 1, responseMs: 2_000, correct: true, points: 18 },
+        { choice: 0, responseMs: 3_000, correct: false, points: 0 },
+        { choice: null, responseMs: 10_000, correct: false, points: 0 },
+      ],
+    });
+    expect(text.split('\n')).toEqual([
+      'Qu1z · Capitales du monde',
+      'Victoire 98 – 64 contre Lea',
+      '✅❌⏱️',
+      '1/3 bonnes réponses · 2,0 s en moyenne',
+      'Viens me défier !',
+    ]);
   });
 });
 

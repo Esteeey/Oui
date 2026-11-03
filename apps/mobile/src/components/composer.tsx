@@ -63,7 +63,7 @@ export function Composer({
   return (
     <View style={styles.box}>
       <View style={styles.row}>
-        <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.player} size={36} uri={profile?.avatar} />
+        <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} size={36} uri={profile?.avatar} />
         <TextInput
           value={text}
           onChangeText={setText}

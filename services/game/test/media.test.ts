@@ -167,6 +167,29 @@ describe('M5 : photo de profil', () => {
   });
 });
 
+describe('Photo de couverture', () => {
+  it('est recadrée en bandeau, visible sur le profil, et remplace l’ancienne', async () => {
+    await boot();
+    const a = await user('Ana');
+    const b = await user('Bob');
+    expect((await ok(call<PublicProfile>(b, 'GET', `/api/users/${a.id}`))).cover).toBeNull();
+
+    const first = await ok(upload<{ cover: string }>(a, '/api/me/cover', await photoWithExif(), 'image/jpeg'));
+    const meta = await sharp((await fetchMedia(first.cover)).data).metadata();
+    expect([meta.width, meta.height]).toEqual([1500, 500]);
+    expect((await ok(call<PublicProfile>(b, 'GET', `/api/users/${a.id}`))).cover).toBe(first.cover);
+
+    const second = await ok(upload<{ cover: string }>(a, '/api/me/cover', await smallPng()));
+    expect((await fetchMedia(first.cover)).status).toBe(404);
+    expect(store.files.size).toBe(1);
+    expect((await ok(call<PublicProfile>(b, 'GET', `/api/users/${a.id}`))).cover).toBe(second.cover);
+
+    await ok(call(a, 'DELETE', '/api/me/cover'));
+    expect((await ok(call<PublicProfile>(b, 'GET', `/api/users/${a.id}`))).cover).toBeNull();
+    expect(store.files.size).toBe(0);
+  });
+});
+
 describe('M5 : médias dans la messagerie', () => {
   it('photo avec légende, rattachée une seule fois, par son propriétaire seulement', async () => {
     await boot();

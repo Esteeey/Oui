@@ -1,11 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentProps, ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { divisionFor } from '@qu1z/shared';
 
 import { AppText } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -30,23 +31,30 @@ export function DivisionBadge({ rating, compact }: { rating: number; compact?: b
   );
 }
 
+/** Pastille de filtre : grise au repos, rose (ou de la couleur donnée) quand elle est choisie. */
 export function Chip({
   label,
   active,
-  color = Colors.player,
+  color,
   onPress,
+  style,
 }: {
   label: string;
   active?: boolean;
   color?: string;
   onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ selected: !!active }}
       onPress={onPress}
-      style={[styles.chip, active ? { backgroundColor: color, borderColor: color } : null]}>
-      <AppText variant="caption" color={active ? Colors.background : Colors.text}>
+      style={[styles.chip, active && color ? { backgroundColor: color } : null, style]}>
+      {active && !color && (
+        <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      )}
+      <AppText variant="label" color={active ? Colors.onAccent : Colors.text} style={{ fontSize: 14 }} numberOfLines={1}>
         {label}
       </AppText>
     </Pressable>
@@ -69,8 +77,8 @@ export function Segmented<T extends string>({
           key={o.value}
           accessibilityRole="button"
           onPress={() => onChange(o.value)}
-          style={[styles.segment, o.value === value && { backgroundColor: Colors.surfaceRaised }]}>
-          <AppText variant="label" color={o.value === value ? Colors.text : Colors.textMuted}>
+          style={[styles.segment, o.value === value && { backgroundColor: Colors.accent }]}>
+          <AppText variant="label" color={o.value === value ? Colors.onAccent : Colors.textMuted}>
             {o.label}
           </AppText>
         </Pressable>
@@ -84,18 +92,20 @@ export function IconButton({
   onPress,
   badge,
   label,
+  color = Colors.text,
 }: {
   icon: IconName;
   onPress: () => void;
   badge?: number;
   label: string;
+  color?: string;
 }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={10} onPress={onPress} style={styles.iconButton}>
-      <Ionicons name={icon} size={24} color={Colors.text} />
+      <Ionicons name={icon} size={24} color={color} />
       {!!badge && (
         <View style={styles.badge}>
-          <AppText variant="caption" color={Colors.background} style={{ fontSize: 11 }}>
+          <AppText variant="caption" color={Colors.onAccent} style={{ fontSize: 11 }}>
             {badge}
           </AppText>
         </View>
@@ -134,18 +144,17 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderRadius: Radius.pill,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: Colors.surfaceRaised,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   segmented: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.pill,
     padding: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   segment: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: Radius.pill },
   iconButton: { padding: 4 },
@@ -156,7 +165,7 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.player,
+    backgroundColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
@@ -165,7 +174,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceRaised,
     borderRadius: Radius.sm,
     padding: Spacing.sm,
   },

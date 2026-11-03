@@ -3,16 +3,16 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-import { getTheme, type PostView, type PublicProfile } from '@qu1z/shared';
+import { getTheme, type EarnedMedal, type PostView, type PublicProfile } from '@qu1z/shared';
 
 import { Composer } from '@/components/composer';
-import { SearchButton } from '@/components/search-button';
+import { HeaderButton } from '@/components/header';
 import { PostCard } from '@/components/post-card';
 import { BadgesGrid, FollowCounts, OutcomeBar, ProfileHeader, Showcase, StatsCard } from '@/components/profile-view';
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
-import { computeBadges } from '@/game/badges';
+import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
+import { computeBadges, medalBadges } from '@/game/badges';
 import { bestWinStreak, totalXp, useProgress } from '@/state/progress';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
@@ -30,6 +30,7 @@ export default function ProfileScreen() {
   const me = useApi<PublicProfile>(playerId ? `/api/users/${playerId}` : null);
   const wallData = useApi<{ posts: PostView[] }>(playerId ? `/api/users/${playerId}/posts` : null);
   const wall = wallData.data?.posts ?? [];
+  const medals = useApi<{ medals: EarnedMedal[] }>(playerId ? `/api/users/${playerId}/medals` : null);
   const all = Object.values(stats);
   const duels = all.reduce((t, s) => t + s.duels, 0);
   const wins = all.reduce((t, s) => t + s.wins, 0);
@@ -41,21 +42,21 @@ export default function ProfileScreen() {
     .sort((a, b) => b.xp - a.xp);
 
   return (
-    <Screen inTabs>
-      <View style={styles.topRow}>
-        <SearchButton />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Réglages du profil"
-          onPress={() => router.push('/settings/profile')}
-          style={styles.settings}>
-          <Ionicons name="settings-outline" size={22} color={Colors.text} />
-        </Pressable>
-      </View>
+    <Screen
+      inTabs
+      back
+      title="Profil"
+      headerRight={
+        <>
+          <HeaderButton icon="search" label="Rechercher" onPress={() => router.push('/search')} />
+          <HeaderButton icon="settings-outline" label="Réglages" onPress={() => router.push('/settings')} />
+        </>
+      }>
       <ProfileHeader
         name={me.data?.pseudo ?? playerName}
-        color={playerId ? avatarColor(playerId) : Colors.player}
+        color={playerId ? avatarColor(playerId) : Colors.accent}
         avatar={me.data?.avatar}
+        cover={me.data?.cover}
         title={me.data?.title}
         bio={me.data?.bio}
         xp={me.data?.xp ?? totalXp(stats)}
@@ -68,7 +69,7 @@ export default function ProfileScreen() {
                   Profil privé
                 </AppText>
               )}
-              <Button label="Modifier le profil" variant="outline" color={Colors.text} onPress={() => router.push('/settings/profile')} />
+              <Button label="Modifier le profil" variant="outline" onPress={() => router.push('/settings/profile')} />
             </View>
           ) : undefined
         }
@@ -102,7 +103,7 @@ export default function ProfileScreen() {
         </>
       )}
 
-      <BadgesGrid badges={computeBadges(history, stats)} />
+      <BadgesGrid badges={medals.data ? medalBadges(medals.data.medals) : computeBadges(history, stats)} />
 
       {history.length > 0 && (
         <>
@@ -142,8 +143,6 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  topRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: Spacing.sm },
-  settings: { padding: Spacing.sm },
   duel: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -151,6 +150,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
     padding: Spacing.sm + 4,
+    ...Shadow,
   },
   outcome: { width: 6, alignSelf: 'stretch', borderRadius: 3 },
 });

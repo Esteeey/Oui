@@ -1,4 +1,4 @@
-import { CATEGORIES, THEMES, levelFromXp, type UserSummary } from '@qu1z/shared';
+import { CATEGORIES, THEMES, levelFromXp, type PeopleEntry, type PeopleSections, type UserSummary } from '@qu1z/shared';
 
 import type { Database, Queryable } from './db/database';
 import { mediaUrl } from './media';
@@ -15,6 +15,9 @@ export const DISCOVER = {
   /** Un profil déjà proposé n'est pas reproposé avant ce délai (sauf s'il n'y a pas assez de joueurs). */
   cooldownDays: 7,
 };
+
+/** Page Personnes : joueurs par section, et fenêtre des « joueurs actifs ». */
+export const PEOPLE = { perSection: 6, activeDays: 7 };
 
 const MAX_QUERY = 30;
 
@@ -153,6 +156,56 @@ export class Discovery {
       }
       return mixed.map(toSummary);
     });
+  }
+
+  /**
+   * Page Personnes : un aperçu des suggestions de Découvrir, puis les joueurs avec le plus de thèmes en commun,
+   * les plus actifs de la semaine et les plus suivis. Pas d'âge, de sexe ni de position : rien de tout ça n'est collecté.
+   * La présence en ligne n'est jamais révélée (réservée aux abonnements mutuels, dans la messagerie).
+   */
+  async people(viewer: string): Promise<PeopleSections> {
+    const suggestions = (await this.discover(viewer)).slice(0, PEOPLE.perSection);
+    const shown = suggestions.map((u) => u.id);
+    // Mêmes exclusions que Découvrir, plus les joueurs déjà affichés dans une section précédente.
+    const eligible = `u.id <> $1 AND u.status <> 'banned' AND ${notBlocked('u.id')}
+      AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = $1 AND f.followee_id = u.id)
+      AND NOT EXISTS (SELECT 1 FROM follow_requests r WHERE r.requester_id = $1 AND r.target_id = u.id)
+      AND NOT (u.id = ANY($2::uuid[]))`;
+    const columns = `u.id, p.pseudo, p.equipped_title, u.xp,
+      (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key`;
+    const section = async (sql: string, toEntry: (r: Row & { n: number; show_followers: boolean }) => PeopleEntry) => {
+      const rows = await this.db.query<Row & { n: number; show_followers: boolean }>(sql, [viewer, shown, PEOPLE.perSection]);
+      shown.push(...rows.map((r) => r.id));
+      return rows.map(toEntry);
+    };
+
+    const commonThemes = await section(
+      `WITH mine AS (SELECT theme_id FROM theme_subscriptions WHERE user_id = $1 UNION SELECT theme_id FROM theme_stats WHERE user_id = $1),
+            theirs AS (SELECT user_id, theme_id FROM theme_subscriptions UNION SELECT user_id, theme_id FROM theme_stats)
+       SELECT ${columns}, count(*)::int AS n FROM theirs t JOIN mine m ON m.theme_id = t.theme_id
+         JOIN users u ON u.id = t.user_id JOIN profiles p ON p.user_id = u.id
+       WHERE ${eligible}
+       GROUP BY u.id, p.user_id
+       ORDER BY n DESC, u.last_seen_at DESC NULLS LAST, u.id LIMIT $3`,
+      (r) => ({ user: toSummary(r), commonThemes: r.n }),
+    );
+    // Activité publique : duels terminés, et seulement pour les comptes publics.
+    const active = await section(
+      `SELECT ${columns}, count(*)::int AS n FROM duel_results d
+         JOIN users u ON u.id = d.user_id JOIN profiles p ON p.user_id = u.id
+       WHERE d.created_at > now() - make_interval(days => ${PEOPLE.activeDays}) AND NOT p.is_private AND ${eligible}
+       GROUP BY u.id, p.user_id
+       ORDER BY n DESC, u.id LIMIT $3`,
+      (r) => ({ user: toSummary(r), duelsThisWeek: r.n }),
+    );
+    const popular = await section(
+      `SELECT * FROM (
+         SELECT ${columns}, p.show_followers, (SELECT count(*)::int FROM follows f WHERE f.followee_id = u.id) AS n
+         FROM users u JOIN profiles p ON p.user_id = u.id WHERE ${eligible}) x
+       WHERE n > 0 ORDER BY n DESC, xp DESC, id LIMIT $3`,
+      (r) => ({ user: toSummary(r), followers: r.show_followers ? r.n : null }),
+    );
+    return { suggestions, commonThemes, active, popular };
   }
 
   private async fill(tx: Queryable, viewer: string, kind: 'personalized' | 'random', count: number): Promise<void> {

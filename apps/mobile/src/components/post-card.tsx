@@ -9,7 +9,7 @@ import { Photo } from '@/components/attachments';
 import { ReportSheet } from '@/components/report-sheet';
 import { RichText } from '@/components/rich-text';
 import { AppText, Avatar } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { api } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
@@ -46,10 +46,10 @@ export function PostCard({
     <View style={styles.card}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${post.author.pseudo}`} onPress={openAuthor}>
-          <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} uri={post.author.avatar} size={42} />
+          <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} uri={post.author.avatar} size={52} borderColor={Colors.accent} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
-          <AppText variant="label" onPress={openAuthor}>
+          <AppText variant="heading" onPress={openAuthor}>
             {post.author.pseudo}
             {post.author.title ? (
               <AppText variant="caption" color={Colors.gold}>
@@ -81,11 +81,9 @@ export function PostCard({
       {post.media && <Photo media={post.media} maxWidth={560} maxHeight={420} />}
 
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>
-          <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={20} color={isLiked ? Colors.player : Colors.textMuted} />
-          <AppText variant="caption" muted>
-            Bravo · {likes}
-          </AppText>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Bravo, ${likes}`} accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>
+          <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={26} color={isLiked ? Colors.accent : Colors.text} />
+          <AppText variant="label">{likes}</AppText>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -93,14 +91,12 @@ export function PostCard({
           disabled={!linkToDetail}
           onPress={() => router.push({ pathname: '/post/[id]', params: { id: post.id } })}
           style={styles.action}>
-          <Ionicons name="chatbubble-outline" size={19} color={Colors.textMuted} />
-          <AppText variant="caption" muted>
-            {post.comments === 0 ? 'Commenter' : `${post.comments} commentaire${post.comments > 1 ? 's' : ''}`}
-          </AppText>
+          <Ionicons name="chatbubble-outline" size={24} color={Colors.text} />
+          <AppText variant="label">{post.comments}</AppText>
         </Pressable>
         {post.author.id !== playerId && (
           <Pressable accessibilityRole="button" accessibilityLabel="Signaler la publication" onPress={() => setReporting(true)} style={[styles.action, { marginLeft: 'auto' }]}>
-            <Ionicons name="flag-outline" size={17} color={Colors.textMuted} />
+            <Ionicons name="flag-outline" size={22} color={Colors.text} />
           </Pressable>
         )}
       </View>
@@ -115,12 +111,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.md,
     gap: Spacing.sm + 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    ...Shadow,
   },
   header: { flexDirection: 'row', gap: Spacing.sm + 4, alignItems: 'center' },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   themeChip: { borderWidth: 1, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 1 },
-  actions: { flexDirection: 'row', gap: Spacing.lg },
+  actions: { flexDirection: 'row', gap: Spacing.xl, paddingTop: Spacing.xs },
   action: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
 });

@@ -3,7 +3,6 @@ import { View } from 'react-native';
 
 import type { UserSummary } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { UserRow } from '@/components/player-row';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
@@ -16,9 +15,7 @@ export default function BlockedScreen() {
   const blocked = list.data?.blocked ?? [];
 
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Joueurs bloqués</AppText>
+    <Screen title="Joueurs bloqués" back>
       {list.data && blocked.length === 0 && <AppText muted>Tu n’as bloqué personne.</AppText>}
       {blocked.map((b) => {
         const user: UserSummary = { id: b.id, pseudo: b.pseudo, title: null, level: 1, avatar: null };

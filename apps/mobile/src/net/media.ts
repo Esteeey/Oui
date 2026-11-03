@@ -22,15 +22,19 @@ export interface PickedImage {
  * Choisit une photo dans la galerie ou en prend une avec l'appareil photo.
  * Renvoie `null` si le joueur annule ; lève une erreur `permission` si l'accès est refusé.
  */
-export async function pickImage(source: 'library' | 'camera', options: { square?: boolean } = {}): Promise<PickedImage | null> {
+export async function pickImage(
+  source: 'library' | 'camera',
+  options: { square?: boolean; aspect?: [number, number] } = {},
+): Promise<PickedImage | null> {
+  const aspect = options.aspect ?? (options.square ? ([1, 1] as [number, number]) : undefined);
   const permission =
     source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) throw new ApiError(0, 'permission');
   const pickerOptions: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
     quality: 0.85,
-    allowsEditing: !!options.square,
-    aspect: options.square ? [1, 1] : undefined,
+    allowsEditing: !!aspect,
+    aspect,
     exif: false,
   };
   const result =

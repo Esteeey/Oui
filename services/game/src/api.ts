@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { MEDIA_MAX_BYTES, THEMES, type Restriction } from '@qu1z/shared';
+import { MEDIA_MAX_BYTES, THEMES, seasonOf, type Restriction } from '@qu1z/shared';
 
 import { randomUUID } from 'node:crypto';
 
@@ -10,10 +10,12 @@ import type { GifProvider } from './gifs';
 import type { Groups } from './groups';
 import type { Media } from './media';
 import type { Moderation } from './moderation';
+import type { AccountDeletion } from './account-deletion';
 import type { Accounts } from './accounts';
 import type { Push } from './push';
 import type { Messaging } from './messaging';
 import type { Game } from './game';
+import { Medals } from './medals';
 import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
 
@@ -57,6 +59,8 @@ const BANNED_ALLOWED: [string, RegExp][] = [
   ['GET', /^\/api\/me$/],
   ['GET', /^\/api\/me\/sanctions$/],
   ['POST', /^\/api\/me\/sanctions\/[^/]+\/appeal$/],
+  // Le droit à l'effacement vaut aussi pour un compte banni (les preuves de modération restent conservées).
+  ['POST', /^\/api\/me\/delete$/],
 ];
 
 /** Actions refusées pendant une suspension, selon les restrictions choisies par la modération. */
@@ -75,6 +79,7 @@ const RESTRICTED: [string, RegExp, Restriction][] = [
   ['POST', /^\/api\/challenges$/, 'interactions'],
   ['PATCH', /^\/api\/me\/profile$/, 'interactions'],
   ['POST', /^\/api\/me\/avatar$/, 'interactions'],
+  ['POST', /^\/api\/me\/cover$/, 'interactions'],
 ];
 
 function uuid(value: unknown): string {
@@ -108,7 +113,9 @@ export function createApi(
   moderation: Moderation,
   accounts: Accounts,
   push: Push,
+  deletion: AccountDeletion,
 ) {
+  const medals = new Medals(game.repo.db);
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
@@ -117,6 +124,13 @@ export function createApi(
 
     // Profils
     ['GET', /^\/api\/users\/([^/]+)$/, async ({ userId, params }) => social.profile(userId, uuid(params[0]))],
+    // Médailles : mêmes règles que le reste du contenu du profil (blocage : introuvable ; profil privé : abonnés seulement).
+    ['GET', /^\/api\/users\/([^/]+)\/medals$/, async ({ userId, params }) => {
+      const target = uuid(params[0]);
+      const profile = await social.profile(userId, target);
+      if (!profile.canSeeContent) throw new SocialError(403, 'private');
+      return { medals: await medals.of(target) };
+    }],
     ['PATCH', /^\/api\/me\/profile$/, async ({ userId, body }) => {
       const result = await social.updateProfile(userId, await body());
       await game.pushProfile(userId);
@@ -132,6 +146,7 @@ export function createApi(
 
     // Compte e-mail (connexion sans mot de passe) et appareils
     ['GET', /^\/api\/me\/account$/, async ({ userId }) => accounts.account(userId)],
+    ['POST', /^\/api\/me\/delete$/, async ({ userId, body }) => deletion.delete(userId, (await body()).confirm)],
     ['POST', /^\/api\/auth\/email\/start$/, async ({ userId, body }) => accounts.start(userId, (await body()).email)],
     ['POST', /^\/api\/auth\/email\/verify$/, async ({ userId, body }) => {
       const b = await body();
@@ -224,6 +239,11 @@ export function createApi(
       await game.pushProfile(userId);
       return result;
     }],
+    ['POST', /^\/api\/me\/cover$/, async ({ userId, raw }) => {
+      const uploaded = await media.upload(userId, 'cover', await raw());
+      return media.setCover(userId, uploaded.id);
+    }],
+    ['DELETE', /^\/api\/me\/cover$/, async ({ userId }) => media.setCover(userId, null)],
     ['GET', /^\/api\/gifs$/, async ({ userId, query }) => {
       if (!gifs) return { available: false, gifs: [] };
       if (!game.limiter.allow('gifSearch', userId)) throw new SocialError(429, 'rate_limited');
@@ -297,6 +317,7 @@ export function createApi(
       users: await discovery.mentionSuggestions(userId, query.get('q') ?? ''),
     })],
     ['GET', /^\/api\/discover$/, async ({ userId }) => ({ users: await discovery.discover(userId) })],
+    ['GET', /^\/api\/people$/, async ({ userId }) => discovery.people(userId)],
 
     // Messagerie privée (séparée du centre de notifications)
     ['GET', /^\/api\/messages$/, async ({ userId }) => ({ conversations: await messaging.inbox(userId) })],
@@ -422,9 +443,20 @@ export function createApi(
     }],
 
     // Classements
-    ['GET', /^\/api\/leaderboard$/, async ({ userId, query }) => ({
-      rows: await social.leaderboard(userId, query.get('theme') || null, query.get('scope') === 'following' ? 'following' : 'world'),
-    })],
+    ['GET', /^\/api\/leaderboard$/, async ({ userId, query }) => {
+      const period = query.get('period') === 'season' ? 'season' : 'rating';
+      if (period === 'season') await medals.closeFinishedSeasons();
+      return {
+        rows: await social.leaderboard(
+          userId,
+          query.get('theme') || null,
+          query.get('scope') === 'following' || query.get('scope') === 'country' ? (query.get('scope') as 'following' | 'country') : 'world',
+          Number(query.get('limit')) || 100,
+          period,
+        ),
+        ...(period === 'season' ? { season: seasonOf(Date.now()) } : {}),
+      };
+    }],
   ];
 
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {

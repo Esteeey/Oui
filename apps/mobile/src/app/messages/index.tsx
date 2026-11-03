@@ -5,9 +5,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { attachmentLabel, type ConversationSummary, type GroupInvitationView, type MessageRequestView } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { SectionHeader } from '@/components/social';
 import { GroupAvatar } from '@/components/group';
+import { HeaderButton } from '@/components/header';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -36,19 +36,15 @@ export default function InboxScreen() {
   };
 
   return (
-    <Screen>
-      <BackButton />
-      <View style={styles.header}>
-        <AppText variant="title" style={{ flex: 1 }}>
-          Messages
-        </AppText>
-        <Pressable accessibilityRole="button" accessibilityLabel="Nouveau groupe" onPress={() => router.push('/messages/new-group')} style={{ padding: Spacing.sm }}>
-          <Ionicons name="people-outline" size={24} color={Colors.player} />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Nouveau message" onPress={() => router.push('/messages/new')} style={{ padding: Spacing.sm }}>
-          <Ionicons name="create-outline" size={24} color={Colors.player} />
-        </Pressable>
-      </View>
+    <Screen
+      back
+      title="Messages"
+      headerRight={
+        <>
+          <HeaderButton icon="people-outline" label="Nouveau groupe" onPress={() => router.push('/messages/new-group')} />
+          <HeaderButton icon="create-outline" label="Nouveau message" onPress={() => router.push('/messages/new')} />
+        </>
+      }>
       {error && <AppText color={Colors.wrong}>{error}</AppText>}
 
       {incoming.length > 0 && (
@@ -162,7 +158,7 @@ export default function InboxScreen() {
                     </AppText>
                     {c.unread > 0 && (
                       <View accessibilityLabel={`${c.unread} non lus`} style={styles.badge}>
-                        <AppText variant="caption" color={Colors.background}>
+                        <AppText variant="caption" color={Colors.onAccent}>
                           {c.unread}
                         </AppText>
                       </View>
@@ -241,6 +237,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm + 4, padding: Spacing.sm + 4, borderBottomWidth: 1, borderBottomColor: Colors.border },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   online: { position: 'absolute', right: 0, bottom: 0, width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.correct, borderWidth: 2, borderColor: Colors.surface },
-  badge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: Colors.player, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  badge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   menu: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, backgroundColor: Colors.surfaceRaised },
 });

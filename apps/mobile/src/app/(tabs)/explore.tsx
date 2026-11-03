@@ -7,9 +7,9 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { CATEGORIES, THEMES, getCategory, levelFromXp, themesOf } from '@qu1z/shared';
 
 import { SectionHeader } from '@/components/social';
-import { SearchButton } from '@/components/search-button';
+import { HeaderButton } from '@/components/header';
 import { AppText, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
 import { subscribersLabel, useThemeInfos } from '@/state/themes';
 
@@ -27,11 +27,7 @@ export default function ExploreScreen() {
   const played = THEMES.filter((t) => stats[t.id]).sort((a, b) => stats[b.id].xp - stats[a.id].xp);
 
   return (
-    <Screen inTabs>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing.sm }}>
-        <AppText variant="title">Explorer</AppText>
-        <SearchButton />
-      </View>
+    <Screen inTabs title="Thèmes" headerRight={<HeaderButton icon="search" label="Rechercher" onPress={() => router.push('/search')} />}>
 
       <View style={styles.search}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />
@@ -125,9 +121,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
+    ...Shadow,
   },
   input: { flex: 1, color: Colors.text, fontSize: 16, paddingVertical: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -Spacing.xs },
@@ -135,10 +130,11 @@ const styles = StyleSheet.create({
   tile: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
-    borderWidth: 2,
+    borderTopWidth: 5,
     padding: Spacing.md,
     gap: 6,
     minHeight: 128,
+    ...Shadow,
   },
   icon: { fontSize: 30 },
   row: {
@@ -149,5 +145,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     borderLeftWidth: 6,
     padding: Spacing.md,
+    ...Shadow,
   },
 });

@@ -3,7 +3,6 @@ import { useState } from 'react';
 
 import type { GroupDetail, UserSummary } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { PlayerPicker } from '@/components/group';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors } from '@/constants/theme';
@@ -41,9 +40,8 @@ export default function InviteScreen() {
   };
 
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Inviter dans « {group.data?.name ?? '…'} »</AppText>
+    <Screen back title="Inviter">
+      <AppText variant="heading">Inviter dans « {group.data?.name ?? '…'} »</AppText>
       <PlayerPicker selected={selected} onChange={setSelected} exclude={exclude} />
       {message && <AppText color={message.ok ? Colors.correct : Colors.wrong}>{message.text}</AppText>}
       <Button

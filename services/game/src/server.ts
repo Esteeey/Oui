@@ -11,6 +11,7 @@ import { Discovery } from './discovery';
 import { Messaging } from './messaging';
 import { Groups } from './groups';
 import { Moderation, networkHash } from './moderation';
+import { AccountDeletion } from './account-deletion';
 import { Accounts, emailSenderFromEnv, type EmailSender } from './accounts';
 import { Push, type PushSender } from './push';
 import { gifProviderFromEnv, type GifProvider } from './gifs';
@@ -93,9 +94,16 @@ export async function startServer(port: number, options: ServerOptions): Promise
     void push.removeAll(userId);
     void game.repo.db.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
   });
+  // Suppression de compte : connexions fermées, preuves de modération purgées au bout de 6 mois.
+  const deletion = new AccountDeletion(game.repo.db, media.store, (userId) => {
+    for (const ws of sockets.get(userId) ?? []) ws.close();
+  });
   const accounts = new Accounts(game.repo.db, game.limiter, options.email ?? emailSenderFromEnv(), options.requireVerifiedEmail ?? false);
-  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation, accounts, push);
-  const sweep = setInterval(() => void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err)), ORPHAN_SWEEP_MS);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation, accounts, push, deletion);
+  const sweep = setInterval(() => {
+    void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err));
+    void deletion.purgeExpired().catch((err) => console.error('Purge des comptes supprimés', err));
+  }, ORPHAN_SWEEP_MS);
   sweep.unref();
   const http = createServer((req, res) => void api(req, res));
   const wss = new WebSocketServer({ server: http, maxPayload: 8 * 1024 });

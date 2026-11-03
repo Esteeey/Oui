@@ -4,7 +4,6 @@ import { StyleSheet, TextInput, View } from 'react-native';
 
 import { reasonLabel, RESTRICTIONS, SANCTION_LABEL, type ReportDetail, type Restriction, type SanctionLevel } from '@qu1z/shared';
 
-import { BackButton } from '@/components/back-button';
 import { Chip, SectionHeader } from '@/components/social';
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
@@ -48,8 +47,7 @@ export default function ReportScreen() {
 
   if (!r) {
     return (
-      <Screen>
-        <BackButton />
+      <Screen back title="Signalement">
         <AppText muted>{report.error ? errorMessage(report.error) : 'Chargement…'}</AppText>
       </Screen>
     );
@@ -70,9 +68,7 @@ export default function ReportScreen() {
   const removable = r.targetType === 'message' || r.targetType === 'media' ? 'message' : r.targetType === 'post' || r.targetType === 'comment' ? r.targetType : null;
 
   return (
-    <Screen>
-      <BackButton />
-      <AppText variant="title">Signalement</AppText>
+    <Screen title="Signalement" back>
       <AppText variant="label">
         {reasonLabel(r.reason)} · {STATUS_LABEL[r.status]}
         {r.priority ? ' · prioritaire' : ''}
