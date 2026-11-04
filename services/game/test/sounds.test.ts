@@ -85,6 +85,18 @@ describe('Sons du jeu modifiables par l’administration', () => {
     expect((await fetch(base() + '/sounds/../../etc/passwd')).status).toBe(404);
   });
 
+  it('accepte un son jusqu’à 10 Mo (au-delà du plafond des images) et refuse au-delà', async () => {
+    const admin = await user('admin');
+    const padded = (bytes: number) => Buffer.concat([wav(), Buffer.alloc(bytes - wav().length)]);
+    const big = await call(admin, 'PUT', '/api/admin/sounds/musicWin', padded(9.5 * 1024 * 1024));
+    expect(big.status).toBe(200);
+    expect(big.body).toMatchObject({ id: 'musicWin', bytes: 9.5 * 1024 * 1024 });
+    expect(await call(admin, 'PUT', '/api/admin/sounds/musicWin', padded(10 * 1024 * 1024 + 1))).toMatchObject({
+      status: 413,
+      body: { error: 'too_large' },
+    });
+  });
+
   it('rétablir remet le son d’origine et l’action est inscrite au journal', async () => {
     const admin = await user('admin');
     await call(admin, 'PUT', '/api/admin/sounds/musicDuel', wav());

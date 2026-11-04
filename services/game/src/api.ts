@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { MEDIA_MAX_BYTES, THEMES, seasonOf, type Restriction } from '@qu1z/shared';
+import { MEDIA_MAX_BYTES, SOUND_MAX_BYTES, THEMES, seasonOf, type Restriction } from '@qu1z/shared';
 
 import { randomUUID } from 'node:crypto';
 
@@ -42,15 +42,15 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   return parsed;
 }
 
-/** Corps binaire (envoi d'image). La taille est vérifiée pendant la lecture, sans tout charger d'abord. */
-async function readRaw(req: IncomingMessage): Promise<Buffer> {
+/** Corps binaire (image, son). La taille est vérifiée pendant la lecture, sans tout charger d'abord. */
+async function readRaw(req: IncomingMessage, maxBytes = MEDIA_MAX_BYTES): Promise<Buffer> {
   const declared = Number(req.headers['content-length']);
-  if (declared > MEDIA_MAX_BYTES) throw new SocialError(413, 'too_large');
+  if (declared > maxBytes) throw new SocialError(413, 'too_large');
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MEDIA_MAX_BYTES) throw new SocialError(413, 'too_large');
+    if (size > maxBytes) throw new SocialError(413, 'too_large');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -93,7 +93,8 @@ type Handler = (ctx: {
   params: string[];
   query: URLSearchParams;
   body: () => Promise<Record<string, unknown>>;
-  raw: () => Promise<Buffer>;
+  /** Corps binaire ; `maxBytes` : plafond (par défaut celui des images). */
+  raw: (maxBytes?: number) => Promise<Buffer>;
   token: string;
 }) => Promise<unknown>;
 
@@ -419,7 +420,7 @@ export function createApi(
     ['GET', /^\/api\/sounds$/, async () => ({ sounds: await sounds.overrides() })],
     ['GET', /^\/api\/admin\/sounds$/, async ({ userId }) => ({ sounds: await sounds.list(userId) })],
     ['PUT', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params, query, raw }) =>
-      sounds.set(userId, params[0], await raw(), query.get('name'))],
+      sounds.set(userId, params[0], await raw(SOUND_MAX_BYTES), query.get('name'))],
     ['DELETE', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params }) => sounds.reset(userId, params[0])],
 
     // Annonces officielles : publiées uniquement par un administrateur.
@@ -552,7 +553,7 @@ export function createApi(
           params: match.slice(1).map(decodeURIComponent),
           query: url.searchParams,
           body: () => readBody(req),
-          raw: () => readRaw(req),
+          raw: (maxBytes) => readRaw(req, maxBytes),
           token,
         });
         return json(res, 200, result ?? { ok: true });

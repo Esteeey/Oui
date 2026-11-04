@@ -31,7 +31,7 @@ export type GameSoundId = (typeof GAME_SOUNDS)[number]['id'];
 export const isGameSoundId = (id: unknown): id is GameSoundId => GAME_SOUNDS.some((s) => s.id === id);
 
 /** Taille maximale d'un son envoyé (une musique MP3 de quelques minutes). */
-export const SOUND_MAX_BYTES = 5 * 1024 * 1024;
+export const SOUND_MAX_BYTES = 10 * 1024 * 1024;
 
 /** Formats lus partout (iPhone, Android, navigateur). */
 export const SOUND_FORMATS_LABEL = 'WAV, MP3 ou M4A';
