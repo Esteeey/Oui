@@ -12,8 +12,10 @@ export const RULES = {
   imageReadingBonusMs: 1_000,
   /** Affichage de la bonne réponse et du choix de l'adversaire. */
   revealMs: 2_000,
-  /** Répit au noir entre deux questions, ajouté à la fin de la révélation. */
-  transitionMs: 1_000,
+  /** Fondu au noir à la fin de la révélation, avant la question suivante. */
+  transitionMs: 400,
+  /** Écran « Manche N » (catégorie, numéro de manche) au début de chaque question, avant l'énoncé. */
+  roundCardMs: 2_800,
   /** Présentation des deux joueurs avant la première question. */
   introMs: 3_500,
 

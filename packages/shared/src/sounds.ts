@@ -4,6 +4,7 @@
  */
 export const GAME_SOUNDS = [
   { id: 'launch', kind: 'effect', label: 'Lancement', when: 'Quand on lance une partie' },
+  { id: 'pinPop', kind: 'effect', label: 'Pop d’épingle', when: 'Chaque épingle sur la carte de recherche' },
   { id: 'versus', kind: 'effect', label: 'Entrée VS', when: 'Choc des deux moitiés de l’intro' },
   { id: 'question', kind: 'effect', label: 'Nouvelle question', when: 'À chaque question' },
   { id: 'bonusRound', kind: 'effect', label: 'Manche bonus', when: 'Dernière question, points ×2' },
@@ -20,6 +21,7 @@ export const GAME_SOUNDS = [
   { id: 'xp', kind: 'effect', label: 'XP qui monte', when: 'Écran de fin, si on gagne de l’XP' },
   { id: 'xpEnd', kind: 'effect', label: 'Fin de la montée d’XP', when: 'Juste après l’XP' },
   { id: 'levelUp', kind: 'effect', label: 'Passage de niveau', when: 'Si le niveau augmente' },
+  { id: 'musicSearch', kind: 'music', label: 'Musique de recherche', when: 'En boucle pendant la recherche d’adversaire' },
   { id: 'musicDuel', kind: 'music', label: 'Musique de duel', when: 'En boucle pendant toute la partie' },
   { id: 'musicWin', kind: 'music', label: 'Musique de victoire', when: 'Écran de fin' },
   { id: 'musicLoss', kind: 'music', label: 'Musique de défaite', when: 'Écran de fin' },

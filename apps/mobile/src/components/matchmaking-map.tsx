@@ -19,6 +19,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import type { ParticipantView } from '@qu1z/shared';
 
+import { playSound } from '@/audio/sounds';
 import { Avatar } from '@/components/ui';
 import { WORLD_DOTS } from '@/components/world-dots';
 
@@ -131,6 +132,15 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
     }, 190);
     return () => clearInterval(id);
   }, [found, size.h, half, still, camU]);
+
+  // Un « pop » à chaque épingle qui apparaît.
+  const popped = useRef(-1);
+  useEffect(() => {
+    const last = pins[pins.length - 1]?.key;
+    if (last === undefined || last === popped.current) return;
+    popped.current = last;
+    playSound('pinPop');
+  }, [pins]);
 
   // Adversaire trouvé : il prend la place du joueur visible le plus central, la carte s'approche de lui.
   useEffect(() => {
