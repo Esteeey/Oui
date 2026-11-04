@@ -37,7 +37,10 @@ export default function TabsLayout() {
           borderTopWidth: 0,
           borderTopLeftRadius: Radius.lg,
           borderTopRightRadius: Radius.lg,
-          boxShadow: '0 -4px 18px rgba(18, 26, 51, 0.08)',
+          // Design plat : ni ombre ni contour.
+          elevation: 0,
+          shadowOpacity: 0,
+          // Le rond VS dépasse au-dessus de la barre.
           overflow: 'visible',
           // Sur le Web, pas de zone de sécurité en bas : on donne une hauteur fixe à la barre.
           ...(Platform.OS === 'web' ? { height: 72, paddingTop: 10, paddingBottom: 10 } : { paddingTop: 8 }),
@@ -70,18 +73,19 @@ export default function TabsLayout() {
   );
 }
 
-/** Le même « VS » peint au pinceau que l'écran d'avant-duel : l'identité visuelle de Qu1z. */
-const VS_IMAGE = require('../../../assets/images/vs.png');
+/** « VS » peint au pinceau (traits blancs seuls, sans halo), posé au centre du rond rose. */
+const VS_IMAGE = require('../../../assets/images/vs-nav.png');
 
 function VsButton({ focused }: { focused: boolean }) {
   return (
-    <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.vs, focused && styles.vsFocused]}>
+    <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.vs, !focused && styles.vsIdle]}>
       <Image source={VS_IMAGE} style={styles.vsImage} contentFit="contain" accessibilityIgnoresInvertColors />
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  // Rond rose d'origine (taille et position), en plat : ni ombre ni contour.
   vs: {
     width: 74,
     height: 74,
@@ -90,11 +94,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    borderWidth: 4,
-    borderColor: Colors.surface,
-    boxShadow: '0 6px 16px rgba(229, 21, 95, 0.4)',
   },
-  vsFocused: { borderColor: '#FFD3E3' },
-  // L'image garde son halo sombre : agrandie et rognée par le rond, le pinceau remplit le bouton.
-  vsImage: { width: 96, height: 96 },
+  // Onglet non sélectionné : un peu atténué (sans contour, la sélection se lit à l'opacité).
+  vsIdle: { opacity: 0.85 },
+  // Le VS, plus petit, centré dans le rond.
+  vsImage: { width: 36, height: 36 },
 });

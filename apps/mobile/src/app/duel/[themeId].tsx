@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
 
+import { MatchmakingMap } from '@/components/matchmaking-map';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { VERSUS_CLASH_MS, VersusIntro } from '@/components/versus-intro';
 import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopMusic, stopSound } from '@/audio/sounds';
@@ -89,9 +90,7 @@ function Waiting({ themeId }: { themeId: string }) {
   const offline = game.status !== 'online';
   return (
     <SafeAreaView style={[styles.screen, styles.center]}>
-      <AppText variant="title" color={D.text} style={{ textAlign: 'center' }}>
-        {offline ? 'Connexion au serveur…' : game.queued ? 'Recherche d’un adversaire…' : 'Préparation du duel…'}
-      </AppText>
+      <MatchmakingMap label={offline ? 'Connexion au serveur…' : game.queued ? 'Recherche d’un adversaire…' : 'Préparation du duel…'} />
       {theme && (
         <AppText color={D.muted} style={{ textAlign: 'center' }}>
           {theme.name}
