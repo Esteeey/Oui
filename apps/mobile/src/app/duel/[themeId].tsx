@@ -229,10 +229,22 @@ function useNow(active: boolean): number {
 
 /**
  * Sons du duel, déclenchés par les changements de phase envoyés par le serveur.
- * La justesse d'une réponse n'est connue qu'à la révélation : le son tombe donc à ce moment-là.
+ * Dès que le serveur a reçu ma réponse, il m'envoie la bonne : le son « juste » ou « faux » tombe aussitôt,
+ * sans attendre l'adversaire ; la révélation ne fait plus entendre que le résultat de l'adversaire.
  */
 function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
   const prev = useRef<{ phase: string; index: number } | null>(null);
+  /** Question dont mon verdict a déjà été joué (une seule fois, même si l'état est renvoyé). */
+  const judged = useRef<string | null>(null);
+  const questionKey = `${duel.duelId}:${duel.index}`;
+
+  // Verdict immédiat de ma réponse.
+  useEffect(() => {
+    if (duel.phase !== 'answering' || duel.myChoice === null || duel.correctIndex === null) return;
+    if (judged.current === questionKey) return;
+    judged.current = questionKey;
+    playSound(duel.myChoice === duel.correctIndex ? 'correct' : 'wrong');
+  }, [duel.phase, duel.myChoice, duel.correctIndex, questionKey]);
 
   useEffect(() => preloadSounds(), []);
 
@@ -271,15 +283,18 @@ function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
       return;
     }
     if (duel.phase === 'reveal') {
-      // Son de sa propre réponse, puis celui de l'adversaire dès que son résultat est connu.
+      // Son de sa propre réponse (s'il n'a pas déjà été joué à la réponse), puis celui de l'adversaire.
       const mine = duel.me.answers[duel.index];
-      playSound(mine?.correct ? 'correct' : mine?.choice == null ? 'timeout' : 'wrong');
+      if (judged.current !== questionKey) {
+        judged.current = questionKey;
+        playSound(mine?.correct ? 'correct' : mine?.choice == null ? 'timeout' : 'wrong');
+      }
       if (duel.opponentChoice === null || duel.opponentChoice === undefined) return;
       const opponentCorrect = duel.opponentChoice === duel.correctIndex;
       const id = setTimeout(() => playSound(opponentCorrect ? 'opponentCorrect' : 'opponentWrong'), 350);
       return () => clearTimeout(id);
     }
-  }, [duel.phase, duel.index, duel.me.answers, duel.opponentChoice, duel.correctIndex]);
+  }, [duel.phase, duel.index, duel.me.answers, duel.opponentChoice, duel.correctIndex, questionKey]);
 
   // Tic-tac des 5 dernières secondes tant qu'on n'a pas répondu, programmé d'après l'heure de fin
   // de la question (et non au fil des rendus) ; coupé dès qu'on répond ou à la révélation.
@@ -313,6 +328,8 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   const reveal = duel.phase === 'reveal';
   const q = duel.question;
   const lastMine = reveal ? duel.me.answers[duel.index] : undefined;
+  // Ma réponse est jugée dès que le serveur l'a reçue (bonne réponse connue), sans attendre l'adversaire.
+  const judgedNow = reveal || (duel.phase === 'answering' && duel.myChoice !== null && duel.correctIndex !== null);
 
   // Confirmation d’abandon, aussi accessible depuis l’écran « VS ».
   const quitDialog = confirmQuit && (
@@ -399,7 +416,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
               </AppText>
             ) : (
               q?.choices.map((choice, i) => {
-                const state = !reveal ? 'idle' : i === duel.correctIndex ? 'correct' : duel.myChoice === i ? 'wrong' : 'idle';
+                const state = !judgedNow ? 'idle' : i === duel.correctIndex ? 'correct' : duel.myChoice === i ? 'wrong' : 'idle';
                 return (
                   <Choice
                     key={`${duel.index}-${i}`}

@@ -198,6 +198,10 @@ describe('récompenses XP (calculées par le serveur)', () => {
     expect(sa.myResponseMs).toBe(recorded);
     const sb = await b.waitForDuel((x) => x.phase === 'answering' && x.opponent.answeredCurrent, 2000, 0);
     expect(sb.myResponseMs).toBeNull();
+    // Verdict immédiat : A, qui a répondu, connaît déjà la bonne réponse ; B, qui réfléchit encore, non.
+    expect(sa.correctIndex).toBe(server.game.getDuel(duelId)!.state.questions[s.index].correctIndex);
+    expect(sb.correctIndex).toBeNull();
+    expect(sb.opponentChoice).toBeNull();
     // Reconnexion de A pendant l'attente : la barre retrouve la même position.
     await a.close();
     const a2 = await client(a.token);

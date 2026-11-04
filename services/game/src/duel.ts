@@ -357,7 +357,9 @@ export class Duel {
         s.phase === 'intro' || s.phase === 'finished'
           ? null
           : { id: q.id, text: q.text, ...(q.image ? { image: q.image } : {}), choices: showChoices ? q.choices : [] },
-      correctIndex: reveal ? q.correctIndex : null,
+      // La bonne réponse est envoyée dès qu'on a répondu (sa réponse est alors définitive) : on voit
+      // tout de suite si on a juste, sans attendre l'adversaire. Celui qui n'a pas répondu ne la reçoit pas.
+      correctIndex: reveal || (s.phase === 'answering' && s.answers[k][s.index]) ? q.correctIndex : null,
       myChoice: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.choice ?? null) : null,
       myResponseMs: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.responseMs ?? null) : null,
       opponentChoice: reveal ? (s.answers[other][s.index]?.choice ?? null) : null,
