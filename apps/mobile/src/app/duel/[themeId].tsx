@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
 
+import { DuelEntrance } from '@/components/duel-entrance';
 import { MATCH_FOUND_MS, MatchmakingMap } from '@/components/matchmaking-map';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { VERSUS_CLASH_MS, VersusIntro } from '@/components/versus-intro';
@@ -369,17 +370,25 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
       <Gauge points={duel.opponent.points} side="right" />
 
       <View style={styles.content}>
-        <View style={styles.header}>
-          <PlayerHead player={duel.me} side="left" />
-          <View style={styles.timerBox}>
-            <AppText variant="heading" color={D.text} style={{ fontVariant: ['tabular-nums'] }}>
-              {seconds}
-            </AppText>
-          </View>
-          <PlayerHead player={duel.opponent} side="right" />
-        </View>
-
-        <TimeBar running={duel.phase === 'answering' && duel.myChoice === null} fraction={timeBarFraction(duel, left, total)} phase={duel.phase} />
+        {/* Entrée en duel au début de la première question : portraits depuis les bords, barres qui se rejoignent. */}
+        <DuelEntrance
+          key={duel.duelId}
+          active={duel.index === 0 && duel.phase === 'reading'}
+          elapsed={Date.now() + game.clockOffset - duel.phaseStartedAt}
+          headerStyle={styles.header}
+          leftColor={Colors.player}
+          rightColor={duel.opponent.color ?? Colors.opponent}
+          left={<PlayerHead player={duel.me} side="left" />}
+          center={
+            <View style={styles.timerBox}>
+              <AppText variant="heading" color={D.text} style={{ fontVariant: ['tabular-nums'] }}>
+                {seconds}
+              </AppText>
+            </View>
+          }
+          right={<PlayerHead player={duel.opponent} side="right" />}
+          bar={<TimeBar running={duel.phase === 'answering' && duel.myChoice === null} fraction={timeBarFraction(duel, left, total)} phase={duel.phase} />}
+        />
 
         {!online && (
           <View style={styles.banner}>
@@ -468,7 +477,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
 }
 
 function PlayerHead({ player, side }: { player: ParticipantView; side: 'left' | 'right' }) {
-  const avatar = <Avatar name={player.name} color={side === 'left' ? Colors.player : (player.color ?? Colors.opponent)} size={46} borderColor={D.ring} />;
+  const avatar = <Avatar name={player.name} uri={player.avatar} color={side === 'left' ? Colors.player : (player.color ?? Colors.opponent)} size={46} borderColor={D.ring} />;
   const info = (
     <View style={{ alignItems: side === 'left' ? 'flex-start' : 'flex-end', flexShrink: 1 }}>
       <AppText variant="caption" color={D.muted} numberOfLines={1}>
