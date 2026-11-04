@@ -3,9 +3,19 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, Share, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  FadeInDown,
+  ZoomIn,
+  runOnJS,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   formatSeconds,
@@ -18,7 +28,7 @@ import {
   type SpeedSummary,
 } from '@qu1z/shared';
 
-import { XP_SOUND_MS, playMusic, playSound, stopMusic } from '@/audio/sounds';
+import { XP_SOUND_MS, playMusic, playSound } from '@/audio/sounds';
 import { Celebration, Crown, GOLD, ReplayButton, ResultBanner } from '@/components/results-art';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
@@ -70,7 +80,8 @@ export default function ResultsScreen() {
     if (!r) return;
     const music = r.outcome === 'win' ? 'win' : r.outcome === 'loss' ? 'loss' : 'draw';
     playSound(r.outcome === 'win' ? 'endWin' : r.outcome === 'loss' ? 'endLoss' : 'endDraw');
-    const timers = [setTimeout(() => playMusic(music), 900)];
+    let stop: (() => void) | undefined;
+    const timers = [setTimeout(() => (stop = playMusic(music)), 900)];
     if (r.accountXpAfter > r.accountXpBefore) {
       const xpAt = 1500;
       timers.push(setTimeout(() => playSound('xp'), xpAt));
@@ -81,10 +92,51 @@ export default function ResultsScreen() {
     }
     return () => {
       timers.forEach(clearTimeout);
-      stopMusic(music);
+      stop?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duel?.duelId, duel?.result]);
+
+  // Retour là où l'on était avant de lancer le défi (l'écran de duel a été remplacé par celui-ci).
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+
+  // Glisser vers le bas (depuis le haut de la page) pour quitter : la page suit le doigt,
+  // puis part vers le bas si le geste est assez long ou rapide, sinon elle revient en place.
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const scrollY = useSharedValue(0);
+  const drag = useSharedValue(0);
+  const base = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.set(e.contentOffset.y);
+  });
+  const scrollGesture = Gesture.Native();
+  const pullDown = Gesture.Pan()
+    .activeOffsetY(12)
+    .failOffsetY(-12)
+    .failOffsetX([-24, 24])
+    .simultaneousWithExternalGesture(scrollGesture)
+    .onStart(() => {
+      base.set(0);
+    })
+    .onUpdate((e) => {
+      // Tant que la page n'est pas remontée tout en haut, le geste fait défiler : on ne compte
+      // la descente qu'à partir du moment où le haut est atteint (pas de saut).
+      if (scrollY.get() > 0 && drag.get() === 0) base.set(e.translationY);
+      else drag.set(Math.max(0, e.translationY - base.get()));
+    })
+    .onEnd((e) => {
+      const d = drag.get();
+      if (d > 140 || (d > 40 && e.velocityY > 900)) {
+        drag.set(withTiming(height, { duration: 220 }, (done) => done && runOnJS(close)()));
+      } else {
+        drag.set(withSpring(0, { damping: 22, stiffness: 240 }));
+      }
+    });
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: drag.get() }],
+    opacity: 1 - Math.min(0.4, drag.get() / (height * 1.5)),
+  }));
 
   if (!duel || duel.phase !== 'finished' || !duel.result) return <Redirect href="/" />;
   const result = duel.result;
@@ -93,7 +145,6 @@ export default function ResultsScreen() {
   const level = levelFromXp(result.accountXpAfter);
   const record = result.record;
 
-  const close = () => (router.canGoBack() ? router.dismissTo('/') : router.replace('/'));
   const replay = () => {
     const req = game.lastRequest?.themeId === duel.themeId ? game.lastRequest : null;
     const params: Record<string, string> = { themeId: duel.themeId };
@@ -115,18 +166,21 @@ export default function ResultsScreen() {
   const theirSpeed = speedSummary(record.opponent);
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xl }} showsVerticalScrollIndicator={false}>
+    <GestureHandlerRootView style={styles.backdrop}>
+    <GestureDetector gesture={pullDown}>
+    <Animated.View style={[styles.screen, dragStyle]}>
+      <GestureDetector gesture={scrollGesture}>
+      <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: Spacing.xl }} showsVerticalScrollIndicator={false}>
         <ThemeCover themeId={duel.themeId} height={300} fadeTo={R.bg}>
-          <SafeAreaView edges={['top']} style={styles.coverContent}>
-            <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={close} style={styles.close}>
+          <View style={[styles.coverContent, { paddingTop: insets.top }]}>
+            <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={close} style={[styles.close, { top: insets.top + 12 }]}>
               <Ionicons name="close" size={26} color={R.text} />
             </Tap>
             <View style={styles.titles}>
               <AppText style={styles.title}>RÉSULTATS</AppText>
               <AppText style={styles.subtitle}>{theme?.name}</AppText>
             </View>
-          </SafeAreaView>
+          </View>
         </ThemeCover>
 
         <View style={styles.body}>
@@ -268,8 +322,11 @@ export default function ResultsScreen() {
               );
             })}
         </View>
-      </ScrollView>
-    </View>
+      </Animated.ScrollView>
+      </GestureDetector>
+    </Animated.View>
+    </GestureDetector>
+    </GestureHandlerRootView>
   );
 }
 
@@ -344,6 +401,7 @@ function Pill({ label, correct, points, ms, answered }: { label: string; correct
 }
 
 const styles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: '#000000' },
   screen: { flex: 1, backgroundColor: R.bg },
   coverContent: { flex: 1 },
   close: {

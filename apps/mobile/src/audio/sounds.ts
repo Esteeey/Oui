@@ -18,6 +18,7 @@ const SFX = {
   pinPop: require('../../assets/sounds/qz_pop.wav'),
   versus: require('../../assets/sounds/s10_vs.wav'),
   question: require('../../assets/sounds/qz_question.wav'),
+  choices: require('../../assets/sounds/qz_reponses.wav'),
   bonusRound: require('../../assets/sounds/s09_manche_bonus.wav'),
   answered: require('../../assets/sounds/qz_reponse_validee.wav'),
   tick: require('../../assets/sounds/qz_tic_tac.wav'),
@@ -98,20 +99,13 @@ export async function refreshSoundOverrides(force = false): Promise<void> {
   for (const name of [...musicPlayers.keys()]) {
     if (!changed(MUSIC_ID[name])) continue;
     const old = musicPlayers.get(name)!;
-    const wasPlaying = current === name && old.playing;
-    const volume = old.volume;
+    // Pas `old.playing` : un lecteur tout juste créé, encore en chargement, n'est pas « en lecture »,
+    // et la musique ne reprenait alors jamais avec le nouveau fichier.
+    const wasPlaying = current === name && musicEnabled;
     musicPlayers.delete(name);
     release(old);
-    // La musique en cours reprend aussitôt avec le nouveau fichier.
-    if (wasPlaying) {
-      const fresh = musicPlayer(name);
-      if (fresh) {
-        try {
-          fresh.volume = volume;
-          fresh.play();
-        } catch {}
-      }
-    }
+    // La musique en cours reprend aussitôt avec le nouveau fichier (et son entrée en fondu complète).
+    if (wasPlaying) start(name);
   }
 }
 
@@ -267,20 +261,43 @@ function fadeOut(name: MusicName, ms: number) {
   });
 }
 
-/** Lance une musique depuis le début, en arrêtant (en fondu) celle qui jouait. */
-export function playMusic(name: MusicName) {
+/** Numéro du dernier lancement de musique : un écran n'arrête que la musique qu'il a lui-même lancée. */
+let session = 0;
+
+/**
+ * Lance une musique depuis le début, en arrêtant (en fondu) celle qui jouait.
+ * Renvoie de quoi l'arrêter : sans effet si une autre musique (ou la même, relancée par un autre écran)
+ * a pris le relais entre-temps. Sinon, l'écran qui se ferme pendant que le suivant s'ouvre
+ * (ex. annuler une recherche puis en relancer une aussitôt) coupait la musique du nouvel écran.
+ */
+export function playMusic(name: MusicName): (ms?: number) => void {
   if (current && current !== name) fadeOut(current, 500);
   current = name;
-  if (!musicEnabled) return;
+  const mine = ++session;
+  const stop = (ms = 700) => {
+    if (session === mine) stopMusic(name, ms);
+  };
+  if (musicEnabled) start(name);
+  return stop;
+}
+
+/** Lecture depuis le début, avec une entrée en fondu pour les musiques en boucle. */
+function start(name: MusicName) {
   const player = musicPlayer(name);
   if (!player) return;
+  const looped = LOOPED.has(name);
   try {
-    const looped = LOOPED.has(name);
     player.volume = looped ? 0 : MUSIC_VOLUME[name];
-    player.seekTo(0).catch(() => {});
-    player.play();
-    if (looped) fadeTo(player, MUSIC_VOLUME[name], 800);
   } catch {}
+  // Rembobinage séparé de la lecture : sur un lecteur encore en chargement, il peut échouer,
+  // et la musique ne devait pas rester muette pour autant.
+  try {
+    if (player.currentTime > 0) player.seekTo(0).catch(() => {});
+  } catch {}
+  try {
+    player.play();
+  } catch {}
+  if (looped) fadeTo(player, MUSIC_VOLUME[name], 800);
 }
 
 /** Arrête la musique en cours (en fondu). Sans nom, arrête celle qui joue ; avec un nom, seulement si c'est elle. */
@@ -288,6 +305,7 @@ export function stopMusic(name?: MusicName, ms = 700) {
   if (!current || (name && name !== current)) return;
   const playing = current;
   current = null;
+  session++;
   fadeOut(playing, ms);
 }
 
@@ -300,7 +318,7 @@ export function setMusicEnabled(on: boolean) {
   if (!on) {
     if (player) fadeTo(player, 0, 200, () => player.pause());
   } else if (LOOPED.has(current)) {
-    playMusic(current); // les musiques de résultat, courtes, ne sont pas relancées
+    start(current); // les musiques de résultat, courtes, ne sont pas relancées
   }
 }
 

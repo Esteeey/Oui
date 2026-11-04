@@ -40,7 +40,13 @@ const STILL_AT = 0.52;
 const SCROLL_MS = 10_000;
 const scrollEase = Easing.inOut(Easing.sin);
 const MAX_PINS = 14;
-const MAP_HEIGHT = 0.8;
+/**
+ * Bande de la carte affichée sur toute la hauteur de l'écran (rangées 0..1) : du Grand Nord à la pointe
+ * de l'Amérique du Sud. Le reste (océans polaires presque vides) déborde hors de l'écran : pas de bord noir.
+ */
+const BAND_TOP = 0;
+const BAND_BOTTOM = 72 / ROWS;
+const BAND_MID = (BAND_TOP + BAND_BOTTOM) / 2;
 /** Zoom final sur l'adversaire trouvé. */
 const ZOOM_FOUND = 1.6;
 /** Durée de la sélection de l'adversaire, avant le passage à l'écran de duel. */
@@ -76,12 +82,12 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
   // Réglage « réduire les animations » du téléphone : pas de défilement plein écran, pas de rebond ni de pulsation.
   const still = useReducedMotion();
   const camU = useSharedValue(still ? STILL_AT : SCROLL_FROM);
-  const camV = useSharedValue(0.5);
+  const camV = useSharedValue(BAND_MID);
   const zoom = useSharedValue(1);
   const found = opponent !== null;
 
-  /** La carte occupe presque toute la hauteur de l'écran (léger noir en haut et en bas). */
-  const mapH = size.h * MAP_HEIGHT;
+  /** La bande utile de la carte occupe toute la hauteur de l'écran. */
+  const mapH = size.h / (BAND_BOTTOM - BAND_TOP);
   const mapW = (mapH * COLS) / ROWS;
   /** Moitié de la largeur visible, en coordonnées de carte (0..1). */
   const half = mapW > 0 ? size.w / mapW / 2 : 0.1;
@@ -109,7 +115,7 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
         const visible = list.filter((p) => p.u > center - half - 0.02);
         const kept = visible.length > MAX_PINS ? visible.slice(visible.length - MAX_PINS) : visible;
         if (Math.random() > 0.7) return kept;
-        const pool = SPOTS.filter(([u, v]) => u > center - half * 0.6 && u < center + half * 0.95 && v > 0.12 && v < 0.88);
+        const pool = SPOTS.filter(([u, v]) => u > center - half * 0.6 && u < center + half * 0.95 && v > BAND_TOP + 0.06 && v < BAND_BOTTOM - 0.04);
         if (pool.length === 0) return kept;
         let u = 0;
         let v = 0;
@@ -160,7 +166,9 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
     if (still) return;
     const ease = { duration: MATCH_FOUND_MS - 100, easing: Easing.inOut(Easing.cubic) };
     camU.set(withTiming(spot.u, ease));
-    camV.set(withTiming(spot.v, ease));
+    // Le zoom reste dans la bande : jamais de bord noir en haut ou en bas.
+    const halfH = (BAND_BOTTOM - BAND_TOP) / 2 / ZOOM_FOUND;
+    camV.set(withTiming(Math.min(BAND_BOTTOM - halfH, Math.max(BAND_TOP + halfH, spot.v)), ease));
     zoom.set(withTiming(ZOOM_FOUND, ease));
   }, [found, size.h, half, still, camU, camV, zoom]);
 

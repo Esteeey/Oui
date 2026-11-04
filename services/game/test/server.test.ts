@@ -185,6 +185,33 @@ describe('récompenses XP (calculées par le serveur)', () => {
     await sleep(30);
     expect(server.game.getDuel(duelId)!.state.answers[1][s.index]!.choice).toBeNull();
   });
+
+  it('barre de temps : chacun reçoit son propre temps de réponse, figé jusqu’à la question suivante', async () => {
+    await boot();
+    const { a, b, duelId } = await startPvp();
+    const s = await a.waitForDuel((x) => x.phase === 'answering', 4000, 0);
+    expect(s.myResponseMs).toBeNull();
+    a.send({ type: 'answer', duelId, index: s.index, choice: 0 });
+    // A a répondu : son temps lui est envoyé ; B, qui n'a pas répondu, n'en a pas.
+    const sa = await a.waitForDuel((x) => x.phase === 'answering' && x.myChoice !== null, 2000, 0);
+    const recorded = server.game.getDuel(duelId)!.state.answers[0][s.index]!.responseMs;
+    expect(sa.myResponseMs).toBe(recorded);
+    const sb = await b.waitForDuel((x) => x.phase === 'answering' && x.opponent.answeredCurrent, 2000, 0);
+    expect(sb.myResponseMs).toBeNull();
+    // Reconnexion de A pendant l'attente : la barre retrouve la même position.
+    await a.close();
+    const a2 = await client(a.token);
+    const back = await a2.waitForDuel((x) => x.index === s.index, 2000, 0);
+    if (back.phase === 'answering') expect(back.myResponseMs).toBe(recorded);
+    // Révélation : le temps de A ne bouge pas ; B, sans réponse, a tout le temps (barre vide).
+    const ra = await a2.waitForDuel((x) => x.phase === 'reveal' && x.index === s.index, 2000, 0);
+    const rb = await b.waitForDuel((x) => x.phase === 'reveal' && x.index === s.index, 2000, 0);
+    expect(ra.myResponseMs).toBe(recorded);
+    expect(rb.myResponseMs).toBe(FAST.answerMs);
+    // Question suivante : plus de temps figé.
+    const next = await a2.waitForDuel((x) => x.index === s.index + 1 && (x.phase === 'reading' || x.phase === 'answering'), 3000, 0);
+    expect(next.myResponseMs ?? null).toBeNull();
+  });
 });
 
 describe('déconnexions et reconnexions', () => {

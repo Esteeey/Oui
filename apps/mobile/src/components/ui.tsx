@@ -112,6 +112,7 @@ export function Button({
   variant = 'solid',
   disabled,
   style,
+  small,
 }: {
   label: string;
   onPress?: () => void;
@@ -121,6 +122,8 @@ export function Button({
   variant?: 'solid' | 'outline';
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Version compacte (hauteur 38, texte 14). */
+  small?: boolean;
 }) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
@@ -136,6 +139,7 @@ export function Button({
       <Animated.View
         style={[
           styles.button,
+          small && styles.buttonSmall,
           solid ? { backgroundColor: color ?? Colors.accent } : { borderColor: color ?? Colors.accent, borderWidth: 2 },
           disabled && { opacity: 0.4 },
           animated,
@@ -143,7 +147,7 @@ export function Button({
         {solid && !color && (
           <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         )}
-        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))}>
+        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} style={small ? { fontSize: 14 } : undefined}>
           {label}
         </AppText>
       </Animated.View>
@@ -281,6 +285,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     overflow: 'hidden',
   },
+  buttonSmall: { minHeight: 38, paddingHorizontal: Spacing.md },
   track: { width: '100%', backgroundColor: Colors.surfaceRaised, overflow: 'hidden' },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
 });

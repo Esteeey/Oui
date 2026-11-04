@@ -7,6 +7,7 @@ export const GAME_SOUNDS = [
   { id: 'pinPop', kind: 'effect', label: 'Pop d’épingle', when: 'Chaque épingle sur la carte de recherche' },
   { id: 'versus', kind: 'effect', label: 'Entrée VS', when: 'Choc des deux moitiés de l’intro' },
   { id: 'question', kind: 'effect', label: 'Nouvelle question', when: 'À chaque question' },
+  { id: 'choices', kind: 'effect', label: 'Réponses affichées', when: 'Quand les réponses apparaissent et que le chrono démarre' },
   { id: 'bonusRound', kind: 'effect', label: 'Manche bonus', when: 'Dernière question, points ×2' },
   { id: 'answered', kind: 'effect', label: 'Réponse validée', when: 'Quand on touche une réponse' },
   { id: 'tick', kind: 'effect', label: 'Tic-tac', when: 'Les 5 dernières secondes' },

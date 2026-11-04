@@ -359,6 +359,7 @@ export class Duel {
           : { id: q.id, text: q.text, ...(q.image ? { image: q.image } : {}), choices: showChoices ? q.choices : [] },
       correctIndex: reveal ? q.correctIndex : null,
       myChoice: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.choice ?? null) : null,
+      myResponseMs: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.responseMs ?? null) : null,
       opponentChoice: reveal ? (s.answers[other][s.index]?.choice ?? null) : null,
       me: this.view(k, true),
       opponent: this.view(other, true),

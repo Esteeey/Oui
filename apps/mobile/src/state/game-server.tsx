@@ -56,11 +56,19 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const [lastRequest, setLastRequest] = useState<DuelRequest | null>(null);
   const [unreadNotifications, setUnread] = useState(0);
   const connection = useRef<GameConnection | null>(null);
+  /**
+   * Réponse envoyée mais pas encore confirmée par le serveur. Un état parti du serveur juste avant
+   * qu'il la reçoive (ex. l'adversaire vient de répondre) ne doit pas la faire disparaître :
+   * les choix se réactiveraient et la barre de temps repartirait.
+   */
+  const pendingAnswer = useRef<{ duelId: string; index: number; choice: number; responseMs: number } | null>(null);
 
   useEffect(() => {
     const handle = (m: ServerMessage) => {
       switch (m.type) {
         case 'welcome':
+          // Nouvelle connexion : seul le serveur sait si la réponse envoyée avant la coupure est arrivée.
+          pendingAnswer.current = null;
           setSignedOut(false);
           setPlayerId(m.playerId);
           setProfile(m.profile);
@@ -89,7 +97,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
         case 'duel':
           setQueued(null);
           setClockOffset(m.snapshot.serverNow - Date.now());
-          setDuel(m.snapshot);
+          setDuel(withPendingAnswer(m.snapshot, pendingAnswer));
           break;
         case 'messages':
           // Nouveau message, réaction, lecture ou demande : les écrans de messagerie se rechargent.
@@ -140,8 +148,11 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     answer: (choice) => {
       if (!duel || duel.phase !== 'answering' || duel.myChoice !== null) return;
       if (send({ type: 'answer', duelId: duel.duelId, index: duel.index, choice })) {
-        // Affichage immédiat du choix ; le serveur confirme (ou corrige) dans le prochain état.
-        setDuel({ ...duel, myChoice: choice });
+        // Affichage immédiat du choix, et la barre de temps se fige aussitôt ; le serveur confirme
+        // (avec son propre temps de réponse) dans le prochain état.
+        const responseMs = Math.max(0, Date.now() + clockOffset - duel.phaseStartedAt);
+        pendingAnswer.current = { duelId: duel.duelId, index: duel.index, choice, responseMs };
+        setDuel({ ...duel, myChoice: choice, myResponseMs: responseMs });
       }
     },
     forfeit: () => duel && send({ type: 'forfeit', duelId: duel.duelId }),
@@ -196,6 +207,24 @@ export function useGameServer(): GameServerState {
 }
 
 /** Temps restant de la phase en cours, d'après l'horloge du serveur (jamais celle du téléphone seule). */
+/** Garde la réponse en attente de confirmation tant que le serveur ne l'a pas prise en compte. */
+function withPendingAnswer(
+  snap: DuelSnapshot,
+  pending: { current: { duelId: string; index: number; choice: number; responseMs: number } | null },
+): DuelSnapshot {
+  const p = pending.current;
+  if (!p) return snap;
+  if (p.duelId !== snap.duelId || p.index !== snap.index || snap.phase !== 'answering') {
+    pending.current = null; // question suivante, révélation ou autre duel
+    return snap;
+  }
+  if (snap.myChoice !== null) {
+    pending.current = null; // confirmée
+    return snap;
+  }
+  return { ...snap, myChoice: p.choice, myResponseMs: p.responseMs };
+}
+
 export function remainingMs(duel: DuelSnapshot, clockOffset: number): number {
   return Math.max(0, duel.phaseEndsAt - (Date.now() + clockOffset));
 }

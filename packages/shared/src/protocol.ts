@@ -93,6 +93,11 @@ export interface DuelSnapshot {
   question: { id: string; text: string; image?: string; choices: string[] } | null;
   correctIndex: number | null;
   myChoice: number | null;
+  /**
+   * Mon temps de réponse (ms), mesuré par le serveur, une fois ma réponse enregistrée (ou le temps écoulé) :
+   * la barre de temps se fige à cette position. Absent d'un serveur plus ancien.
+   */
+  myResponseMs?: number | null;
   opponentChoice: number | null;
   me: ParticipantView;
   opponent: ParticipantView;

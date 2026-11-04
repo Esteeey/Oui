@@ -76,7 +76,7 @@ export function Composer({
   return (
     <View style={styles.box}>
       <View style={styles.row}>
-        <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} size={36} uri={profile?.avatar} />
+        <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} size={30} uri={profile?.avatar} />
         <TextInput
           value={text}
           onChangeText={setText}
@@ -100,7 +100,7 @@ export function Composer({
       )}
       {sticker && (
         <View style={styles.stickerPreview}>
-          <Sticker id={sticker} size={110} />
+          <Sticker id={sticker} size={84} />
           <Tap accessibilityRole="button" accessibilityLabel="Retirer le sticker" onPress={() => setSticker(null)} style={styles.remove}>
             <Ionicons name="close" size={18} color="#fff" />
           </Tap>
@@ -119,7 +119,7 @@ export function Composer({
                 setStickersOpen(false);
               }}
               style={styles.stickerCell}>
-              <Sticker id={s.id} size={72} />
+              <Sticker id={s.id} size={56} />
             </Tap>
           ))}
         </ScrollView>
@@ -128,11 +128,11 @@ export function Composer({
       <View style={styles.footer}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
           <Tap accessibilityRole="button" accessibilityLabel="Ajouter une photo" onPress={() => choose('library')} style={styles.icon}>
-            <Ionicons name="image-outline" size={22} color={Colors.text} />
+            <Ionicons name="image-outline" size={20} color={Colors.text} />
           </Tap>
           {Platform.OS !== 'web' && (
             <Tap accessibilityRole="button" accessibilityLabel="Prendre une photo" onPress={() => choose('camera')} style={styles.icon}>
-              <Ionicons name="camera-outline" size={22} color={Colors.text} />
+              <Ionicons name="camera-outline" size={20} color={Colors.text} />
             </Tap>
           )}
           <Tap
@@ -141,25 +141,25 @@ export function Composer({
             accessibilityState={{ expanded: stickersOpen }}
             onPress={() => setStickersOpen((o) => !o)}
             style={styles.icon}>
-            <Ionicons name={stickersOpen ? 'happy' : 'happy-outline'} size={22} color={stickersOpen ? Colors.accent : Colors.text} />
+            <Ionicons name={stickersOpen ? 'happy' : 'happy-outline'} size={20} color={stickersOpen ? Colors.accent : Colors.text} />
           </Tap>
           <AppText variant="caption" color={remaining < 20 ? Colors.gold : Colors.textMuted} style={{ flexShrink: 1 }}>
             {remaining} · @pseudo pour mentionner
           </AppText>
         </View>
-        <Button label={sending ? 'Envoi…' : 'Publier'} onPress={submit} disabled={empty || sending} style={{ minWidth: 120 }} />
+        <Button small label={sending ? 'Envoi…' : 'Publier'} onPress={submit} disabled={empty || sending} style={{ minWidth: 92 }} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  box: { backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, gap: Spacing.sm },
-  row: { flexDirection: 'row', gap: Spacing.sm + 4, alignItems: 'flex-start' },
-  input: { flex: 1, color: Colors.text, fontSize: 16, minHeight: 60, paddingTop: 8, textAlignVertical: 'top' },
-  preview: { width: '100%', maxHeight: 320, borderRadius: Radius.sm },
+  box: { backgroundColor: Colors.surface, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm + 2, gap: Spacing.xs + 2 },
+  row: { flexDirection: 'row', gap: Spacing.sm + 2, alignItems: 'flex-start' },
+  input: { flex: 1, color: Colors.text, fontSize: 15, minHeight: 40, paddingTop: 6, textAlignVertical: 'top' },
+  preview: { width: '100%', maxHeight: 240, borderRadius: Radius.sm },
   remove: { position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  icon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   stickerPreview: { alignSelf: 'flex-start' },
   stickerCell: { padding: 4, borderRadius: Radius.sm, backgroundColor: Colors.background },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },

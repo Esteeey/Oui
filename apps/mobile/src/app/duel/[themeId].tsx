@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, Keyframe, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, Keyframe, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
@@ -11,7 +11,7 @@ import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type 
 import { MATCH_FOUND_MS, MatchmakingMap } from '@/components/matchmaking-map';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { VERSUS_CLASH_MS, VersusIntro } from '@/components/versus-intro';
-import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopMusic, stopSound } from '@/audio/sounds';
+import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopSound } from '@/audio/sounds';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
@@ -42,41 +42,47 @@ const FADE_TO_BLACK = new Keyframe({
 
 /**
  * Écran « Manche N », au début de chaque question (le serveur lui réserve `RULES.roundCardMs`
- * au début de la phase de lecture) : sur fond noir, l'icône de la catégorie apparaît, puis le thème,
- * puis « Manche N » et « N sur 7 » ; enfin tout s'efface et la question arrive.
+ * au début de la phase de lecture). Sur le noir de la zone centrale, sans cadre : l'icône du thème,
+ * son nom et sa catégorie, puis « Manche N » qui domine et « N sur 7 » ; tout s'efface en fondu,
+ * un court noir, puis la question apparaît. Apparitions douces, sans rebond.
  * Les instants sont comptés depuis le début réel de la phase, pour rester calés si l'écran
  * s'ouvre en cours de route (reprise d'un duel).
  */
-const CARD = { icon: 300, names: 800, round: 1150, fadeOut: 300 } as const;
-const ROUND_ACCENT = '#990054';
+const CARD = { icon: 300, names: 800, round: 1150, hide: 2350, fadeOut: 220, question: 2650 } as const;
 
-function RoundCard({ duel, elapsed }: { duel: DuelSnapshot; elapsed: number }) {
+/** Apparition de l'icône : légère montée en taille, sans rebond. */
+const ICON_IN = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.7 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.cubic) },
+}).duration(260);
+
+function RoundCard({ duel, elapsed, top }: { duel: DuelSnapshot; elapsed: number; top: number }) {
   const theme = getTheme(duel.themeId);
   const category = theme ? getCategory(theme.categoryId) : undefined;
   const last = duel.index === duel.questionCount - 1;
   const at = (ms: number) => Math.max(0, ms - elapsed);
   return (
-    <Animated.View exiting={FadeOut.duration(CARD.fadeOut)} style={[styles.fade, styles.card]}>
-      <Animated.View entering={ZoomIn.delay(at(CARD.icon)).springify().damping(14)} style={styles.cardIcon}>
+    <Animated.View exiting={FadeOut.duration(CARD.fadeOut)} style={[styles.card, { top }]} pointerEvents="none">
+      <Animated.View entering={ICON_IN.delay(at(CARD.icon))}>
         <AppText style={styles.cardEmoji}>{category?.icon ?? '❓'}</AppText>
       </Animated.View>
-      <Animated.View entering={FadeIn.delay(at(CARD.names)).duration(250)} style={styles.cardNames}>
+      <Animated.View entering={FadeIn.delay(at(CARD.names)).duration(220)} style={styles.cardNames}>
         <AppText color={D.text} style={styles.cardTheme} numberOfLines={1}>
           {theme?.name ?? ''}
         </AppText>
         {!!category && (
-          <AppText variant="caption" color={D.muted} style={styles.cardCategory} numberOfLines={1}>
+          <AppText color={D.muted} style={styles.cardCategory} numberOfLines={1}>
             {category.name}
           </AppText>
         )}
       </Animated.View>
-      <Animated.View entering={FadeInDown.delay(at(CARD.round)).duration(300)} style={styles.cardRound}>
-        <AppText color={D.text} style={styles.roundText}>
+      <Animated.View entering={FadeIn.delay(at(CARD.round)).duration(200)} style={styles.cardRound}>
+        <AppText color={D.text} style={styles.roundText} numberOfLines={1} adjustsFontSizeToFit>
           {last ? 'Dernière manche' : `Manche ${duel.index + 1}`}
         </AppText>
-        <AppText variant="caption" color={D.muted} style={styles.roundHint}>
+        <AppText color={D.muted} style={styles.roundHint}>
           {duel.index + 1} sur {duel.questionCount}
-          {last ? ` · Points ×${RULES.lastQuestionMultiplier}` : ''}
+          {last ? ` · points ×${RULES.lastQuestionMultiplier}` : ''}
         </AppText>
       </Animated.View>
     </Animated.View>
@@ -87,10 +93,10 @@ function RoundCard({ duel, elapsed }: { duel: DuelSnapshot; elapsed: number }) {
  * Temps écoulé depuis le début de la phase de lecture, et si l'écran « Manche N » est terminé.
  * Bascule une seule fois par question, à l'instant prévu (et non au fil des rendus).
  */
-function useRoundCard(duel: DuelSnapshot, clockOffset: number): { showing: boolean; elapsed: number } {
+function useRoundCard(duel: DuelSnapshot, clockOffset: number): { showing: boolean; after: boolean; elapsed: number } {
   const reading = duel.phase === 'reading';
   const elapsed = reading ? Math.max(0, Date.now() + clockOffset - duel.phaseStartedAt) : RULES.roundCardMs;
-  const hideAt = RULES.roundCardMs - CARD.fadeOut;
+  const hideAt = CARD.hide;
   const [doneFor, setDoneFor] = useState<number | null>(null);
   useEffect(() => {
     if (!reading) return;
@@ -98,7 +104,12 @@ function useRoundCard(duel: DuelSnapshot, clockOffset: number): { showing: boole
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reading, duel.index, duel.phaseStartedAt]);
-  return { showing: reading && doneFor !== duel.index && elapsed < hideAt, elapsed };
+  return {
+    showing: reading && doneFor !== duel.index && elapsed < hideAt,
+    // La question arrive juste après l'écran « Manche N » (et non au retour sur un duel en cours).
+    after: reading && elapsed < CARD.question + 500,
+    elapsed,
+  };
 }
 
 type Params = { themeId: string; mode?: string; resume?: string };
@@ -164,8 +175,8 @@ function Waiting({ opponent }: { themeId: string; opponent: ParticipantView | nu
   useEffect(() => {
     if (opponent) return;
     preloadSounds();
-    playMusic('search');
-    return () => stopMusic('search');
+    const stop = playMusic('search');
+    return () => stop();
   }, [opponent]);
   return (
     <View style={[styles.screen, { backgroundColor: '#000000' }]}>
@@ -227,10 +238,10 @@ function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
 
   // Musique de fond : de l'intro VS jusqu'à la fin du duel (l'écran de duel est alors démonté).
   useEffect(() => {
-    playMusic('duel');
+    const stop = playMusic('duel');
     return () => {
       stopSound('tick');
-      stopMusic('duel');
+      stop();
     };
   }, []);
 
@@ -249,10 +260,15 @@ function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
     if (duel.phase === 'reading') {
       // Le son de la question tombe quand l'énoncé sort de l'écran « Manche N ».
       const elapsed = Date.now() + clockOffset - duel.phaseStartedAt;
-      const wait = RULES.roundCardMs - CARD.fadeOut - elapsed;
+      const wait = CARD.question - elapsed;
       if (wait < -1000) return; // déjà passé (reprise en cours de lecture)
       const id = setTimeout(() => playSound(duel.index === RULES.questionsPerDuel - 1 ? 'bonusRound' : 'question'), Math.max(0, wait));
       return () => clearTimeout(id);
+    }
+    if (duel.phase === 'answering') {
+      // Les réponses apparaissent et le chrono démarre (pas au retour sur une question déjà entamée).
+      if (Date.now() + clockOffset - duel.phaseStartedAt < 1000) playSound('choices');
+      return;
     }
     if (duel.phase === 'reveal') {
       // Son de sa propre réponse, puis celui de l'adversaire dès que son résultat est connu.
@@ -289,6 +305,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   useNow(duel.phase === 'answering' || duel.phase === 'reading');
   useDuelSounds(duel, game.clockOffset);
   const card = useRoundCard(duel, game.clockOffset);
+  const [stageTop, setStageTop] = useState(0);
 
   const left = remainingMs(duel, game.clockOffset);
   const total = Math.max(1, duel.phaseEndsAt - duel.phaseStartedAt);
@@ -345,7 +362,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           <PlayerHead player={duel.opponent} side="right" />
         </View>
 
-        <TimeBar running={duel.phase === 'answering' && duel.myChoice === null} fraction={left / total} phase={duel.phase} />
+        <TimeBar running={duel.phase === 'answering' && duel.myChoice === null} fraction={timeBarFraction(duel, left, total)} phase={duel.phase} />
 
         {!online && (
           <View style={styles.banner}>
@@ -356,13 +373,15 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           </View>
         )}
 
-        <View style={styles.stage}>
+        <View style={styles.stage} onLayout={(e) => setStageTop(e.nativeEvent.layout.y)}>
           <View style={styles.questionZone}>
-            {questionImageSource(q?.image) !== null && (
-              <Image source={questionImageSource(q?.image)!} contentFit="contain" style={styles.image} accessibilityLabel="Illustration de la question" />
+            {!card.showing && questionImageSource(q?.image) !== null && (
+              <Image source={questionImageSource(q?.image)!} contentFit="contain" transition={300} style={styles.image} accessibilityLabel="Illustration de la question" />
             )}
             {!card.showing && (
-            <Animated.View key={`q-${duel.index}`} entering={FadeInDown.springify()}>
+            <Animated.View
+              key={`q-${duel.index}`}
+              entering={card.after ? FadeInDown.delay(CARD.question - CARD.hide).duration(320).withInitialValues({ transform: [{ translateY: 12 }] }) : FadeInDown.springify()}>
               {duel.index === RULES.questionsPerDuel - 1 && (
                 <AppText variant="caption" color={D.correct} style={{ textAlign: 'center', marginBottom: Spacing.sm }}>
                   DERNIÈRE QUESTION · POINTS ×{RULES.lastQuestionMultiplier}
@@ -413,11 +432,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
             )}
           </View>
 
-          {reveal ? (
-            <Animated.View key={`out-${duel.index}`} entering={FADE_TO_BLACK} style={styles.fade} />
-          ) : card.showing ? (
-            <RoundCard key={`card-${duel.index}`} duel={duel} elapsed={card.elapsed} />
-          ) : null}
+          {reveal && <Animated.View key={`out-${duel.index}`} entering={FADE_TO_BLACK} style={styles.fade} />}
         </View>
 
         <Tap accessibilityRole="button" onPress={() => setConfirmQuit(true)} style={styles.quit}>
@@ -425,6 +440,9 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
             Abandonner
           </AppText>
         </Tap>
+
+        {/* L'écran « Manche N » couvre toute la zone sous le haut de l'écran, qui reste visible. */}
+        {card.showing && <RoundCard key={`card-${duel.index}`} duel={duel} elapsed={card.elapsed} top={stageTop} />}
       </View>
 
       {quitDialog}
@@ -468,6 +486,20 @@ function Gauge({ points, side }: { points: number; side: 'left' | 'right' }) {
       <Animated.View style={[styles.gaugeFill, fill]} />
     </View>
   );
+}
+
+/**
+ * Remplissage de la barre de temps, d'après le chrono du serveur : pleine pendant la lecture, elle se vide
+ * pendant la réponse et se fige dès que j'ai répondu, à la position de ma réponse, jusqu'à la question
+ * suivante (attente de l'adversaire et révélation comprises). Sans réponse, elle finit vide.
+ * Elle ne dépend que de ma réponse, jamais de celle de l'adversaire.
+ */
+function timeBarFraction(duel: DuelSnapshot, left: number, total: number): number {
+  if (duel.phase === 'reading') return 1;
+  if (duel.phase !== 'answering' && duel.phase !== 'reveal') return 0;
+  const answeredMs = duel.myResponseMs ?? null;
+  if (answeredMs !== null) return 1 - answeredMs / RULES.answerTimeMs;
+  return duel.phase === 'answering' ? left / total : 0;
 }
 
 function TimeBar({ running, fraction, phase }: { running: boolean; fraction: number; phase: string }) {
@@ -573,15 +605,17 @@ const styles = StyleSheet.create({
   },
   stage: { gap: Spacing.md },
   fade: { ...StyleSheet.absoluteFill, backgroundColor: D.bg, pointerEvents: 'none' },
-  card: { alignItems: 'center', justifyContent: 'center', paddingBottom: Spacing.xl },
-  cardIcon: { width: 56, height: 56, borderRadius: Radius.sm, backgroundColor: ROUND_ACCENT, alignItems: 'center', justifyContent: 'center' },
-  cardEmoji: { fontSize: 30, lineHeight: 36 },
-  cardNames: { alignItems: 'center', marginTop: Spacing.sm, maxWidth: '90%' },
-  cardTheme: { fontSize: 17, fontWeight: '700' },
-  cardCategory: { letterSpacing: 1.5, textTransform: 'uppercase', fontSize: 11 },
-  cardRound: { alignItems: 'center', marginTop: Spacing.lg },
-  roundText: { fontFamily: Fonts.score, fontSize: 36, lineHeight: 44, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center' },
-  roundHint: { letterSpacing: 1.5, marginTop: 2 },
+  // Proportions relevées sur la référence : icône ≈ 14 % de la largeur, titre ≈ 11 %, bloc centré
+  // dans la zone sous le haut de l'écran, un peu au-dessus du milieu.
+  // left/right = marge du contenu : les jauges latérales restent visibles.
+  card: { position: 'absolute', left: 20, right: 20, bottom: 0, backgroundColor: D.bg, alignItems: 'center', justifyContent: 'center', paddingBottom: '30%' },
+  cardEmoji: { fontSize: 46, lineHeight: 56, textAlign: 'center' },
+  cardNames: { alignItems: 'center', marginTop: 10, maxWidth: '90%' },
+  cardTheme: { fontSize: 17, lineHeight: 22 },
+  cardCategory: { fontSize: 10, lineHeight: 14, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 2 },
+  cardRound: { alignItems: 'center', marginTop: 26, maxWidth: '100%' },
+  roundText: { fontFamily: Fonts.score, fontSize: 44, lineHeight: 52, letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center' },
+  roundHint: { fontSize: 14, lineHeight: 18, marginTop: 4 },
   questionZone: { minHeight: 150, justifyContent: 'center', gap: Spacing.sm },
   image: { width: '100%', height: 130, borderRadius: Radius.sm },
   question: { color: D.text, fontSize: 28, lineHeight: 34, fontWeight: '800', textAlign: 'center' },

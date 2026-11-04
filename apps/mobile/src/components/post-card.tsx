@@ -48,10 +48,10 @@ export function PostCard({
     <View style={styles.card}>
       <View style={styles.header}>
         <Tap accessibilityRole="button" accessibilityLabel={`Profil de ${post.author.pseudo}`} onPress={openAuthor}>
-          <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} uri={post.author.avatar} size={52} borderColor={Colors.accent} />
+          <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} uri={post.author.avatar} size={38} borderColor={Colors.accent} />
         </Tap>
-        <View style={{ flex: 1, gap: 2 }}>
-          <AppText variant="heading" onPress={openAuthor}>
+        <View style={{ flex: 1, gap: 1 }}>
+          <AppText variant="label" style={{ fontSize: 15 }} onPress={openAuthor}>
             {post.author.pseudo}
             {post.author.title ? (
               <AppText variant="caption" color={Colors.gold}>
@@ -79,14 +79,14 @@ export function PostCard({
         </View>
       </View>
 
-      {post.text ? <RichText text={post.text} mentions={post.mentions} style={{ lineHeight: 23 }} /> : null}
-      {post.media && <Photo media={post.media} maxWidth={560} maxHeight={420} />}
-      {post.sticker && <Sticker id={post.sticker} size={140} />}
+      {post.text ? <RichText text={post.text} mentions={post.mentions} style={{ fontSize: 15, lineHeight: 21 }} /> : null}
+      {post.media && <Photo media={post.media} maxWidth={560} maxHeight={300} />}
+      {post.sticker && <Sticker id={post.sticker} size={96} />}
 
       <View style={styles.actions}>
         <Tap accessibilityRole="button" accessibilityLabel={`Bravo, ${likes}`} accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>
-          <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={26} color={isLiked ? Colors.accent : Colors.text} />
-          <AppText variant="label">{likes}</AppText>
+          <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={20} color={isLiked ? Colors.accent : Colors.text} />
+          <AppText variant="caption">{likes}</AppText>
         </Tap>
         <Tap
           accessibilityRole="button"
@@ -94,12 +94,12 @@ export function PostCard({
           disabled={!linkToDetail}
           onPress={() => router.push({ pathname: '/post/[id]', params: { id: post.id } })}
           style={styles.action}>
-          <Ionicons name="chatbubble-outline" size={24} color={Colors.text} />
-          <AppText variant="label">{post.comments}</AppText>
+          <Ionicons name="chatbubble-outline" size={18} color={Colors.text} />
+          <AppText variant="caption">{post.comments}</AppText>
         </Tap>
         {post.author.id !== playerId && (
           <Tap accessibilityRole="button" accessibilityLabel="Signaler la publication" onPress={() => setReporting(true)} style={[styles.action, { marginLeft: 'auto' }]}>
-            <Ionicons name="flag-outline" size={22} color={Colors.text} />
+            <Ionicons name="flag-outline" size={17} color={Colors.textMuted} />
           </Tap>
         )}
       </View>
@@ -112,13 +112,14 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
-    padding: Spacing.md,
-    gap: Spacing.sm + 4,
+    paddingHorizontal: Spacing.sm + 4,
+    paddingVertical: Spacing.sm + 2,
+    gap: Spacing.sm,
     ...Shadow,
   },
-  header: { flexDirection: 'row', gap: Spacing.sm + 4, alignItems: 'center' },
+  header: { flexDirection: 'row', gap: Spacing.sm + 2, alignItems: 'center' },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   themeChip: { borderWidth: 1, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 1 },
-  actions: { flexDirection: 'row', gap: Spacing.xl, paddingTop: Spacing.xs },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  actions: { flexDirection: 'row', gap: Spacing.lg },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 28 },
 });
