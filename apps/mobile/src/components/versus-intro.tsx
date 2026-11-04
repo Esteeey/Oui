@@ -46,7 +46,9 @@ const VS_IMAGE = require('../../assets/images/vs.png');
 const VS_RATIO = 900 / 892;
 
 /** Durée de la course des deux moitiés jusqu'au choc. */
-const CLASH_MS = 950;
+/** Instant du choc des deux moitiés, exporté pour caler le son de l'intro. */
+export const VERSUS_CLASH_MS = 950;
+const CLASH_MS = VERSUS_CLASH_MS;
 
 /**
  * Écran « VS » avant la première question : la moitié du haut (couverture du joueur, sinon paysage froid) et celle du bas

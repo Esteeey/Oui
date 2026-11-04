@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
+import { useMusicEnabled, useSoundEnabled } from '@/audio/sounds';
 import { SectionHeader } from '@/components/social';
 import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
@@ -44,6 +45,11 @@ const SECTIONS: { title: string; entries: Entry[] }[] = [
 export default function SettingsScreen() {
   return (
     <Screen title="Réglages" back>
+      <View style={{ gap: Spacing.sm }}>
+        <SectionHeader title="Jeu" />
+        <SoundRow />
+        <MusicRow />
+      </View>
       {SECTIONS.map((section) => (
         <View key={section.title} style={{ gap: Spacing.sm }}>
           <SectionHeader title={section.title} />
@@ -64,6 +70,38 @@ export default function SettingsScreen() {
         </View>
       ))}
     </Screen>
+  );
+}
+
+function SoundRow() {
+  const [on, setOn] = useSoundEnabled();
+  return (
+    <View style={styles.row}>
+      <Ionicons name={on ? 'volume-high-outline' : 'volume-mute-outline'} size={22} color={Colors.accent} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <AppText variant="label">Sons</AppText>
+        <AppText variant="caption" muted>
+          Sons du duel et de fin de partie
+        </AppText>
+      </View>
+      <Switch value={on} onValueChange={setOn} accessibilityLabel="Sons" trackColor={{ true: Colors.accent, false: Colors.border }} />
+    </View>
+  );
+}
+
+function MusicRow() {
+  const [on, setOn] = useMusicEnabled();
+  return (
+    <View style={styles.row}>
+      <Ionicons name="musical-notes-outline" size={22} color={Colors.accent} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <AppText variant="label">Musique</AppText>
+        <AppText variant="caption" muted>
+          Musique de fond pendant les duels
+        </AppText>
+      </View>
+      <Switch value={on} onValueChange={setOn} accessibilityLabel="Musique" trackColor={{ true: Colors.accent, false: Colors.border }} />
+    </View>
   );
 }
 

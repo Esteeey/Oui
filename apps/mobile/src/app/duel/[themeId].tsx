@@ -9,7 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
 
 import { AppText, Avatar, Button } from '@/components/ui';
-import { VersusIntro } from '@/components/versus-intro';
+import { VERSUS_CLASH_MS, VersusIntro } from '@/components/versus-intro';
+import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopMusic, stopSound } from '@/audio/sounds';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
@@ -63,6 +64,7 @@ export default function DuelRoute() {
     }
     if (params.resume) return;
     requested.current = true;
+    playSound('launch');
     game.play({
       themeId: params.themeId,
       mode: params.mode === 'pvp' ? 'pvp' : 'bot',
@@ -133,6 +135,63 @@ function useNow(active: boolean): number {
   return now;
 }
 
+/**
+ * Sons du duel, déclenchés par les changements de phase envoyés par le serveur.
+ * La justesse d'une réponse n'est connue qu'à la révélation : le son tombe donc à ce moment-là.
+ */
+function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
+  const prev = useRef<{ phase: string; index: number } | null>(null);
+
+  useEffect(() => preloadSounds(), []);
+
+  // Musique de fond : de l'intro VS jusqu'à la fin du duel (l'écran de duel est alors démonté).
+  useEffect(() => {
+    playMusic('duel');
+    return () => {
+      stopSound('tick');
+      stopMusic('duel');
+    };
+  }, []);
+
+  // Une seule fois par question et par phase, même si le serveur renvoie plusieurs fois le même état.
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = { phase: duel.phase, index: duel.index };
+    if (before && before.phase === duel.phase && before.index === duel.index) return;
+    if (duel.phase !== 'answering') stopSound('tick');
+
+    if (duel.phase === 'intro') {
+      // Calé sur le choc des deux moitiés de l'intro VS.
+      const id = setTimeout(() => playSound('versus'), Math.max(0, VERSUS_CLASH_MS - VERSUS_HIT_OFFSET_MS));
+      return () => clearTimeout(id);
+    }
+    if (duel.phase === 'reading') playSound(duel.index === RULES.questionsPerDuel - 1 ? 'bonusRound' : 'question');
+    if (duel.phase === 'reveal') {
+      // Son de sa propre réponse, puis celui de l'adversaire dès que son résultat est connu.
+      const mine = duel.me.answers[duel.index];
+      playSound(mine?.correct ? 'correct' : mine?.choice == null ? 'timeout' : 'wrong');
+      if (duel.opponentChoice === null || duel.opponentChoice === undefined) return;
+      const opponentCorrect = duel.opponentChoice === duel.correctIndex;
+      const id = setTimeout(() => playSound(opponentCorrect ? 'opponentCorrect' : 'opponentWrong'), 350);
+      return () => clearTimeout(id);
+    }
+  }, [duel.phase, duel.index, duel.me.answers, duel.opponentChoice, duel.correctIndex]);
+
+  // Tic-tac des 5 dernières secondes tant qu'on n'a pas répondu, programmé d'après l'heure de fin
+  // de la question (et non au fil des rendus) ; coupé dès qu'on répond ou à la révélation.
+  useEffect(() => {
+    if (duel.phase !== 'answering' || duel.myChoice !== null) {
+      stopSound('tick');
+      return;
+    }
+    const left = remainingMs(duel, clockOffset);
+    if (left <= 0) return;
+    const id = setTimeout(() => playSound('tick'), Math.max(0, left - TICK_WINDOW_MS));
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duel.phase, duel.index, duel.myChoice]);
+}
+
 function DuelView({ duel }: { duel: DuelSnapshot }) {
   const game = useGameServer();
   const theme = getTheme(duel.themeId);
@@ -140,6 +199,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   const [confirmQuit, setConfirmQuit] = useState(false);
   const online = game.status === 'online';
   useNow(duel.phase === 'answering' || duel.phase === 'reading');
+  useDuelSounds(duel, game.clockOffset);
 
   const left = remainingMs(duel, game.clockOffset);
   const total = Math.max(1, duel.phaseEndsAt - duel.phaseStartedAt);
@@ -239,7 +299,10 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
                     selected={duel.myChoice === i}
                     opponentPicked={reveal && duel.opponentChoice === i}
                     disabled={!online || duel.phase !== 'answering' || duel.myChoice !== null}
-                    onPress={() => game.answer(i)}
+                    onPress={() => {
+                      playSound('answered');
+                      game.answer(i);
+                    }}
                   />
                 );
               })

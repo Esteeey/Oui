@@ -18,6 +18,7 @@ import {
   type SpeedSummary,
 } from '@qu1z/shared';
 
+import { XP_SOUND_MS, playMusic, playSound, stopMusic } from '@/audio/sounds';
 import { Celebration, Crown, GOLD, ReplayButton, ResultBanner } from '@/components/results-art';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
@@ -58,6 +59,29 @@ export default function ResultsScreen() {
   useEffect(() => {
     if (duel?.phase === 'finished' && duel.result) game.ackResult(duel.duelId);
     // Accusé de réception une seule fois par duel affiché.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duel?.duelId, duel?.result]);
+
+  // Sons de fin, une fois par duel : coup de résultat, musique de résultat (une seule), montée d'XP,
+  // puis passage de niveau seulement si le niveau augmente vraiment.
+  useEffect(() => {
+    const r = duel?.phase === 'finished' ? duel.result : null;
+    if (!r) return;
+    const music = r.outcome === 'win' ? 'win' : r.outcome === 'loss' ? 'loss' : 'draw';
+    playSound(r.outcome === 'win' ? 'endWin' : r.outcome === 'loss' ? 'endLoss' : 'endDraw');
+    const timers = [setTimeout(() => playMusic(music), 900)];
+    if (r.accountXpAfter > r.accountXpBefore) {
+      const xpAt = 1500;
+      timers.push(setTimeout(() => playSound('xp'), xpAt));
+      timers.push(setTimeout(() => playSound('xpEnd'), xpAt + XP_SOUND_MS));
+      if (levelFromXp(r.accountXpAfter).level > levelFromXp(r.accountXpBefore).level) {
+        timers.push(setTimeout(() => playSound('levelUp'), xpAt + XP_SOUND_MS + 150));
+      }
+    }
+    return () => {
+      timers.forEach(clearTimeout);
+      stopMusic(music);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duel?.duelId, duel?.result]);
 
