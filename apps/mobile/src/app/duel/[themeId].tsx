@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
 
-import { MatchmakingMap } from '@/components/matchmaking-map';
+import { MATCH_FOUND_MS, MatchmakingMap } from '@/components/matchmaking-map';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { VERSUS_CLASH_MS, VersusIntro } from '@/components/versus-intro';
 import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopMusic, stopSound } from '@/audio/sounds';
@@ -77,52 +77,69 @@ export default function DuelRoute() {
     if (live?.phase === 'finished' && live.result) router.replace('/results');
   }, [live]);
 
-  if (!live || live.phase === 'finished') {
-    return <Waiting themeId={params.themeId} />;
+  // Adversaire trouvé après une recherche : la carte plonge d'abord sur lui (étapes 6 et 7), puis le duel s'affiche.
+  const searched = useRef(false);
+  if (game.queued || (params.mode === 'pvp' && !params.resume)) searched.current = true;
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const revealing = !!live && live.phase !== 'finished' && searched.current && revealed !== live.duelId;
+  useEffect(() => {
+    if (!revealing || !live) return;
+    const duelId = live.duelId;
+    const id = setTimeout(() => setRevealed(duelId), MATCH_FOUND_MS);
+    return () => clearTimeout(id);
+    // Le minuteur ne dépend que du duel trouvé, pas des mises à jour de son état.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealing, live?.duelId]);
+
+  if (!live || live.phase === 'finished' || revealing) {
+    return <Waiting themeId={params.themeId} opponent={revealing ? live.opponent : null} />;
   }
   return <DuelView duel={live} />;
 }
 
 /** Attente : connexion au serveur, recherche d'adversaire. */
-function Waiting({ themeId }: { themeId: string }) {
+function Waiting({ opponent }: { themeId: string; opponent: ParticipantView | null }) {
   const game = useGameServer();
-  const theme = getTheme(themeId);
   const offline = game.status !== 'online';
+  const label = opponent ? 'Adversaire trouvé' : offline ? 'Connexion au serveur' : 'Recherche d’adversaire';
   return (
-    <SafeAreaView style={[styles.screen, styles.center]}>
-      <MatchmakingMap label={offline ? 'Connexion au serveur…' : game.queued ? 'Recherche d’un adversaire…' : 'Préparation du duel…'} />
-      {theme && (
-        <AppText color={D.muted} style={{ textAlign: 'center' }}>
-          {theme.name}
+    <View style={[styles.screen, { backgroundColor: '#000000' }]}>
+      {/* La carte du monde occupe tout l'écran et défile ; le texte et l'annulation restent en bas. */}
+      <MatchmakingMap opponent={opponent} />
+      <SafeAreaView edges={['bottom']} style={waitingStyles.bottom} pointerEvents="box-none">
+        {game.status === 'offline' && (
+          <AppText variant="caption" color={D.muted} style={{ textAlign: 'center', maxWidth: 300 }}>
+            Le serveur de jeu est injoignable. Nouvelle tentative automatique…
+          </AppText>
+        )}
+        {game.lastError && <AppText color={D.wrong}>{game.lastError}</AppText>}
+        <AppText variant="caption" color="#B0B0B8" style={waitingStyles.label}>
+          {label}
         </AppText>
-      )}
-      {game.queued && (
-        <AppText variant="caption" color={D.muted} style={{ textAlign: 'center' }}>
-          Sans adversaire au bout de 10 s, tu joues contre le bot d’entraînement.
-        </AppText>
-      )}
-      {game.status === 'offline' && (
-        <AppText variant="caption" color={D.muted} style={{ textAlign: 'center', maxWidth: 300 }}>
-          Le serveur de jeu est injoignable. Nouvelle tentative automatique…
-        </AppText>
-      )}
-      {game.lastError && <AppText color={D.wrong}>{game.lastError}</AppText>}
-      <View style={{ gap: Spacing.sm, alignSelf: 'stretch', paddingHorizontal: Spacing.xl }}>
-        {game.status === 'offline' && <Button label="Réessayer" color="#FF3B83" textColor={D.onButton} onPress={game.retry} />}
-        <Button
-          label="Annuler"
-          variant="outline"
-          color={D.text}
-          onPress={() => {
-            game.cancelQueue();
-            if (router.canGoBack()) router.back();
-            else router.replace('/');
-          }}
-        />
-      </View>
-    </SafeAreaView>
+        {!opponent && (
+          <View style={{ gap: Spacing.sm, alignSelf: 'stretch', paddingHorizontal: Spacing.xl }}>
+            {game.status === 'offline' && <Button label="Réessayer" color="#FF3B83" textColor={D.onButton} onPress={game.retry} />}
+            <Button
+              label="Annuler"
+              variant="outline"
+              color={D.text}
+              onPress={() => {
+                game.cancelQueue();
+                if (router.canGoBack()) router.back();
+                else router.replace('/');
+              }}
+            />
+          </View>
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
+
+const waitingStyles = StyleSheet.create({
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', gap: Spacing.md, paddingBottom: Spacing.lg },
+  label: { letterSpacing: 2.5, textTransform: 'uppercase', textAlign: 'center', paddingVertical: Spacing.sm },
+});
 
 function useNow(active: boolean): number {
   const [now, setNow] = useState(Date.now());

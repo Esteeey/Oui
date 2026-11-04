@@ -47,3 +47,5 @@ export const Radius = {
 } as const;
 
 export const MaxContentWidth = 560;
+/** Police embarquée des scores (Inter Black, licence OFL) : identique sur tous les appareils. */
+export const Fonts = { score: 'Inter_900Black' } as const;

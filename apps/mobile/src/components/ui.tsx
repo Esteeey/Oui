@@ -17,7 +17,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradientHeader, HEADER_OVERLAP, HeaderBack, Logo } from '@/components/header';
-import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Colors, Gradients, Fonts, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
@@ -244,7 +244,7 @@ const textStyles = StyleSheet.create<Record<Variant, TextStyle>>({
   body: { color: Colors.text, fontSize: 16, lineHeight: 22 },
   label: { color: Colors.text, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
   caption: { color: Colors.text, fontSize: 13, fontWeight: '600' },
-  score: { color: Colors.text, fontSize: 34, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  score: { color: Colors.text, fontSize: 34, fontFamily: Fonts.score, fontVariant: ['tabular-nums'] },
 });
 
 const styles = StyleSheet.create({

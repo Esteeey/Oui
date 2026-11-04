@@ -22,7 +22,7 @@ import { XP_SOUND_MS, playMusic, playSound, stopMusic } from '@/audio/sounds';
 import { Celebration, Crown, GOLD, ReplayButton, ResultBanner } from '@/components/results-art';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
-import { Colors, Gradients, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Gradients, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   card: { alignSelf: 'stretch', borderWidth: 2, borderRadius: 6, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', gap: 8 },
   cardName: { color: R.text, fontSize: 16, fontWeight: '700' },
   ring: { borderWidth: 4, borderRadius: 50, padding: 3 },
-  cardScore: { fontSize: 36, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  cardScore: { fontSize: 36, fontFamily: Fonts.score, fontVariant: ['tabular-nums'] },
   vs: {
     position: 'absolute',
     left: '50%',

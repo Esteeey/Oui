@@ -1,3 +1,5 @@
+import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
+import { useFonts } from 'expo-font';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -24,12 +26,20 @@ const navigationTheme = {
 };
 
 export default function RootLayout() {
+  // Police des scores, embarquée : même rendu sur le téléphone que sur le PC (sinon chaque appareil prend sa police système).
+  const [fontsLoaded, fontError] = useFonts({ Inter_900Black });
+  const ready = fontsLoaded || !!fontError;
+
   useEffect(() => {
-    SplashScreen.hideAsync();
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+
+  useEffect(() => {
     // Toucher une notification push ouvre la conversation ou le centre de notifications.
     return listenToPushTaps();
   }, []);
 
+  if (!ready) return null;
   return (
     <ThemeProvider value={navigationTheme}>
       <GameServerProvider>
