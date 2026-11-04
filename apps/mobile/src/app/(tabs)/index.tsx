@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { THEMES, type FeedItem } from '@qu1z/shared';
@@ -17,6 +17,7 @@ import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 type Filter = 'all' | 'post' | 'activity';
 
@@ -44,11 +45,11 @@ export default function FeedScreen() {
           <HeaderButton icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/messages')} />
         </>
       }>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/compose')} style={styles.compose}>
+      <Tap accessibilityRole="button" onPress={() => router.push('/compose')} style={styles.compose}>
         <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.accent} size={44} uri={profile?.avatar} />
         <AppText style={{ flex: 1, fontSize: 17 }}>Quoi de neuf ?</AppText>
         <Ionicons name="image-outline" size={26} color={Colors.text} />
-      </Pressable>
+      </Tap>
 
       <View style={styles.filters}>
         {FILTERS.map((f) => (

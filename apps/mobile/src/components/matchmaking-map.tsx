@@ -3,9 +3,11 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
   FadeOut,
   ZoomIn,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
@@ -31,6 +33,8 @@ const CHOSEN = 46;
 /** Défilement : des Amériques jusqu'à l'Asie (position horizontale du centre de l'écran, 0..1). */
 const SCROLL_FROM = 0.25;
 const SCROLL_TO = 0.76;
+/** Mouvements réduits : la carte reste immobile, centrée sur l'Europe et l'Afrique. */
+const STILL_AT = 0.52;
 /** Le serveur cherche 10 s au plus avant de proposer le bot : la traversée tient dans ce temps. */
 const SCROLL_MS = 10_000;
 const scrollEase = Easing.inOut(Easing.sin);
@@ -68,7 +72,9 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
     pinsRef.current = pins;
   }, [pins]);
 
-  const camU = useSharedValue(SCROLL_FROM);
+  // Réglage « réduire les animations » du téléphone : pas de défilement plein écran, pas de rebond ni de pulsation.
+  const still = useReducedMotion();
+  const camU = useSharedValue(still ? STILL_AT : SCROLL_FROM);
   const camV = useSharedValue(0.5);
   const zoom = useSharedValue(1);
   const found = opponent !== null;
@@ -81,7 +87,7 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
 
   // Défilement continu, puis va-et-vient lent si la recherche se prolonge (connexion lente).
   useEffect(() => {
-    if (found || size.h === 0) return;
+    if (found || size.h === 0 || still) return;
     const elapsed = Date.now() - start.current;
     const remaining = Math.max(0, SCROLL_MS - elapsed);
     camU.set(
@@ -90,14 +96,14 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
         withRepeat(withTiming(SCROLL_FROM, { duration: SCROLL_MS * 1.6, easing: scrollEase }), -1, true),
       ),
     );
-  }, [found, size.h, camU]);
+  }, [found, size.h, still, camU]);
 
   // Des joueurs apparaissent sur les terres visibles, surtout du côté qui arrive à l'écran.
   useEffect(() => {
     if (found || size.h === 0) return;
     const id = setInterval(() => {
       const t = Date.now() - start.current;
-      const center = t <= SCROLL_MS ? scrollAt(t) : camU.get();
+      const center = still ? STILL_AT : t <= SCROLL_MS ? scrollAt(t) : camU.get();
       setPins((list) => {
         const visible = list.filter((p) => p.u > center - half - 0.02);
         const kept = visible.length > MAX_PINS ? visible.slice(visible.length - MAX_PINS) : visible;
@@ -118,13 +124,13 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
             u,
             v,
             color: secondary ? SECONDARY[Math.floor(Math.random() * SECONDARY.length)] : MAGENTA,
-            pulse: Math.random() < 0.3,
+            pulse: !still && Math.random() < 0.3,
           },
         ];
       });
     }, 190);
     return () => clearInterval(id);
-  }, [found, size.h, half, camU]);
+  }, [found, size.h, half, still, camU]);
 
   // Adversaire trouvé : il prend la place du joueur visible le plus central, la carte s'approche de lui.
   useEffect(() => {
@@ -141,11 +147,12 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
     }
     setChosen({ u: spot.u, v: spot.v });
     setPins([]);
+    if (still) return;
     const ease = { duration: MATCH_FOUND_MS - 100, easing: Easing.inOut(Easing.cubic) };
     camU.set(withTiming(spot.u, ease));
     camV.set(withTiming(spot.v, ease));
     zoom.set(withTiming(ZOOM_FOUND, ease));
-  }, [found, size.h, half, camU, camV, zoom]);
+  }, [found, size.h, half, still, camU, camV, zoom]);
 
   const camera = useAnimatedStyle(() => {
     const z = zoom.get();
@@ -165,12 +172,12 @@ export function MatchmakingMap({ opponent }: { opponent: ParticipantView | null 
           <Dots width={mapW} height={mapH} />
           {pins.map((p) => (
             <Marker key={p.key} u={p.u} v={p.v} mapW={mapW} mapH={mapH} zoom={zoom}>
-              <AmbientPin color={p.color} pulse={p.pulse} />
+              <AmbientPin color={p.color} pulse={p.pulse} still={still} />
             </Marker>
           ))}
           {opponent && chosen && (
             <Marker u={chosen.u} v={chosen.v} mapW={mapW} mapH={mapH} zoom={zoom}>
-              <ChosenPin opponent={opponent} />
+              <ChosenPin opponent={opponent} still={still} />
             </Marker>
           )}
         </Animated.View>
@@ -200,7 +207,7 @@ function Marker({
 }
 
 /** Joueur anonyme : épingle colorée avec une silhouette d'avatar, qui pulse parfois doucement. */
-function AmbientPin({ color, pulse }: { color: string; pulse: boolean }) {
+function AmbientPin({ color, pulse, still }: { color: string; pulse: boolean; still: boolean }) {
   const ring = useSharedValue(0);
   useEffect(() => {
     if (!pulse) return;
@@ -213,7 +220,7 @@ function AmbientPin({ color, pulse }: { color: string; pulse: boolean }) {
 
   return (
     <Animated.View
-      entering={ZoomIn.springify().damping(9).stiffness(200)}
+      entering={still ? FadeIn.duration(250) : ZoomIn.springify().damping(9).stiffness(200)}
       exiting={FadeOut.duration(260)}
       style={[styles.pin, { width: PIN, height: PIN + 8, left: -PIN / 2, top: -PIN - 8 }]}>
       <Animated.View style={[styles.ring, { width: PIN, height: PIN, borderRadius: PIN / 2, borderColor: color }, ringStyle]} />
@@ -228,15 +235,16 @@ function AmbientPin({ color, pulse }: { color: string; pulse: boolean }) {
 }
 
 /** Adversaire trouvé : son vrai avatar, contour magenta qui pulse et ondulations discrètes. */
-function ChosenPin({ opponent }: { opponent: ParticipantView }) {
+function ChosenPin({ opponent, still }: { opponent: ParticipantView; still: boolean }) {
   const beat = useSharedValue(1);
   const wave0 = useSharedValue(0);
   const wave1 = useSharedValue(0);
   useEffect(() => {
+    if (still) return;
     beat.set(withRepeat(withSequence(withTiming(1.1, { duration: 280 }), withTiming(1, { duration: 280 })), -1));
     wave0.set(withRepeat(withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) }), -1));
     wave1.set(withDelay(380, withRepeat(withTiming(1, { duration: 900, easing: Easing.out(Easing.quad) }), -1)));
-  }, [beat, wave0, wave1]);
+  }, [still, beat, wave0, wave1]);
   const contour = useAnimatedStyle(() => ({ transform: [{ scale: beat.get() }] }));
   const ripple0 = useAnimatedStyle(() => ({ opacity: 0.6 * (1 - wave0.get()), transform: [{ scale: 1 + wave0.get() * 1.6 }] }));
   const ripple1 = useAnimatedStyle(() => ({ opacity: 0.6 * (1 - wave1.get()), transform: [{ scale: 1 + wave1.get() * 1.6 }] }));
@@ -244,7 +252,7 @@ function ChosenPin({ opponent }: { opponent: ParticipantView }) {
 
   return (
     <Animated.View
-      entering={ZoomIn.springify().damping(8).stiffness(180)}
+      entering={still ? FadeIn.duration(250) : ZoomIn.springify().damping(8).stiffness(180)}
       style={[styles.pin, { width: CHOSEN, height: CHOSEN + 10, left: -CHOSEN / 2, top: -CHOSEN - 10 }]}>
       <Animated.View style={[styles.ring, ringBox, ripple0]} />
       <Animated.View style={[styles.ring, ringBox, ripple1]} />

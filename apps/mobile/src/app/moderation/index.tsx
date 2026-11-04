@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import {
   APPEAL_STATUS_LABEL,
@@ -18,6 +18,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
+import { Tap } from '@/components/tap';
 
 type Tab = 'reports' | 'appeals' | 'log' | 'announce';
 
@@ -100,7 +101,7 @@ function Reports() {
       </View>
       {list.data && reports.length === 0 && <AppText muted>Aucun signalement.</AppText>}
       {reports.map((r) => (
-        <Pressable
+        <Tap
           key={r.id}
           accessibilityRole="button"
           accessibilityLabel={`Signalement ${TYPE_LABEL[r.targetType]} : ${r.preview}`}
@@ -122,7 +123,7 @@ function Reports() {
               {r.priority ? ' · demande d’un administrateur du groupe' : ''}
             </AppText>
           </Card>
-        </Pressable>
+        </Tap>
       ))}
     </>
   );

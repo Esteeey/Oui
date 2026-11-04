@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { THEMES, getCategory, type DuelRecord, type EarnedMedal, type PostView, type PublicProfile, type ThemeStats } from '@qu1z/shared';
 
@@ -15,6 +15,7 @@ import { medalBadges } from '@/game/badges';
 import { api, errorMessage, useApi } from '@/net/api';
 import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -67,13 +68,13 @@ export default function PlayerScreen() {
     <Screen back title={p.pseudo}>
       <ReportSheet target={reporting ? { type: 'user', id: p.id, label: p.pseudo } : null} onClose={() => setReporting(false)} />
       <View style={styles.topRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Signaler" onPress={() => setReporting(true)} style={styles.menu}>
+        <Tap accessibilityRole="button" accessibilityLabel="Signaler" onPress={() => setReporting(true)} style={styles.menu}>
           <Ionicons name="flag-outline" size={18} color={Colors.textMuted} />
           <AppText variant="caption" muted>
             Signaler
           </AppText>
-        </Pressable>
-        <Pressable
+        </Tap>
+        <Tap
           accessibilityRole="button"
           accessibilityLabel={rel.blockedByMe ? 'Débloquer' : 'Bloquer'}
           onPress={() => (rel.blockedByMe ? act('DELETE', `/api/blocks/${id}`) : setConfirmBlock(true))}
@@ -82,7 +83,7 @@ export default function PlayerScreen() {
           <AppText variant="caption" muted>
             {rel.blockedByMe ? 'Débloquer' : 'Bloquer'}
           </AppText>
-        </Pressable>
+        </Tap>
       </View>
 
       <ProfileHeader
@@ -131,7 +132,7 @@ export default function PlayerScreen() {
           {THEMES.map((t) => {
             const category = getCategory(t.categoryId)!;
             return (
-              <Pressable
+              <Tap
                 key={t.id}
                 accessibilityRole="button"
                 onPress={async () => {
@@ -150,7 +151,7 @@ export default function PlayerScreen() {
                   {t.name}
                 </AppText>
                 <Ionicons name="flash" size={16} color={category.color} />
-              </Pressable>
+              </Tap>
             );
           })}
         </Card>

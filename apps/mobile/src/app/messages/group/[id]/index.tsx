@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { groupRights, MAX_GROUP_NAME_LENGTH, type GroupDetail, type GroupMemberView, type MediaView } from '@qu1z/shared';
 
@@ -13,6 +13,7 @@ import { api, errorMessage, useApi } from '@/net/api';
 import { pickImage, uploadImage } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 type Confirm = { title: string; text: string; label: string; color: string; run: () => Promise<unknown> } | null;
 
@@ -162,14 +163,14 @@ export default function GroupInfoScreen() {
             title="Participants"
             action={
               rights.invite ? (
-                <Pressable
+                <Tap
                   accessibilityRole="button"
                   onPress={() => router.push({ pathname: '/messages/group/[id]/invite', params: { id } })}
                   style={{ padding: Spacing.xs }}>
                   <AppText variant="label" color={Colors.accent}>
                     + Inviter
                   </AppText>
-                </Pressable>
+                </Tap>
               ) : undefined
             }
           />
@@ -180,7 +181,7 @@ export default function GroupInfoScreen() {
             const actions = m.user.id === playerId ? [] : memberActions(m);
             return (
               <View key={m.user.id}>
-                <Pressable
+                <Tap
                   accessibilityRole="button"
                   accessibilityLabel={`${m.user.pseudo}, ${m.role}`}
                   onPress={() => {
@@ -210,7 +211,7 @@ export default function GroupInfoScreen() {
                       {m.blockedByMe ? 'Bloqué : ses messages te sont masqués' : (m.user.title ?? `Niveau ${m.user.level}`)}
                     </AppText>
                   </View>
-                </Pressable>
+                </Tap>
                 {selected === m.user.id && (
                   <View style={styles.actions}>
                     <Button

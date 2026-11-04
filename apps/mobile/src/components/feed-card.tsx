@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { getCategory, getTheme, type ActivityView } from '@qu1z/shared';
 
@@ -9,6 +9,7 @@ import { AppText, Avatar } from '@/components/ui';
 import { Colors, Gradients, Radius, Shadow, Spacing } from '@/constants/theme';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
+import { Tap } from '@/components/tap';
 
 function describe(event: ActivityView['event']): { text: string; emoji: string; banner: string; pill?: string } {
   switch (event.kind) {
@@ -32,9 +33,9 @@ export function ActivityCard({ activity }: { activity: ActivityView }) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${activity.user.pseudo}`} onPress={openPlayer}>
+        <Tap accessibilityRole="button" accessibilityLabel={`Profil de ${activity.user.pseudo}`} onPress={openPlayer}>
           <Avatar name={activity.user.pseudo} color={avatarColor(activity.user.id)} uri={activity.user.avatar} size={52} borderColor={Colors.accent} />
-        </Pressable>
+        </Tap>
         <View style={{ flex: 1 }}>
           <AppText variant="heading" onPress={openPlayer} numberOfLines={1}>
             {activity.user.pseudo}
@@ -44,7 +45,7 @@ export function ActivityCard({ activity }: { activity: ActivityView }) {
           </AppText>
         </View>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel={theme ? `Jouer : ${theme.name}` : banner} onPress={openTheme}>
+      <Tap accessibilityRole="button" accessibilityLabel={theme ? `Jouer : ${theme.name}` : banner} onPress={openTheme}>
         <LinearGradient colors={Gradients.banner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.banner}>
           <AppText style={{ fontSize: 38 }}>{emoji}</AppText>
           <View style={styles.divider} />
@@ -70,7 +71,7 @@ export function ActivityCard({ activity }: { activity: ActivityView }) {
             </View>
           )}
         </LinearGradient>
-      </Pressable>
+      </Tap>
     </View>
   );
 }

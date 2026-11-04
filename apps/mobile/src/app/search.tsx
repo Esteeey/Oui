@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { getCategory, type UserSummary } from '@qu1z/shared';
 
@@ -10,6 +10,7 @@ import { SectionHeader } from '@/components/social';
 import { AppText, Button, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api } from '@/net/api';
+import { Tap } from '@/components/tap';
 
 interface Results {
   players: UserSummary[];
@@ -70,7 +71,7 @@ export default function SearchScreen() {
           {results.themes.map((t) => {
             const category = getCategory(t.categoryId);
             return (
-              <Pressable
+              <Tap
                 key={t.id}
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/theme/[id]', params: { id: t.id } })}
@@ -82,7 +83,7 @@ export default function SearchScreen() {
                     {category?.name}
                   </AppText>
                 </View>
-              </Pressable>
+              </Tap>
             );
           })}
         </>

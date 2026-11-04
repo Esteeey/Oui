@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { countryFlag, countryName, type LeaderboardPeriod, type LeaderboardRow, type LeaderboardScope, type PublicProfile } from '@qu1z/shared';
 
@@ -10,6 +10,7 @@ import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 /**
  * Classement réel par cote ou par XP de la saison (le mois en cours), général si `themeId` est absent :
@@ -53,14 +54,14 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
         ]}
       />
       {noCountry ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push('/settings/profile')} style={styles.notice}>
+        <Tap accessibilityRole="button" onPress={() => router.push('/settings/profile')} style={styles.notice}>
           <AppText muted style={{ flex: 1 }}>
             Choisis ton pays (facultatif) pour comparer ton score aux joueurs de ton pays.
           </AppText>
           <AppText variant="label" color={Colors.accent}>
             Choisir ›
           </AppText>
-        </Pressable>
+        </Tap>
       ) : (
         <>
           {board.data && rows.length > 0 && !rows.some((r) => r.isMe) && !limit && (
@@ -74,7 +75,7 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
             </AppText>
           )}
           {rows.map((row) => (
-            <Pressable
+            <Tap
               key={row.user.id}
               accessibilityRole="button"
               onPress={() => router.push({ pathname: '/player/[id]', params: { id: row.user.id } })}
@@ -94,7 +95,7 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
                 {row.rating}
                 {period === 'season' ? ' XP' : ''}
               </AppText>
-            </Pressable>
+            </Tap>
           ))}
         </>
       )}

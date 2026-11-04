@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { getCategory, getTheme, levelFromXp, titleForLevel, type PublicProfile } from '@qu1z/shared';
 
@@ -12,6 +12,7 @@ import { AppText, Avatar, Card, ProgressBar, Stat } from '@/components/ui';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import type { Badge } from '@/game/badges';
 import { mediaUri } from '@/net/media';
+import { Tap } from '@/components/tap';
 
 export interface ShowcaseTheme {
   themeId: string;
@@ -77,7 +78,7 @@ export function ProfileHeader({
 /** Compteurs d'abonnés et d'abonnements (toujours visibles) ; les listes s'ouvrent si elles sont visibles. */
 export function FollowCounts({ profile }: { profile: PublicProfile }) {
   const item = (label: string, value: number, which: 'followers' | 'following', canOpen: boolean) => (
-    <Pressable
+    <Tap
       accessibilityRole="button"
       accessibilityState={{ disabled: !canOpen }}
       disabled={!canOpen}
@@ -87,7 +88,7 @@ export function FollowCounts({ profile }: { profile: PublicProfile }) {
       <AppText variant="caption" muted>
         {label}
       </AppText>
-    </Pressable>
+    </Tap>
   );
   return (
     <View style={styles.counts}>
@@ -161,7 +162,7 @@ export function Showcase({ title, themes }: { title: string; themes: ShowcaseThe
         const category = getCategory(theme.categoryId)!;
         const level = levelFromXp(t.xp);
         return (
-          <Pressable
+          <Tap
             key={t.themeId}
             onPress={() => router.push({ pathname: '/theme/[id]', params: { id: t.themeId } })}
             style={[styles.theme, { borderLeftColor: category.color }]}>
@@ -176,7 +177,7 @@ export function Showcase({ title, themes }: { title: string; themes: ShowcaseThe
               </AppText>
               <DivisionBadge rating={t.rating} compact />
             </View>
-          </Pressable>
+          </Tap>
         );
       })}
     </>

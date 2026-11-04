@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { attachmentLabel, type ConversationSummary, type GroupInvitationView, type MessageRequestView } from '@qu1z/shared';
 
@@ -14,6 +14,7 @@ import { api, errorMessage, useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
+import { Tap } from '@/components/tap';
 
 /** Messagerie : demandes reçues, puis conversations (épinglées d'abord). Séparée des notifications. */
 export default function InboxScreen() {
@@ -52,7 +53,7 @@ export default function InboxScreen() {
           <SectionHeader title={`Demandes de message · ${incoming.length}`} />
           {incoming.map((r) => (
             <Card key={r.id}>
-              <Pressable
+              <Tap
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/player/[id]', params: { id: r.from.id } })}
                 style={styles.requestHead}>
@@ -63,7 +64,7 @@ export default function InboxScreen() {
                     {timeAgo(r.createdAt)}
                   </AppText>
                 </View>
-              </Pressable>
+              </Tap>
               {r.firstMessage && <AppText>« {r.firstMessage} »</AppText>}
               <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                 <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act('POST', `/api/messages/requests/${r.id}/decline`)} style={{ flex: 1 }} />
@@ -127,7 +128,7 @@ export default function InboxScreen() {
               : `${last.senderId === playerId ? 'Toi : ' : ''}${last.kind === 'text' ? (last.text ?? '') : `${attachmentLabel(last.kind)}${last.text ? ` · ${last.text}` : ''}`}`;
           return (
             <View key={c.id}>
-              <Pressable
+              <Tap
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/messages/[id]', params: { id: c.id } })}
                 onLongPress={() => setMenu(menu === c.id ? null : c.id)}
@@ -165,10 +166,10 @@ export default function InboxScreen() {
                     )}
                   </View>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Options" hitSlop={10} onPress={() => setMenu(menu === c.id ? null : c.id)}>
+                <Tap accessibilityRole="button" accessibilityLabel="Options" hitSlop={10} onPress={() => setMenu(menu === c.id ? null : c.id)}>
                   <Ionicons name="ellipsis-vertical" size={18} color={Colors.textMuted} />
-                </Pressable>
-              </Pressable>
+                </Tap>
+              </Tap>
               {menu === c.id && (
                 <View style={styles.menu}>
                   <Button

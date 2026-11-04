@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,6 +26,7 @@ import { Colors, Fonts, Gradients, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
+import { Tap } from '@/components/tap';
 
 const R = {
   bg: '#000000',
@@ -118,9 +119,9 @@ export default function ResultsScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xl }} showsVerticalScrollIndicator={false}>
         <ThemeCover themeId={duel.themeId} height={300} fadeTo={R.bg}>
           <SafeAreaView edges={['top']} style={styles.coverContent}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={close} style={styles.close}>
+            <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={close} style={styles.close}>
               <Ionicons name="close" size={26} color={R.text} />
-            </Pressable>
+            </Tap>
             <View style={styles.titles}>
               <AppText style={styles.title}>RÉSULTATS</AppText>
               <AppText style={styles.subtitle}>{theme?.name}</AppText>
@@ -203,7 +204,7 @@ export default function ResultsScreen() {
 
           <ReplayButton onPress={replay} />
           {!duel.opponent.isBot && (
-            <Pressable
+            <Tap
               accessibilityRole="button"
               onPress={() =>
                 api('POST', '/api/challenges', { userId: duel.opponent.id, themeId: duel.themeId, rematchOf: duel.duelId })
@@ -214,7 +215,7 @@ export default function ResultsScreen() {
               <AppText variant="label" color={PINK}>
                 Proposer une revanche à {duel.opponent.name}
               </AppText>
-            </Pressable>
+            </Tap>
           )}
           {rematch && (
             <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
@@ -223,25 +224,25 @@ export default function ResultsScreen() {
           )}
 
           <View style={styles.secondary}>
-            <Pressable
+            <Tap
               accessibilityRole="button"
               accessibilityLabel="Discuter avec l’adversaire"
               disabled={duel.opponent.isBot}
               onPress={() => router.push({ pathname: '/messages/new', params: { userId: duel.opponent.id } })}
               style={styles.secondaryButton}>
               <Ionicons name="chatbubble-ellipses" size={28} color={duel.opponent.isBot ? '#52525B' : R.text} />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} style={styles.secondaryButton}>
+            </Tap>
+            <Tap accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} style={styles.secondaryButton}>
               <Ionicons name="share-social" size={28} color={R.text} />
-            </Pressable>
+            </Tap>
           </View>
 
-          <Pressable accessibilityRole="button" onPress={() => setDetails((d) => !d)} style={styles.detailsToggle}>
+          <Tap accessibilityRole="button" onPress={() => setDetails((d) => !d)} style={styles.detailsToggle}>
             <AppText variant="label" color={R.muted}>
               {details ? 'Masquer le détail des questions' : 'Voir le détail des questions'}
             </AppText>
             <Ionicons name={details ? 'chevron-up' : 'chevron-down'} size={18} color={R.muted} />
-          </Pressable>
+          </Tap>
           {details &&
             record.questions.map((q, i) => {
               const mine = record.player[i];

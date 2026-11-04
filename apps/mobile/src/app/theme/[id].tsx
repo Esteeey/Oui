@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
@@ -32,6 +32,7 @@ import { themeCover } from '@/game/theme-covers';
 import { api, errorMessage, useApi } from '@/net/api';
 import { useThemeStats } from '@/state/progress';
 import { formatCount } from '@/utils/format';
+import { Tap } from '@/components/tap';
 
 /** Page de thème, comme la maquette validée : haut bleu nuit traversé d'une vague rose, puis fond clair. */
 const Page = {
@@ -97,12 +98,12 @@ export default function ThemeScreen() {
             <AppText style={styles.tagline}>{theme.description}</AppText>
 
             <View style={styles.actions}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Jouer un duel classé" onPress={() => duel('pvp')} style={styles.playWrap}>
+              <Tap accessibilityRole="button" accessibilityLabel="Jouer un duel classé" onPress={() => duel('pvp')} style={styles.playWrap}>
                 <LinearGradient colors={Page.play} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.play}>
                   <Ionicons name="play" size={24} color="#FFFFFF" />
                   <AppText style={styles.playLabel}>Jouer</AppText>
                 </LinearGradient>
-              </Pressable>
+              </Tap>
               <SoftButton icon={<Ionicons name="trophy-outline" size={21} color={Colors.text} />} label="Classement" onPress={() => setTab('ranking')} grow={1.15} />
               <SoftButton
                 icon={<Ionicons name={subscribed ? 'checkmark' : 'add'} size={22} color={Colors.text} />}
@@ -133,12 +134,12 @@ export default function ThemeScreen() {
             {TABS.map((t) => {
               const active = t.value === tab;
               return (
-                <Pressable key={t.value} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(t.value)} style={styles.tab}>
+                <Tap key={t.value} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(t.value)} style={styles.tab}>
                   <AppText style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
                     {t.label}
                   </AppText>
                   {active && <View style={styles.underline} />}
-                </Pressable>
+                </Tap>
               );
             })}
           </View>
@@ -163,12 +164,12 @@ export default function ThemeScreen() {
       </ScrollView>
 
       <View style={[styles.topBar, { top: insets.top + Spacing.sm }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Retour" hitSlop={12} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={styles.topButton}>
+        <Tap accessibilityRole="button" accessibilityLabel="Retour" hitSlop={12} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={styles.topButton}>
           <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Plus d'options" hitSlop={12} onPress={() => setMenuOpen((o) => !o)} style={styles.topButton}>
+        </Tap>
+        <Tap accessibilityRole="button" accessibilityLabel="Plus d'options" hitSlop={12} onPress={() => setMenuOpen((o) => !o)} style={styles.topButton}>
           <Ionicons name="ellipsis-horizontal" size={26} color="#FFFFFF" />
-        </Pressable>
+        </Tap>
       </View>
       {menuOpen && (
         <View style={[styles.menu, { top: insets.top + 56 }]}>
@@ -246,12 +247,12 @@ function HeroBackground({ themeId, height }: { themeId: string; height: number }
 
 function SoftButton({ icon, label, onPress, grow }: { icon: ReactNode; label: string; onPress: () => void; grow: number }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={[styles.soft, { flex: grow }]}>
+    <Tap accessibilityRole="button" onPress={onPress} style={[styles.soft, { flex: grow }]}>
       {icon}
       <AppText style={styles.softLabel} numberOfLines={1}>
         {label}
       </AppText>
-    </Pressable>
+    </Tap>
   );
 }
 
@@ -273,9 +274,9 @@ function StatTile({ icon, label, value }: { icon: ReactNode; label: string; valu
 
 function MenuItem({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="menuitem" onPress={onPress} style={styles.menuItem}>
+    <Tap accessibilityRole="menuitem" onPress={onPress} style={styles.menuItem}>
       <AppText variant="label">{label}</AppText>
-    </Pressable>
+    </Tap>
   );
 }
 
@@ -291,12 +292,12 @@ function LockedFeed({ loading, onFollow }: { loading: boolean; onFollow: () => v
       <AppText muted style={{ textAlign: 'center' }}>
         Suis ce thème pour voir toutes ses publications, publier des photos et des stickers, aimer et commenter.
       </AppText>
-      <Pressable accessibilityRole="button" onPress={onFollow} style={styles.lockedButton}>
+      <Tap accessibilityRole="button" onPress={onFollow} style={styles.lockedButton}>
         <LinearGradient colors={Page.play} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.lockedButtonFill}>
           <Ionicons name="add" size={22} color="#FFFFFF" />
           <AppText style={styles.playLabel}>Suivre ce thème</AppText>
         </LinearGradient>
-      </Pressable>
+      </Tap>
     </View>
   );
 }

@@ -1,13 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { StyleSheet, Switch, View } from 'react-native';
 
 import { useMusicEnabled, useSoundEnabled } from '@/audio/sounds';
 import { SectionHeader } from '@/components/social';
 import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
+import { Tap } from '@/components/tap';
 
 interface Entry {
   label: string;
@@ -66,7 +67,7 @@ export default function SettingsScreen() {
         <View key={section.title} style={{ gap: Spacing.sm }}>
           <SectionHeader title={section.title} />
           {section.entries.map((e) => (
-            <Pressable key={e.label} accessibilityRole="button" onPress={() => router.push(e.href)} style={styles.row}>
+            <Tap key={e.label} accessibilityRole="button" onPress={() => router.push(e.href)} style={styles.row}>
               <Ionicons name={e.icon} size={22} color={e.danger ? Colors.wrong : Colors.accent} />
               <View style={{ flex: 1, gap: 2 }}>
                 <AppText variant="label" color={e.danger ? Colors.wrong : undefined}>
@@ -77,7 +78,7 @@ export default function SettingsScreen() {
                 </AppText>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-            </Pressable>
+            </Tap>
           ))}
         </View>
       ))}

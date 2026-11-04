@@ -15,6 +15,7 @@ import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSoun
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
+import { Tap } from '@/components/tap';
 
 /** Couleurs de l'écran de duel (fond noir, boutons clairs). */
 const D = {
@@ -345,11 +346,11 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           ) : null}
         </View>
 
-        <Pressable accessibilityRole="button" onPress={() => setConfirmQuit(true)} style={styles.quit}>
+        <Tap accessibilityRole="button" onPress={() => setConfirmQuit(true)} style={styles.quit}>
           <AppText variant="caption" color={D.muted}>
             Abandonner
           </AppText>
-        </Pressable>
+        </Tap>
       </View>
 
       {quitDialog}

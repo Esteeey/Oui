@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { getCategory, getTheme, type PostView } from '@qu1z/shared';
 
@@ -15,6 +15,7 @@ import { api } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
+import { Tap } from '@/components/tap';
 
 /** Publication réelle (servie par l'API, déjà filtrée par les blocages et la confidentialité). */
 export function PostCard({
@@ -46,9 +47,9 @@ export function PostCard({
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${post.author.pseudo}`} onPress={openAuthor}>
+        <Tap accessibilityRole="button" accessibilityLabel={`Profil de ${post.author.pseudo}`} onPress={openAuthor}>
           <Avatar name={post.author.pseudo} color={avatarColor(post.author.id)} uri={post.author.avatar} size={52} borderColor={Colors.accent} />
-        </Pressable>
+        </Tap>
         <View style={{ flex: 1, gap: 2 }}>
           <AppText variant="heading" onPress={openAuthor}>
             {post.author.pseudo}
@@ -61,14 +62,14 @@ export function PostCard({
           </AppText>
           <View style={styles.meta}>
             {showTheme && theme && category && (
-              <Pressable
+              <Tap
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/theme/[id]', params: { id: theme.id } })}
                 style={[styles.themeChip, { borderColor: category.color }]}>
                 <AppText variant="caption" color={category.color}>
                   {category.icon} {theme.name}
                 </AppText>
-              </Pressable>
+              </Tap>
             )}
             <AppText variant="caption" muted>
               {showTheme && post.target.kind === 'profile' ? 'Sur son mur · ' : showTheme && theme ? '· ' : ''}
@@ -83,11 +84,11 @@ export function PostCard({
       {post.sticker && <Sticker id={post.sticker} size={140} />}
 
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Bravo, ${likes}`} accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>
+        <Tap accessibilityRole="button" accessibilityLabel={`Bravo, ${likes}`} accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>
           <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={26} color={isLiked ? Colors.accent : Colors.text} />
           <AppText variant="label">{likes}</AppText>
-        </Pressable>
-        <Pressable
+        </Tap>
+        <Tap
           accessibilityRole="button"
           accessibilityLabel={`${post.comments} commentaires`}
           disabled={!linkToDetail}
@@ -95,11 +96,11 @@ export function PostCard({
           style={styles.action}>
           <Ionicons name="chatbubble-outline" size={24} color={Colors.text} />
           <AppText variant="label">{post.comments}</AppText>
-        </Pressable>
+        </Tap>
         {post.author.id !== playerId && (
-          <Pressable accessibilityRole="button" accessibilityLabel="Signaler la publication" onPress={() => setReporting(true)} style={[styles.action, { marginLeft: 'auto' }]}>
+          <Tap accessibilityRole="button" accessibilityLabel="Signaler la publication" onPress={() => setReporting(true)} style={[styles.action, { marginLeft: 'auto' }]}>
             <Ionicons name="flag-outline" size={22} color={Colors.text} />
-          </Pressable>
+          </Tap>
         )}
       </View>
       <ReportSheet target={reporting ? { type: 'post', id: post.id, label: 'cette publication' } : null} onClose={() => setReporting(false)} />

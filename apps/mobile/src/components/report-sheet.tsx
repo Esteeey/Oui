@@ -6,6 +6,7 @@ import { MAX_REPORT_DETAILS, REPORT_REASONS, type ReportReason, type ReportTarge
 import { AppText, Button } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
+import { Tap } from '@/components/tap';
 
 export interface ReportTarget {
   type: ReportTargetType;
@@ -60,7 +61,7 @@ export function ReportSheet({ target, onClose }: { target: ReportTarget | null; 
             <>
               <AppText muted>Pourquoi ? Le signalement est anonyme pour la personne signalée.</AppText>
               {REPORT_REASONS.map((r) => (
-                <Pressable
+                <Tap
                   key={r.id}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: reason === r.id }}
@@ -69,7 +70,7 @@ export function ReportSheet({ target, onClose }: { target: ReportTarget | null; 
                   style={[styles.reason, reason === r.id && styles.reasonOn]}>
                   <View style={[styles.radio, reason === r.id && styles.radioOn]} />
                   <AppText>{r.label}</AppText>
-                </Pressable>
+                </Tap>
               ))}
               <TextInput
                 value={details}

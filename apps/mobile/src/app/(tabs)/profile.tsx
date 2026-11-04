@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -17,6 +17,7 @@ import { bestWinStreak, totalXp, useProgress } from '@/state/progress';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 const OUTCOME = {
   win: { label: 'Victoire', color: Colors.correct },
@@ -113,7 +114,7 @@ export default function ProfileScreen() {
             const them = d.opponent.reduce((t, a) => t + a.points, 0);
             const outcome = OUTCOME[d.outcome];
             return (
-              <Pressable
+              <Tap
                 key={d.id}
                 onPress={() => d.opponentId && router.push({ pathname: '/player/[id]', params: { id: d.opponentId } })}
                 style={styles.duel}>
@@ -133,7 +134,7 @@ export default function ProfileScreen() {
                     {me} – {them}
                   </AppText>
                 </View>
-              </Pressable>
+              </Tap>
             );
           })}
         </>

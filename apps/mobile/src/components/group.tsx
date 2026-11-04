@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import type { GroupRole, UserSummary } from '@qu1z/shared';
 
@@ -11,6 +11,7 @@ import { api, useApi } from '@/net/api';
 import { mediaUri } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 /** Photo d'un groupe, ou pictogramme « groupe » sur fond coloré. */
 export function GroupAvatar({ id, name, uri, size = 48 }: { id: string; name: string; uri?: string | null; size?: number }) {
@@ -80,11 +81,11 @@ export function PlayerPicker({
       {selected.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
           {selected.map((u) => (
-            <Pressable key={u.id} accessibilityRole="button" accessibilityLabel={`Retirer ${u.pseudo}`} onPress={() => toggle(u)} style={styles.chip}>
+            <Tap key={u.id} accessibilityRole="button" accessibilityLabel={`Retirer ${u.pseudo}`} onPress={() => toggle(u)} style={styles.chip}>
               <Avatar name={u.pseudo} color={avatarColor(u.id)} uri={u.avatar} size={22} />
               <AppText variant="caption">{u.pseudo}</AppText>
               <Ionicons name="close" size={14} color={Colors.textMuted} />
-            </Pressable>
+            </Tap>
           ))}
         </ScrollView>
       )}
@@ -106,7 +107,7 @@ export function PlayerPicker({
         </AppText>
       )}
       {list.map((u) => (
-        <Pressable
+        <Tap
           key={u.id}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: isSelected(u.id) }}
@@ -123,7 +124,7 @@ export function PlayerPicker({
             )}
           </View>
           <Ionicons name={isSelected(u.id) ? 'checkmark-circle' : 'ellipse-outline'} size={24} color={isSelected(u.id) ? Colors.correct : Colors.textMuted} />
-        </Pressable>
+        </Tap>
       ))}
     </View>
   );

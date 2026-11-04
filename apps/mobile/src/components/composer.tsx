@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { MAX_POST_LENGTH, STICKERS, type MediaView, type PostTarget, type StickerId } from '@qu1z/shared';
 
@@ -13,6 +13,7 @@ import { api, errorMessage } from '@/net/api';
 import { pickImage, uploadImage, type PickedImage } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 /**
  * Rédaction d'une publication (mur ou fil de thème), envoyée au serveur. Mentionne avec @pseudo.
@@ -92,23 +93,23 @@ export function Composer({
       {photo && (
         <View>
           <Image source={{ uri: photo.uri }} style={[styles.preview, { aspectRatio: photo.width / photo.height || 1 }]} contentFit="cover" accessibilityLabel="Photo jointe" />
-          <Pressable accessibilityRole="button" accessibilityLabel="Retirer la photo" onPress={() => setPhoto(null)} style={styles.remove}>
+          <Tap accessibilityRole="button" accessibilityLabel="Retirer la photo" onPress={() => setPhoto(null)} style={styles.remove}>
             <Ionicons name="close" size={18} color="#fff" />
-          </Pressable>
+          </Tap>
         </View>
       )}
       {sticker && (
         <View style={styles.stickerPreview}>
           <Sticker id={sticker} size={110} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Retirer le sticker" onPress={() => setSticker(null)} style={styles.remove}>
+          <Tap accessibilityRole="button" accessibilityLabel="Retirer le sticker" onPress={() => setSticker(null)} style={styles.remove}>
             <Ionicons name="close" size={18} color="#fff" />
-          </Pressable>
+          </Tap>
         </View>
       )}
       {stickersOpen && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
           {STICKERS.map((s) => (
-            <Pressable
+            <Tap
               key={s.id}
               accessibilityRole="button"
               accessibilityLabel={`Joindre le sticker ${s.label}`}
@@ -119,29 +120,29 @@ export function Composer({
               }}
               style={styles.stickerCell}>
               <Sticker id={s.id} size={72} />
-            </Pressable>
+            </Tap>
           ))}
         </ScrollView>
       )}
       {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
       <View style={styles.footer}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Ajouter une photo" onPress={() => choose('library')} style={styles.icon}>
+          <Tap accessibilityRole="button" accessibilityLabel="Ajouter une photo" onPress={() => choose('library')} style={styles.icon}>
             <Ionicons name="image-outline" size={22} color={Colors.text} />
-          </Pressable>
+          </Tap>
           {Platform.OS !== 'web' && (
-            <Pressable accessibilityRole="button" accessibilityLabel="Prendre une photo" onPress={() => choose('camera')} style={styles.icon}>
+            <Tap accessibilityRole="button" accessibilityLabel="Prendre une photo" onPress={() => choose('camera')} style={styles.icon}>
               <Ionicons name="camera-outline" size={22} color={Colors.text} />
-            </Pressable>
+            </Tap>
           )}
-          <Pressable
+          <Tap
             accessibilityRole="button"
             accessibilityLabel="Ajouter un sticker"
             accessibilityState={{ expanded: stickersOpen }}
             onPress={() => setStickersOpen((o) => !o)}
             style={styles.icon}>
             <Ionicons name={stickersOpen ? 'happy' : 'happy-outline'} size={22} color={stickersOpen ? Colors.accent : Colors.text} />
-          </Pressable>
+          </Tap>
           <AppText variant="caption" color={remaining < 20 ? Colors.gold : Colors.textMuted} style={{ flexShrink: 1 }}>
             {remaining} · @pseudo pour mentionner
           </AppText>
