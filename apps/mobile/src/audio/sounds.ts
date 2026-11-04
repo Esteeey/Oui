@@ -1,11 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer, type AudioSource } from 'expo-audio';
 import { useEffect, useState } from 'react';
+
+import type { GameSoundId, SoundOverride } from '@qu1z/shared';
+
+import { api, apiBase } from '@/net/api';
 
 /**
  * Sons et musiques de Qu1z : tous originaux, synthétisés pour l'appli (scripts de génération hors dépôt).
  * Effets : un lecteur préchargé par son, rembobiné à chaque lecture.
  * Musiques : une seule à la fois (musique de duel en boucle, ou musique de résultat).
+ * Un administrateur peut remplacer chaque son depuis le panneau d'administration : le remplacement,
+ * servi par le serveur de jeu, prend la place du son d'origine.
  */
 const SFX = {
   launch: require('../../assets/sounds/qz_lancement.wav'),
@@ -36,6 +42,55 @@ const MUSIC = {
 
 export type SoundName = keyof typeof SFX;
 export type MusicName = keyof typeof MUSIC;
+
+/** Identifiant de chaque musique dans le catalogue partagé des sons (panneau d'administration). */
+const MUSIC_ID: Record<MusicName, GameSoundId> = { duel: 'musicDuel', win: 'musicWin', loss: 'musicLoss', draw: 'musicDraw' };
+
+/** Son d'origine, livré avec l'appli. */
+export function defaultSoundSource(id: GameSoundId): number {
+  const music = (Object.keys(MUSIC_ID) as MusicName[]).find((m) => MUSIC_ID[m] === id);
+  return music ? MUSIC[music] : SFX[id as SoundName];
+}
+
+// ---------------------------------------------------------------- sons remplacés par l'administration
+
+/** Adresse complète des sons remplacés, par identifiant. */
+let overrides = new Map<GameSoundId, string>();
+let overridesFetchedAt = 0;
+
+/** Son à jouer : celui choisi par l'administration s'il existe, sinon celui d'origine. */
+export function soundSource(id: GameSoundId): AudioSource {
+  const url = overrides.get(id);
+  return url ? { uri: url } : defaultSoundSource(id);
+}
+
+/**
+ * Récupère les sons remplacés (au plus une fois par minute, sauf `force`) et met à jour les lecteurs déjà créés.
+ * Sans connexion ou en cas d'erreur, les sons d'origine restent.
+ */
+export async function refreshSoundOverrides(force = false): Promise<void> {
+  if (!force && Date.now() - overridesFetchedAt < 60_000) return;
+  overridesFetchedAt = Date.now();
+  let list: SoundOverride[];
+  try {
+    list = (await api<{ sounds: SoundOverride[] }>('GET', '/api/sounds')).sounds;
+  } catch {
+    overridesFetchedAt = 0;
+    return;
+  }
+  const next = new Map(list.map((o) => [o.id, o.url.startsWith('/') ? `${apiBase()}${o.url}` : o.url] as const));
+  const previous = overrides;
+  overrides = next;
+  const changed = (id: GameSoundId) => previous.get(id) !== next.get(id);
+  for (const [name, player] of players) if (changed(name)) replaceSource(player, name);
+  for (const [name, player] of musicPlayers) if (changed(MUSIC_ID[name])) replaceSource(player, MUSIC_ID[name]);
+}
+
+function replaceSource(player: AudioPlayer, id: GameSoundId) {
+  try {
+    player.replace(soundSource(id));
+  } catch {}
+}
 
 /** Dans le fichier de l'intro VS, le choc tombe 250 ms après le début : on le lance d'autant en avance. */
 export const VERSUS_HIT_OFFSET_MS = 250;
@@ -73,9 +128,10 @@ function prepare() {
   prepared = true;
   // Les sons du jeu se mêlent à la musique de l'utilisateur et suivent le mode silencieux de l'iPhone.
   setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => {});
-  for (const [name, source] of Object.entries(SFX) as [SoundName, number][]) {
+  refreshSoundOverrides().catch(() => {});
+  for (const name of Object.keys(SFX) as SoundName[]) {
     try {
-      players.set(name, createAudioPlayer(source));
+      players.set(name, createAudioPlayer(soundSource(name)));
     } catch {
       // Sans lecteur, le son est simplement muet.
     }
@@ -104,9 +160,10 @@ export function stopSound(name: SoundName) {
   } catch {}
 }
 
-/** Précharge les effets, par exemple à l'ouverture de l'écran de duel. */
+/** Précharge les effets, par exemple à l'ouverture de l'écran de duel, et vérifie les sons remplacés. */
 export function preloadSounds() {
   if (sfxEnabled) prepare();
+  refreshSoundOverrides().catch(() => {});
 }
 
 export function setSoundEnabled(on: boolean) {
@@ -131,7 +188,7 @@ function musicPlayer(name: MusicName): AudioPlayer | null {
   if (!player) {
     try {
       prepare();
-      player = createAudioPlayer(MUSIC[name]);
+      player = createAudioPlayer(soundSource(MUSIC_ID[name]));
       player.loop = name === 'duel';
       musicPlayers.set(name, player);
     } catch {

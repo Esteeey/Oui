@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
@@ -59,7 +59,8 @@ const ACTION_LABEL: Record<string, string> = {
 /** Panneau de modération (modérateurs et administrateurs) : signalements, appels, journal, annonces. */
 export default function ModerationScreen() {
   const me = useApi<{ role: string }>('/api/me');
-  const [tab, setTab] = useState<Tab>('reports');
+  const params = useLocalSearchParams<{ tab?: Tab }>();
+  const [tab, setTab] = useState<Tab>(params.tab === 'announce' ? 'announce' : 'reports');
   const staff = me.data?.role === 'moderator' || me.data?.role === 'admin';
 
   if (me.data && !staff) {

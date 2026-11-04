@@ -7,6 +7,7 @@ import { useMusicEnabled, useSoundEnabled } from '@/audio/sounds';
 import { SectionHeader } from '@/components/social';
 import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
+import { useApi } from '@/net/api';
 
 interface Entry {
   label: string;
@@ -43,6 +44,17 @@ const SECTIONS: { title: string; entries: Entry[] }[] = [
 
 /** Réglages : point d'entrée unique vers les écrans existants (profil, notifications, compte, blocages, sanctions). */
 export default function SettingsScreen() {
+  const me = useApi<{ role: string }>('/api/me');
+  const role = me.data?.role;
+  const staff: Entry[] = [
+    ...(role === 'admin'
+      ? [{ label: 'Panneau d’administration', hint: 'Sons du jeu, modération, annonces', icon: 'construct-outline', href: '/admin' } as Entry]
+      : []),
+    ...(role === 'admin' || role === 'moderator'
+      ? [{ label: 'Panneau de modération', hint: 'Signalements, appels, journal', icon: 'shield-checkmark-outline', href: '/moderation' } as Entry]
+      : []),
+  ];
+  const sections = staff.length ? [{ title: 'Équipe', entries: staff }, ...SECTIONS] : SECTIONS;
   return (
     <Screen title="Réglages" back>
       <View style={{ gap: Spacing.sm }}>
@@ -50,7 +62,7 @@ export default function SettingsScreen() {
         <SoundRow />
         <MusicRow />
       </View>
-      {SECTIONS.map((section) => (
+      {sections.map((section) => (
         <View key={section.title} style={{ gap: Spacing.sm }}>
           <SectionHeader title={section.title} />
           {section.entries.map((e) => (

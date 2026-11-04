@@ -209,6 +209,14 @@ export default function ProfileSettingsScreen() {
           <AppText muted>›</AppText>
         </Pressable>
       )}
+      {account.data?.role === 'admin' && (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/admin')} style={styles.link}>
+          <AppText variant="label" color={Colors.gold}>
+            Panneau d’administration
+          </AppText>
+          <AppText muted>›</AppText>
+        </Pressable>
+      )}
     </Screen>
   );
 }

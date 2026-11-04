@@ -18,6 +18,7 @@ import type { Game } from './game';
 import { Medals } from './medals';
 import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
+import { GameSounds } from './sounds';
 
 const MAX_BODY = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -116,6 +117,7 @@ export function createApi(
   deletion: AccountDeletion,
 ) {
   const medals = new Medals(game.repo.db);
+  const sounds = new GameSounds(game.repo.db);
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
@@ -413,6 +415,13 @@ export function createApi(
     ['POST', /^\/api\/challenges\/([^/]+)\/decline$/, async ({ userId, params }) => challenges.decline(userId, uuid(params[0]))],
     ['POST', /^\/api\/challenges\/([^/]+)\/cancel$/, async ({ userId, params }) => challenges.cancel(userId, uuid(params[0]))],
 
+    // Sons du jeu : remplacements choisis par un administrateur (l'appli garde ses sons d'origine pour le reste).
+    ['GET', /^\/api\/sounds$/, async () => ({ sounds: await sounds.overrides() })],
+    ['GET', /^\/api\/admin\/sounds$/, async ({ userId }) => ({ sounds: await sounds.list(userId) })],
+    ['PUT', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params, query, raw }) =>
+      sounds.set(userId, params[0], await raw(), query.get('name'))],
+    ['DELETE', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params }) => sounds.reset(userId, params[0])],
+
     // Annonces officielles : publiées uniquement par un administrateur.
     ['POST', /^\/api\/admin\/announcements$/, async ({ userId, body }) => {
       const user = await game.repo.user(userId);
@@ -474,6 +483,19 @@ export function createApi(
         'content-type': file.contentType,
         'content-length': file.data.length,
         'cache-control': 'public, max-age=31536000, immutable',
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'",
+      });
+      return void res.end(file.data);
+    }
+    // Sons remplacés par l'administration (adresse versionnée : `?v=` change à chaque remplacement).
+    if (req.method === 'GET' && url.pathname.startsWith('/sounds/')) {
+      const file = await sounds.file(url.pathname.slice('/sounds/'.length)).catch(() => null);
+      if (!file) return json(res, 404, { error: 'not_found' });
+      res.writeHead(200, {
+        'content-type': file.contentType,
+        'content-length': file.data.length,
+        'cache-control': url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : 'no-cache',
         'x-content-type-options': 'nosniff',
         'content-security-policy': "default-src 'none'",
       });
