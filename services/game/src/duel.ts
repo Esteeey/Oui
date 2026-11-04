@@ -3,6 +3,7 @@ import {
   botAnswer,
   duelOutcome,
   readingTimeMs,
+  scoreAnswer,
   scoreAnswers,
   totals,
   type DuelOutcome,
@@ -321,6 +322,10 @@ export class Duel {
     const s = this.state;
     const p = s.participants[k];
     const answers = this.scored(k);
+    // Les points d'une réponse comptent dès qu'elle est enregistrée (jauge et score montent aussitôt),
+    // sans attendre la fin de la manche ; le détail des réponses, lui, reste caché jusqu'à la révélation.
+    const current = includeCurrent && s.phase === 'answering' ? s.answers[k][s.index] : undefined;
+    const currentPoints = current ? scoreAnswer(current, s.questions[s.index].correctIndex, s.index).points : 0;
     return {
       id: p.playerId,
       name: p.name,
@@ -331,7 +336,7 @@ export class Duel {
       connected: p.isBot || p.connected,
       forfeited: p.forfeited,
       answers,
-      points: totals(answers).points,
+      points: totals(answers).points + currentPoints,
       answeredCurrent: includeCurrent && s.phase === 'answering' && !!s.answers[k][s.index],
     };
   }

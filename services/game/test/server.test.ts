@@ -191,7 +191,9 @@ describe('récompenses XP (calculées par le serveur)', () => {
     const { a, b, duelId } = await startPvp();
     const s = await a.waitForDuel((x) => x.phase === 'answering', 4000, 0);
     expect(s.myResponseMs).toBeNull();
-    a.send({ type: 'answer', duelId, index: s.index, choice: 0 });
+    expect(s.me.points).toBe(0);
+    const correctChoice = server.game.getDuel(duelId)!.state.questions[s.index].correctIndex;
+    a.send({ type: 'answer', duelId, index: s.index, choice: correctChoice });
     // A a répondu : son temps lui est envoyé ; B, qui n'a pas répondu, n'en a pas.
     const sa = await a.waitForDuel((x) => x.phase === 'answering' && x.myChoice !== null, 2000, 0);
     const recorded = server.game.getDuel(duelId)!.state.answers[0][s.index]!.responseMs;
@@ -202,6 +204,10 @@ describe('récompenses XP (calculées par le serveur)', () => {
     expect(sa.correctIndex).toBe(server.game.getDuel(duelId)!.state.questions[s.index].correctIndex);
     expect(sb.correctIndex).toBeNull();
     expect(sb.opponentChoice).toBeNull();
+    // Points comptés dès la bonne réponse : A les voit, B voit ceux de son adversaire, avant la fin de la manche.
+    expect(sa.me.points).toBeGreaterThan(0);
+    expect(sb.opponent.points).toBe(sa.me.points);
+    expect(sb.me.points).toBe(0);
     // Reconnexion de A pendant l'attente : la barre retrouve la même position.
     await a.close();
     const a2 = await client(a.token);
