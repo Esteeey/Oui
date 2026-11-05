@@ -74,6 +74,11 @@ Le serveur fait autorité : le téléphone n'envoie que ses choix (id de répons
 
 ## APK Android et téléphone
 
+- **Signature des mises à jour Android** : toujours construire l’APK dans `C:\q1`, en utilisant le dossier `apps/mobile/android` existant et son keystore `apps/mobile/android/app/debug.keystore`. Ne jamais lancer `expo prebuild --clean`, supprimer ou régénérer `apps/mobile/android`, ni remplacer `debug.keystore`.
+- Une copie de sauvegarde du keystore est conservée hors du dépôt à `C:\q1-keystore-sauvegarde\debug.keystore` (ne pas la committer). Si le dossier `android` doit un jour être régénéré, remettre cette sauvegarde à `C:\q1\apps\mobile\android\app\debug.keystore` avant toute construction.
+- Si `adb install -r` échoue avec `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, ne pas désinstaller l’application : arrêter et demander au propriétaire.
+
+
 - **Construire dans `C:\q1`** : un clone du dépôt au chemin court, car Windows refuse les chemins trop longs de Gradle. Garder
   `C:\q1` à jour (`git pull`) ou y copier les fichiers modifiés, puis `npx -y pnpm@10.28.0 install` à la racine si les
   dépendances ont changé. Le dossier `android/` est généré (non commité).
