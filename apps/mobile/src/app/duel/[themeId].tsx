@@ -439,8 +439,20 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           right={<PlayerHead player={duel.opponent} side="right" later={duel.challenge?.leg === 1} />}
           bar={
             <TimeBar
-              mine={timeBarFraction(duel, duel.myResponseMs ?? null, left, total)}
-              theirs={timeBarFraction(duel, duel.opponentResponseMs ?? null, left, total)}
+              mine={timeBarFraction(
+                duel,
+                duel.myResponseMs ?? null,
+                duel.myChoice !== null || duel.me.answeredCurrent,
+                left,
+                total,
+              )}
+              theirs={timeBarFraction(
+                duel,
+                duel.opponentResponseMs ?? null,
+                duel.opponent.answeredCurrent,
+                left,
+                total,
+              )}
               leftColor={danger && duel.myResponseMs == null ? D.wrong : Colors.player}
               rightColor={danger && duel.opponentResponseMs == null ? D.wrong : (duel.opponent.color ?? Colors.opponent)}
             />
@@ -636,10 +648,21 @@ function Gauge({ points, side }: { points: number; side: 'left' | 'right' }) {
  * le serveur), jusqu'à la question suivante. Sans réponse, elle finit vide.
  * Chaque moitié ne dépend que de la réponse de son joueur.
  */
-function timeBarFraction(duel: DuelSnapshot, answeredMs: number | null, left: number, total: number): number {
+function timeBarFraction(
+  duel: DuelSnapshot,
+  answeredMs: number | null,
+  answered: boolean,
+  left: number,
+  total: number,
+): number {
   if (duel.phase === 'reading') return 1;
   if (duel.phase !== 'answering' && duel.phase !== 'reveal') return 0;
   if (answeredMs !== null) return 1 - answeredMs / RULES.answerTimeMs;
+  if (answered) {
+    // Repli pour un serveur ancien sans responseMs : figer la barre à la position
+    // correspondant à l'horodatage du snapshot qui confirme la réponse.
+    return Math.max(0, Math.min(1, (duel.phaseEndsAt - duel.serverNow) / total));
+  }
   return duel.phase === 'answering' ? left / total : 0;
 }
 
