@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { THEMES, getCategory, getTheme, type ChallengeView } from '@qu1z/shared';
 
+import { ChallengeRow } from '@/components/challenge-card';
 import { PlayBanner } from '@/components/play-banner';
 import { UserRow } from '@/components/player-row';
 import { SectionHeader, type IconName } from '@/components/social';
@@ -61,17 +62,7 @@ export default function PlayScreen() {
         <>
           <SectionHeader title={`Défis reçus · ${incoming.length}`} />
           {incoming.map((c) => (
-            <UserRow
-              key={c.id}
-              user={c.from}
-              subtitle={`${c.kind === 'rematch' ? 'Revanche' : 'Défi'} · ${getTheme(c.themeId)?.name ?? ''}`}
-              right={
-                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-                  <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/decline`)} />
-                  <Button label="Jouer" color={Colors.opponent} onPress={() => act(`/api/challenges/${c.id}/accept`)} />
-                </View>
-              }
-            />
+            <ChallengeRow key={c.id} c={c} onChanged={challenges.refresh} onMessage={(ok, text) => setMessage({ ok, text })} />
           ))}
         </>
       )}
@@ -79,12 +70,7 @@ export default function PlayScreen() {
         <>
           <SectionHeader title={`Défis envoyés · ${outgoing.length}`} />
           {outgoing.map((c) => (
-            <UserRow
-              key={c.id}
-              user={c.to}
-              subtitle={`En attente · ${getTheme(c.themeId)?.name ?? ''}`}
-              right={<Button label="Annuler" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/cancel`)} />}
-            />
+            <ChallengeRow key={c.id} c={c} onChanged={challenges.refresh} onMessage={(ok, text) => setMessage({ ok, text })} />
           ))}
         </>
       )}

@@ -4,10 +4,11 @@ import {
   QUESTIONS,
   RULES,
   THEMES,
+  LEVEL_THRESHOLDS,
   duelOutcome,
-  duelXp,
   formatSeconds,
   levelFromXp,
+  points,
   shareResultText,
   speedSummary,
   prepareDuel,
@@ -19,26 +20,24 @@ import {
   xpForLevel,
 } from './index';
 
-describe('barème', () => {
-  it('donne 20 points pour une réponse dans la première seconde', () => {
-    expect(scoreAnswer({ choice: 2, responseMs: 0 }, 2, 0).points).toBe(20);
-    expect(scoreAnswer({ choice: 2, responseMs: 999 }, 2, 0).points).toBe(20);
+describe('points()', () => {
+  it('cas de la spécification', () => {
+    expect(points(1, true, 0.4)).toBe(20);
+    expect(points(1, true, 3.7)).toBe(17);
+    expect(points(1, true, 9.9)).toBe(11);
+    expect(points(1, false, 1)).toBe(0);
+    expect(points(7, true, 0.2)).toBe(40);
   });
-  it('donne 2 points par seconde restante', () => {
-    expect(scoreAnswer({ choice: 1, responseMs: 1_000 }, 1, 0).points).toBe(18);
-    expect(scoreAnswer({ choice: 1, responseMs: 5_500 }, 1, 0).points).toBe(10);
+  it('refuse un temps écoulé négatif', () => {
+    expect(() => points(1, true, -0.1)).toThrow();
+    expect(() => points(1, false, -1)).toThrow();
   });
-  it('donne au moins 2 points pour une bonne réponse en fin de chrono', () => {
-    expect(scoreAnswer({ choice: 1, responseMs: 9_900 }, 1, 0).points).toBe(2);
-    expect(scoreAnswer({ choice: 1, responseMs: RULES.answerTimeMs }, 1, 0).points).toBe(2);
-  });
-  it('donne 0 pour une mauvaise réponse ou sans réponse', () => {
+  it('scoreAnswer utilise points() (index de question à partir de 0)', () => {
+    expect(scoreAnswer({ choice: 2, responseMs: 400 }, 2, 0).points).toBe(20);
+    expect(scoreAnswer({ choice: 1, responseMs: 3_700 }, 1, 0).points).toBe(17);
     expect(scoreAnswer({ choice: 0, responseMs: 1_000 }, 1, 0).points).toBe(0);
     expect(scoreAnswer({ choice: null, responseMs: RULES.answerTimeMs }, 1, 6).points).toBe(0);
-  });
-  it('double les points de la dernière question', () => {
-    expect(scoreAnswer({ choice: 0, responseMs: 0 }, 0, 6).points).toBe(40);
-    expect(scoreAnswer({ choice: 0, responseMs: 5_500 }, 0, 6).points).toBe(20);
+    expect(scoreAnswer({ choice: 0, responseMs: 200 }, 0, 6).points).toBe(40);
   });
   it('donne 160 points pour un sans-faute parfait', () => {
     const questions = prepareDuel(questionsOf('cg-melange'), 1);
@@ -49,11 +48,10 @@ describe('barème', () => {
 });
 
 describe('résultat du duel', () => {
-  it('départage aux points, puis aux bonnes réponses, puis au temps', () => {
+  it('victoire au score le plus haut, égalité à scores égaux', () => {
     expect(duelOutcome({ points: 120, correct: 5, totalResponseMs: 0 }, { points: 100, correct: 6, totalResponseMs: 0 })).toBe('win');
-    expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 0 }, { points: 100, correct: 6, totalResponseMs: 0 })).toBe('loss');
-    expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 9_000 }, { points: 100, correct: 5, totalResponseMs: 10_000 })).toBe('win');
-    expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 9_000 }, { points: 100, correct: 5, totalResponseMs: 9_000 })).toBe('draw');
+    expect(duelOutcome({ points: 90, correct: 6, totalResponseMs: 0 }, { points: 100, correct: 5, totalResponseMs: 0 })).toBe('loss');
+    expect(duelOutcome({ points: 100, correct: 5, totalResponseMs: 9_000 }, { points: 100, correct: 6, totalResponseMs: 1_000 })).toBe('draw');
   });
 
   it('rapidité : seules les bonnes réponses comptent', () => {
@@ -110,9 +108,11 @@ describe('préparation du duel', () => {
     const d = prepareDuel(questionsOf('sci-essentiels'), 3).map((q) => q.difficulty);
     expect(d).toEqual([...d].sort());
   });
-  it('limite le temps de lecture entre 1 et 3 s', () => {
-    expect(readingTimeMs('')).toBe(1_000);
+  it('limite le temps de lecture entre 1,5 et 3 s, ou utilise celui de la question', () => {
+    expect(readingTimeMs('')).toBe(1_500);
     expect(readingTimeMs('x'.repeat(500))).toBe(3_000);
+    expect(readingTimeMs('Texte', false, 2.2)).toBe(2_200);
+    expect(readingTimeMs('Texte', false, 9)).toBe(3_000);
   });
 });
 
@@ -128,15 +128,16 @@ describe('contenu', () => {
 });
 
 describe('progression', () => {
-  it('calcule l’XP d’un duel', () => {
-    expect(duelXp('win', 7, 7)).toBe(70 + 40 + 30);
-    expect(duelXp('draw', 3, 7)).toBe(45);
-    expect(duelXp('loss', 2, 7)).toBe(20);
+  it('seuils de niveau : seuil(n) = 100 × n^1,5', () => {
+    expect(LEVEL_THRESHOLDS.slice(0, 5)).toEqual([0, 100, 283, 520, 800]);
+    expect(xpForLevel(1)).toBe(0);
+    expect(xpForLevel(2)).toBe(100);
+    expect(xpForLevel(3)).toBe(283);
   });
   it('calcule le niveau à partir de l’XP', () => {
-    expect(xpForLevel(2)).toBe(100);
     expect(levelFromXp(0)).toMatchObject({ level: 1, current: 0, needed: 100 });
-    expect(levelFromXp(150)).toMatchObject({ level: 2, current: 50, needed: 200 });
+    expect(levelFromXp(150)).toMatchObject({ level: 2, current: 50, needed: 183 });
+    expect(levelFromXp(283).level).toBe(3);
     expect(levelFromXp(10_000_000).level).toBe(100);
   });
 });
@@ -170,32 +171,37 @@ describe('questions illustrées', () => {
   });
 });
 
-import { computeRewards } from './rewards';
+import { computeRewards, xp } from './rewards';
 
-describe('récompenses', () => {
-  const base = { correct: 4, questions: 7 };
-  it('gagnant ayant terminé : +20 fin, +40 victoire, boost 40', () => {
-    expect(computeRewards({ ...base, outcome: 'win', finished: true, forfeited: false })).toEqual({
-      finishBonus: 20, victoryBonus: 40, boostBonus: 40, total: 100,
+describe('xp()', () => {
+  const base = { score: 120, xpStart: 1_000, finished: true, forfeited: false };
+  it('victoire : score + 40 + 100', () => {
+    expect(xp({ ...base, outcome: 'win' })).toMatchObject({
+      scorePoints: 120, finishBonus: 40, victoryBonus: 100, boostBonus: 0, xpGained: 260, xpBonus: 0, xpFinal: 1_260,
     });
   });
-  it('perdant ayant terminé : +20 fin seulement (plus le boost)', () => {
-    expect(computeRewards({ ...base, outcome: 'loss', finished: true, forfeited: false })).toMatchObject({
-      finishBonus: 20, victoryBonus: 0,
-    });
+  it('égalité : score + 40 + 50 ; défaite : score + 40', () => {
+    expect(xp({ ...base, outcome: 'draw' }).xpGained).toBe(210);
+    expect(xp({ ...base, outcome: 'loss' }).xpGained).toBe(160);
   });
-  it('abandon : aucun XP, gagnant ou perdant', () => {
+  it('boost ×2 : XP gagnée doublée, bonus = base', () => {
+    expect(xp({ ...base, outcome: 'win', multiplier: 2 })).toMatchObject({ xpGained: 520, xpBonus: 260, xpFinal: 1_520 });
+    expect(xp({ ...base, outcome: 'loss', score: 33, multiplier: 1.5 })).toMatchObject({ xpGained: 110, xpBonus: 37 });
+  });
+  it('abandon du joueur : score 0, XP 0', () => {
     for (const outcome of ['win', 'loss'] as const) {
-      expect(computeRewards({ ...base, outcome, finished: false, forfeited: true }).total).toBe(0);
+      expect(xp({ ...base, outcome, finished: false, forfeited: true })).toMatchObject({ scorePoints: 0, xpGained: 0, xpFinal: 1_000 });
     }
   });
-  it('absent à la fin (déconnecté) : ni fin ni victoire, boost conservé', () => {
-    expect(computeRewards({ ...base, outcome: 'win', finished: false, forfeited: false })).toEqual({
-      finishBonus: 0, victoryBonus: 0, boostBonus: 40, total: 40,
+  it('abandon de l’adversaire : le joueur gagne avec bonus fin 40 + victoire 100', () => {
+    expect(xp({ ...base, score: 30, finished: false, outcome: 'loss', opponentForfeited: true })).toMatchObject({
+      finishBonus: 40, victoryBonus: 100, xpGained: 170,
     });
   });
-  it('sans-faute : boost 70 + 30', () => {
-    expect(computeRewards({ correct: 7, questions: 7, outcome: 'win', finished: true, forfeited: false }).boostBonus).toBe(100);
+  it('erreur (absent à la fin) : pas de bonus fin', () => {
+    expect(computeRewards({ outcome: 'win', score: 50, finished: false, forfeited: false })).toEqual({
+      scorePoints: 50, finishBonus: 0, victoryBonus: 100, boostBonus: 0, total: 150,
+    });
   });
 });
 
@@ -209,5 +215,62 @@ describe('social', () => {
   it('repère les mentions sans doublon et sans les adresses e-mail', () => {
     expect(extractMentions('Bravo @Lina et @lina ! Écris à moi@mail.fr, @Chloé.B')).toEqual(['lina', 'chloé.b']);
     expect(extractMentions('@ab trop court')).toEqual([]);
+  });
+});
+
+import { botAnswer, botSkill } from './bot';
+
+describe('bot', () => {
+  const q = { id: 'q', text: 'Q', choices: ['a', 'b', 'c', 'd'], correctIndex: 2, difficulty: 2 as const };
+  it('sa force dépend du niveau du joueur', () => {
+    expect(botSkill(1)).toBe(0);
+    expect(botSkill(30)).toBe(1);
+    expect(botSkill(100)).toBe(1);
+  });
+  it('plus rapide et plus précis contre un joueur de haut niveau', () => {
+    const rng = () => 0.7;
+    const weak = botAnswer(q, rng, 1);
+    const strong = botAnswer(q, rng, 30);
+    expect(strong.responseMs).toBeLessThan(weak.responseMs);
+    expect(weak.choice).not.toBe(2);
+    expect(strong.choice).toBe(2);
+  });
+});
+
+import { dailyQuests, nextMidnight, questDay, questIncrement, type Quest } from './quests';
+
+describe('défis du jour', () => {
+  it('3 objectifs reproductibles par joueur et par jour, dont une victoire dans un thème', () => {
+    const a = dailyQuests('u1', '2026-11-05');
+    expect(a).toHaveLength(3);
+    expect(dailyQuests('u1', '2026-11-05')).toEqual(a);
+    expect(new Set(a.map((q) => q.id)).size).toBe(3);
+    const win = a.find((q) => q.kind === 'win_theme')!;
+    expect(win.label).toMatch(/^Gagne 2 matchs en /);
+    expect(a.every((q) => q.reward > 0)).toBe(true);
+    expect(dailyQuests('u1', '2026-11-05', ['sports-jo']).find((q) => q.kind === 'win_theme')!.themeId).toBe('sports-jo');
+  });
+
+  it('avancée apportée par un match', () => {
+    const e = { themeId: 'sports-jo', outcome: 'win' as const, finished: true, correct: 6, fast: 2, score: 120 };
+    const q = (kind: Quest['kind'], goal: number, themeId?: string): Quest => ({ id: kind, kind, label: '', goal, reward: 10, themeId });
+    expect(questIncrement(q('play', 3), e)).toBe(1);
+    expect(questIncrement(q('play', 3), { ...e, finished: false })).toBe(0);
+    expect(questIncrement(q('correct', 15), e)).toBe(6);
+    expect(questIncrement(q('fast', 5), e)).toBe(2);
+    expect(questIncrement(q('win_theme', 2, 'sports-jo'), e)).toBe(1);
+    expect(questIncrement(q('win_theme', 2, 'geo-capitales'), e)).toBe(0);
+    expect(questIncrement(q('score', 100), e)).toBe(100);
+    expect(questIncrement(q('score', 100), { ...e, score: 99 })).toBe(0);
+  });
+
+  it('jour et prochain minuit à Paris', () => {
+    // 5 novembre 2026, 23 h 30 à Paris (UTC+1) = 22 h 30 UTC.
+    const t = Date.UTC(2026, 10, 5, 22, 30);
+    expect(questDay(t)).toBe('2026-11-05');
+    expect(nextMidnight(t)).toBe(Date.UTC(2026, 10, 5, 23, 0));
+    expect(questDay(Date.UTC(2026, 10, 5, 23, 10))).toBe('2026-11-06');
+    // Heure d'été : minuit à Paris = 22 h UTC.
+    expect(nextMidnight(Date.UTC(2026, 6, 1, 12, 0))).toBe(Date.UTC(2026, 6, 1, 22, 0));
   });
 });

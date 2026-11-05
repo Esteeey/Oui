@@ -1,7 +1,7 @@
 import { router, usePathname } from 'expo-router';
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { DuelSnapshot, Profile, ServerMessage } from '@qu1z/shared';
+import { RULES, type DuelChatMessage, type DuelSnapshot, type Profile, type ServerMessage } from '@qu1z/shared';
 
 import { api, invalidateAll } from '@/net/api';
 import { registerForPush } from '@/net/push';
@@ -30,6 +30,10 @@ interface GameServerState {
   lastRequest: DuelRequest | null;
   /** Notifications non lues (mises à jour en temps réel). */
   unreadNotifications: number;
+  /** Mini chat de fin de match, par duel. */
+  duelChat: Record<string, DuelChatMessage[]>;
+  sendDuelChat: (duelId: string, text: string) => void;
+  loadDuelChat: (duelId: string) => void;
   play: (request: DuelRequest) => void;
   cancelQueue: () => void;
   answer: (choice: number) => void;
@@ -55,6 +59,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const [signedOut, setSignedOut] = useState(false);
   const [lastRequest, setLastRequest] = useState<DuelRequest | null>(null);
   const [unreadNotifications, setUnread] = useState(0);
+  const [duelChat, setDuelChat] = useState<Record<string, DuelChatMessage[]>>({});
   const connection = useRef<GameConnection | null>(null);
   /**
    * Réponse envoyée mais pas encore confirmée par le serveur. Un état parti du serveur juste avant
@@ -99,6 +104,14 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
           setClockOffset(m.snapshot.serverNow - Date.now());
           setDuel(withPendingAnswer(m.snapshot, pendingAnswer));
           break;
+        case 'duelChat':
+          setDuelChat((all) => {
+            const known = all[m.duelId] ?? [];
+            const key = (x: DuelChatMessage) => `${x.at}:${x.from}:${x.text}`;
+            const seen = new Set(known.map(key));
+            return { ...all, [m.duelId]: [...known, ...m.messages.filter((x) => !seen.has(key(x)))].slice(-30) };
+          });
+          break;
         case 'messages':
           // Nouveau message, réaction, lecture ou demande : les écrans de messagerie se rechargent.
           invalidateAll();
@@ -139,6 +152,13 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     signedOut,
     lastRequest,
     unreadNotifications,
+    duelChat,
+    sendDuelChat: (duelId, text) => {
+      send({ type: 'duelChat', duelId, text });
+    },
+    loadDuelChat: (duelId) => {
+      send({ type: 'duelChatHistory', duelId });
+    },
     play: (request) => {
       setLastError(null);
       setLastRequest(request);
@@ -147,10 +167,11 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     cancelQueue: () => send({ type: 'cancelQueue' }),
     answer: (choice) => {
       if (!duel || duel.phase !== 'answering' || duel.myChoice !== null) return;
-      if (send({ type: 'answer', duelId: duel.duelId, index: duel.index, choice })) {
+      // Temps écoulé depuis le début du chrono (0 pendant le délai d'affichage des réponses), plafonné à 10 s.
+      const responseMs = Math.min(RULES.answerTimeMs, Math.max(0, Date.now() + clockOffset - duel.phaseStartedAt));
+      if (send({ type: 'answer', duelId: duel.duelId, index: duel.index, choice, elapsedMs: responseMs })) {
         // Affichage immédiat du choix, et la barre de temps se fige aussitôt ; le serveur confirme
         // (avec son propre temps de réponse) dans le prochain état.
-        const responseMs = Math.max(0, Date.now() + clockOffset - duel.phaseStartedAt);
         pendingAnswer.current = { duelId: duel.duelId, index: duel.index, choice, responseMs };
         setDuel({ ...duel, myChoice: choice, myResponseMs: responseMs });
       }
@@ -226,5 +247,6 @@ function withPendingAnswer(
 }
 
 export function remainingMs(duel: DuelSnapshot, clockOffset: number): number {
-  return Math.max(0, duel.phaseEndsAt - (Date.now() + clockOffset));
+  // Jamais plus que la durée de la phase : pendant le délai d'affichage des réponses, le chrono reste plein.
+  return Math.max(0, Math.min(duel.phaseEndsAt - duel.phaseStartedAt, duel.phaseEndsAt - (Date.now() + clockOffset)));
 }

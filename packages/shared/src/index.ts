@@ -18,3 +18,4 @@ export * from './media';
 export * from './moderation';
 export * from './notification-text';
 export * from './sounds';
+export * from './quests';

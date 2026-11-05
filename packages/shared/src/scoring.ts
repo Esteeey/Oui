@@ -1,21 +1,24 @@
 import { RULES } from './rules';
 import type { DuelOutcome, DuelQuestion, PlayerAnswer, ScoredAnswer } from './types';
 
-const MAX_SECONDS = RULES.answerTimeMs / 1000;
-
 /**
- * Points d'une réponse : 2 par seconde restante du chrono (seconde entamée comptée), soit 20 au plus
- * et 2 au moins pour une bonne réponse. La dernière question compte double.
+ * Points d'une manche (fonction pure). `round` va de 1 à 7 ; `elapsedSeconds` est le temps écoulé depuis le
+ * début du chrono, en secondes décimales. Bonne réponse : 10 + (10 − secondes entières écoulées), donc de
+ * 11 à 20 ; la manche 7 compte double. Mauvaise réponse ou pas de réponse : 0. Score maximal : 160.
  */
+export function points(round: number, correct: boolean, elapsedSeconds: number): number {
+  if (!(elapsedSeconds >= 0)) throw new RangeError('Le temps écoulé ne peut pas être négatif.');
+  if (!correct) return 0;
+  let p = 10 + Math.max(0, 10 - Math.floor(elapsedSeconds));
+  if (round === RULES.questionsPerDuel) p *= RULES.lastQuestionMultiplier;
+  return p;
+}
+
+/** Score une réponse (index de question à partir de 0) avec {@link points}. */
 export function scoreAnswer(answer: PlayerAnswer, correctIndex: number, questionIndex: number): ScoredAnswer {
   const correct = answer.choice !== null && answer.choice === correctIndex;
-  if (!correct) {
-    return { ...answer, correct, points: 0 };
-  }
   const elapsed = Math.min(Math.max(answer.responseMs, 0), RULES.answerTimeMs);
-  const seconds = Math.min(MAX_SECONDS, Math.max(1, Math.ceil((RULES.answerTimeMs - elapsed) / 1000)));
-  const multiplier = questionIndex === RULES.questionsPerDuel - 1 ? RULES.lastQuestionMultiplier : 1;
-  return { ...answer, correct, points: seconds * RULES.pointsPerSecond * multiplier };
+  return { ...answer, correct, points: points(questionIndex + 1, correct, elapsed / 1000) };
 }
 
 /** Score toute une série de réponses, dans l'ordre des questions. */
@@ -40,17 +43,10 @@ export function totals(answers: ScoredAnswer[]): DuelTotals {
   );
 }
 
-/**
- * Résultat du point de vue du joueur A.
- * Départage : points, puis nombre de bonnes réponses, puis temps de réponse total le plus court.
- */
+/** Résultat du point de vue du joueur A : victoire si son score est plus haut, égalité si les scores sont égaux. */
 export function duelOutcome(a: DuelTotals, b: DuelTotals): DuelOutcome {
-  if (a.points !== b.points) return a.points > b.points ? 'win' : 'loss';
-  if (a.correct !== b.correct) return a.correct > b.correct ? 'win' : 'loss';
-  if (a.totalResponseMs !== b.totalResponseMs) {
-    return a.totalResponseMs < b.totalResponseMs ? 'win' : 'loss';
-  }
-  return 'draw';
+  if (a.points === b.points) return 'draw';
+  return a.points > b.points ? 'win' : 'loss';
 }
 
 export interface SpeedSummary {
@@ -104,5 +100,4 @@ export function shareResultText(r: {
 }
 
 /** Score d'un sans-faute instantané : 6 × 20 + 40 = 160. */
-export const MAX_DUEL_POINTS =
-  MAX_SECONDS * RULES.pointsPerSecond * (RULES.questionsPerDuel - 1 + RULES.lastQuestionMultiplier);
+export const MAX_DUEL_POINTS = 20 * (RULES.questionsPerDuel - 1 + RULES.lastQuestionMultiplier);

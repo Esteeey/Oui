@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { MEDIA_MAX_BYTES, SOUND_MAX_BYTES, THEMES, seasonOf, type Restriction } from '@qu1z/shared';
+import { MEDIA_MAX_BYTES, SOUND_MAX_BYTES, THEMES, seasonOf, weekOf, type LeaderboardPeriod, type LeaderboardScope, type Restriction } from '@qu1z/shared';
 
 import { randomUUID } from 'node:crypto';
 
@@ -412,6 +412,7 @@ export function createApi(
       const b = await body();
       return challenges.create(userId, uuid(b.userId), String(b.themeId ?? ''), b.rematchOf ? uuid(b.rematchOf) : undefined);
     }],
+    ['GET', /^\/api\/challenges\/([0-9a-f-]{36})$/, async ({ userId, params }) => challenges.view(userId, uuid(params[0]))],
     ['POST', /^\/api\/challenges\/([^/]+)\/accept$/, async ({ userId, params }) => challenges.accept(userId, uuid(params[0]))],
     ['POST', /^\/api\/challenges\/([^/]+)\/decline$/, async ({ userId, params }) => challenges.decline(userId, uuid(params[0]))],
     ['POST', /^\/api\/challenges\/([^/]+)\/cancel$/, async ({ userId, params }) => challenges.cancel(userId, uuid(params[0]))],
@@ -452,19 +453,21 @@ export function createApi(
       return { ...row, createdAt: new Date(row.created_at).getTime() };
     }],
 
+    // Défis du jour : 3 objectifs, leur avancée et le prochain minuit.
+    ['GET', /^\/api\/quests$/, async ({ userId }) => game.quests.list(userId)],
+
     // Classements
     ['GET', /^\/api\/leaderboard$/, async ({ userId, query }) => {
-      const period = query.get('period') === 'season' ? 'season' : 'rating';
+      const p = query.get('period');
+      const period: LeaderboardPeriod = p === 'season' || p === 'week' ? p : 'rating';
       if (period === 'season') await medals.closeFinishedSeasons();
+      const s = query.get('scope');
+      const scope: LeaderboardScope = s === 'following' || s === 'country' || s === 'region' || s === 'nearby' ? s : 'world';
+      const board = await social.leaderboard(userId, query.get('theme') || null, scope, Number(query.get('limit')) || 100, period);
       return {
-        rows: await social.leaderboard(
-          userId,
-          query.get('theme') || null,
-          query.get('scope') === 'following' || query.get('scope') === 'country' ? (query.get('scope') as 'following' | 'country') : 'world',
-          Number(query.get('limit')) || 100,
-          period,
-        ),
+        ...board,
         ...(period === 'season' ? { season: seasonOf(Date.now()) } : {}),
+        ...(period === 'week' ? { week: weekOf(Date.now()) } : {}),
       };
     }],
   ];

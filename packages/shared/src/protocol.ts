@@ -98,7 +98,17 @@ export interface DuelSnapshot {
    * la barre de temps se fige à cette position. Absent d'un serveur plus ancien.
    */
   myResponseMs?: number | null;
+  /**
+   * Temps de réponse de l'adversaire (ms), dès qu'il a répondu (sans dire quoi) : sa moitié de la barre
+   * de temps se fige à cette position. Absent d'un serveur plus ancien.
+   */
+  opponentResponseMs?: number | null;
   opponentChoice: number | null;
+  /**
+   * Duel issu d'un défi asynchrone. Manche 1 : l'invitant joue seul (l'ami rejouera plus tard les mêmes
+   * questions) ; manche 2 : l'ami joue contre l'enregistrement de l'invitant.
+   */
+  challenge?: { id: string; leg: 1 | 2 } | null;
   me: ParticipantView;
   opponent: ParticipantView;
   result: DuelResult | null;
@@ -109,11 +119,28 @@ export type ClientMessage =
   | { type: 'hello'; token?: string }
   | { type: 'play'; themeId: string; mode: 'bot' | 'pvp' }
   | { type: 'cancelQueue' }
-  | { type: 'answer'; duelId: string; index: number; choice: number }
+  /** `elapsedMs` : temps écoulé mesuré par le téléphone depuis le début du chrono (contrôlé, refusé hors de 0 à 10 s). */
+  | { type: 'answer'; duelId: string; index: number; choice: number; elapsedMs?: number }
   | { type: 'forfeit'; duelId: string }
+  /** Mini chat de fin de match : message à l'adversaire du duel, ou demande des messages déjà échangés. */
+  | { type: 'duelChat'; duelId: string; text: string }
+  | { type: 'duelChatHistory'; duelId: string }
   | { type: 'ackResult'; duelId: string };
 
+export interface DuelChatMessage {
+  from: string;
+  text: string;
+  at: number;
+}
+
+/** Longueur maximale d'un message du mini chat de fin de match. */
+export const DUEL_CHAT_MAX_LENGTH = 140;
+/** Réponses rapides du mini chat. */
+export const QUICK_CHAT = ['GG !', 'Bien joué !', 'Revanche ?', 'Trop fort 😅', 'La prochaine fois !'] as const;
+
 export type ServerMessage =
+  /** Messages du mini chat de fin de match (nouveaux, ou tous à la demande). */
+  | { type: 'duelChat'; duelId: string; messages: DuelChatMessage[] }
   | { type: 'welcome'; playerId: string; token: string; profile: Profile }
   | { type: 'profile'; profile: Profile }
   | { type: 'queued'; themeId: string; since: number }

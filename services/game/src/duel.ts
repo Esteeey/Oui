@@ -20,6 +20,8 @@ export interface Timing {
   answerMs: number;
   revealMs: number;
   readingMs: (q: DuelQuestion) => number;
+  /** Délai entre l'apparition des réponses et le début du chrono (0 si absent). */
+  choicesLeadMs?: number;
   /** Tolérance réseau identique pour tous les joueurs, après la fin du chrono. */
   latencyGraceMs: number;
 }
@@ -28,7 +30,8 @@ export const DEFAULT_TIMING: Timing = {
   introMs: RULES.introMs,
   answerMs: RULES.answerTimeMs,
   revealMs: RULES.revealMs + RULES.transitionMs,
-  readingMs: (q) => RULES.roundCardMs + readingTimeMs(q.text, !!q.image),
+  readingMs: (q) => RULES.roundCardMs + readingTimeMs(q.text, !!q.image, q.readingSeconds),
+  choicesLeadMs: RULES.choicesLeadMs,
   latencyGraceMs: 300,
 };
 
@@ -41,9 +44,18 @@ export interface Participant {
   /** Photo de couverture (absente des duels enregistrés avant son ajout). */
   cover?: string | null;
   isBot: boolean;
+  /** Pour le bot : niveau du joueur affronté dans le thème, qui règle sa vitesse et sa précision. */
+  level?: number;
   rating: number;
   connected: boolean;
   forfeited: boolean;
+  /**
+   * Défi asynchrone : joueur réel absent de cette manche.
+   * - `pending` : l'ami qui jouera plus tard (manche 1) ; la manche ne l'attend pas.
+   * - `replay` : l'invitant, dont les réponses enregistrées (`script`) sont rejouées à leur temps (manche 2).
+   */
+  ghost?: 'pending' | 'replay';
+  script?: PlayerAnswer[];
 }
 
 export interface DuelState {
@@ -64,6 +76,8 @@ export interface DuelState {
   endedAt: number | null;
   /** Présent à la fin (sans abandon), fixé au moment où le duel se termine. */
   finishedFlags: [boolean, boolean] | null;
+  /** Duel issu d'un défi asynchrone (manche 1 : l'invitant ; manche 2 : l'ami). */
+  challenge?: { id: string; leg: 1 | 2 } | null;
 }
 
 export type AnswerResult = { ok: true } | { ok: false; code: string };
@@ -91,7 +105,14 @@ export class Duel {
   }
 
   static create(
-    init: { id: string; themeId: string; mode: 'bot' | 'pvp'; questions: DuelQuestion[]; participants: [Participant, Participant] },
+    init: {
+      id: string;
+      themeId: string;
+      mode: 'bot' | 'pvp';
+      questions: DuelQuestion[];
+      participants: [Participant, Participant];
+      challenge?: { id: string; leg: 1 | 2 } | null;
+    },
     timing: Timing,
     now: () => number,
     onChange: (duel: Duel) => void,
@@ -162,8 +183,17 @@ export class Duel {
   private scheduleBot(): void {
     const s = this.state;
     s.participants.forEach((p, k) => {
-      if (!p.isBot || s.answers[k][s.index]) return;
-      const plan = botAnswer(s.questions[s.index]);
+      if (s.answers[k][s.index]) return;
+      // L'invitant d'un défi asynchrone rejoue sa réponse enregistrée, au même temps.
+      if (p.ghost === 'replay') {
+        const recorded = p.script?.[s.index];
+        if (!recorded || recorded.choice === null || recorded.responseMs >= this.timing.answerMs) return;
+        const wait = Math.max(0, recorded.responseMs - (this.now() - s.phaseStartedAt));
+        this.botTimer = setTimeout(() => this.record(k, recorded.choice!, recorded.responseMs), wait);
+        return;
+      }
+      if (!p.isBot) return;
+      const plan = botAnswer(s.questions[s.index], Math.random, p.level ?? 1);
       if (plan.choice === null) return;
       const elapsed = this.now() - s.phaseStartedAt;
       const wait = Math.max(0, plan.responseMs - elapsed);
@@ -192,11 +222,15 @@ export class Duel {
       case 'intro':
         this.enterReading(0);
         break;
-      case 'reading':
-        this.setPhase('answering', this.timing.answerMs);
+      case 'reading': {
+        // Les réponses apparaissent maintenant ; le chrono (phaseStartedAt) démarre après le délai d'affichage.
+        const lead = this.timing.choicesLeadMs ?? 0;
+        this.setPhase('answering', lead + this.timing.answerMs);
+        s.phaseStartedAt += lead;
         this.schedule();
         this.onChange(this);
         break;
+      }
       case 'answering':
         this.enterReveal();
         break;
@@ -237,7 +271,7 @@ export class Duel {
     s.phaseEndsAt = s.endedAt;
     s.finishedFlags = [0, 1].map((k) => {
       const p = s.participants[k];
-      return !p.forfeited && (p.isBot || p.connected);
+      return !p.forfeited && (p.isBot || !!p.ghost || p.connected);
     }) as [boolean, boolean];
     this.onChange(this);
     if (!this.finishEmitted) {
@@ -252,13 +286,17 @@ export class Duel {
     const s = this.state;
     if (s.phase !== 'answering' || s.answers[k][s.index]) return;
     s.answers[k][s.index] = { choice, responseMs: Math.min(Math.max(responseMs, 0), this.timing.answerMs) };
-    const everyone = s.participants.every((p, j) => p.forfeited || s.answers[j][s.index]);
+    // L'ami d'un défi qui jouera plus tard n'est pas attendu.
+    const everyone = s.participants.every((p, j) => p.forfeited || p.ghost === 'pending' || s.answers[j][s.index]);
     if (everyone) this.enterReveal();
     else this.onChange(this);
   }
 
-  /** Réponse d'un joueur. Le temps de réponse est mesuré par le serveur, jamais fourni par le client. */
-  answer(playerId: string, index: number, choice: number): AnswerResult {
+  /**
+   * Réponse d'un joueur. Le temps qui compte est mesuré par le serveur depuis le début du chrono ; le temps
+   * écoulé annoncé par le client (`clientElapsedMs`) n'est que contrôlé : hors de [0, 10 s], la réponse est refusée.
+   */
+  answer(playerId: string, index: number, choice: number, clientElapsedMs?: number): AnswerResult {
     const s = this.state;
     const k = this.participantIndex(playerId);
     if (k < 0) return { ok: false, code: 'not_in_duel' };
@@ -268,9 +306,13 @@ export class Duel {
     if (!Number.isInteger(choice) || choice < 0 || choice >= s.questions[index].choices.length) {
       return { ok: false, code: 'invalid_choice' };
     }
+    if (clientElapsedMs !== undefined && !(clientElapsedMs >= 0 && clientElapsedMs <= this.timing.answerMs)) {
+      return { ok: false, code: 'invalid_time' };
+    }
     const t = this.now();
     if (t > s.phaseEndsAt + this.timing.latencyGraceMs) return { ok: false, code: 'too_late' };
-    this.record(k, choice, t - s.phaseStartedAt);
+    // Une réponse pendant le délai d'affichage (avant le chrono) compte pour 0 s.
+    this.record(k, choice, Math.max(0, t - s.phaseStartedAt));
     return { ok: true };
   }
 
@@ -333,7 +375,7 @@ export class Duel {
       avatar: p.avatar ?? null,
       cover: p.cover ?? null,
       isBot: p.isBot,
-      connected: p.isBot || p.connected,
+      connected: p.isBot || !!p.ghost || p.connected,
       forfeited: p.forfeited,
       answers,
       points: totals(answers).points + currentPoints,
@@ -367,9 +409,11 @@ export class Duel {
       correctIndex: reveal || (s.phase === 'answering' && s.answers[k][s.index]) ? q.correctIndex : null,
       myChoice: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.choice ?? null) : null,
       myResponseMs: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.responseMs ?? null) : null,
+      opponentResponseMs: s.phase === 'answering' || reveal ? (s.answers[other][s.index]?.responseMs ?? null) : null,
       opponentChoice: reveal ? (s.answers[other][s.index]?.choice ?? null) : null,
       me: this.view(k, true),
       opponent: this.view(other, true),
+      challenge: s.challenge ?? null,
     };
   }
 }

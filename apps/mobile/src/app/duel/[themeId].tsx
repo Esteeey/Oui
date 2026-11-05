@@ -3,10 +3,24 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, Keyframe, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  Keyframe,
+  ZoomIn,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
+import { CHALLENGE_EXPIRY_HOURS, MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
+
+import { shareChallenge } from '@/components/challenge-card';
 
 import { DuelEntrance } from '@/components/duel-entrance';
 import { MATCH_FOUND_MS, MatchmakingMap } from '@/components/matchmaking-map';
@@ -49,7 +63,10 @@ const FADE_TO_BLACK = new Keyframe({
  * Les instants sont comptés depuis le début réel de la phase, pour rester calés si l'écran
  * s'ouvre en cours de route (reprise d'un duel).
  */
-const CARD = { icon: 300, names: 800, round: 1150, hide: 2350, fadeOut: 220, question: 2650 } as const;
+const CARD = { icon: 200, names: 550, round: 800, hide: 1780, fadeOut: 200, question: RULES.roundCardMs } as const;
+
+/** Les 3 dernières secondes du chrono sont en rouge. */
+const DANGER_MS = 3_000;
 
 /** Apparition de l'icône : légère montée en taille, sans rebond. */
 const ICON_IN = new Keyframe({
@@ -83,9 +100,13 @@ function RoundCard({ duel, elapsed, top }: { duel: DuelSnapshot; elapsed: number
         </AppText>
         <AppText color={D.muted} style={styles.roundHint}>
           {duel.index + 1} sur {duel.questionCount}
-          {last ? ` · points ×${RULES.lastQuestionMultiplier}` : ''}
         </AppText>
       </Animated.View>
+      {last && (
+        <Animated.View entering={ZoomIn.delay(at(CARD.round + 200)).springify()} style={styles.doubleBanner} accessibilityLiveRegion="polite">
+          <AppText style={styles.doubleText}>POINTS DOUBLÉS ×{RULES.lastQuestionMultiplier}</AppText>
+        </Animated.View>
+      )}
     </Animated.View>
   );
 }
@@ -159,10 +180,38 @@ export default function DuelRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealing, live?.duelId]);
 
+  if (live?.phase === 'finished' && live.challenge?.leg === 1) return <ChallengeSent duel={live} />;
   if (!live || live.phase === 'finished' || revealing) {
     return <Waiting themeId={params.themeId} opponent={revealing ? live.opponent : null} />;
   }
   return <DuelView duel={live} />;
+}
+
+/**
+ * Fin de la partie de l'invitant d'un défi : son score est enregistré, l'ami rejouera les mêmes questions
+ * (il a 24 h). Lien à partager pour le prévenir aussi en dehors de l'application.
+ */
+function ChallengeSent({ duel }: { duel: DuelSnapshot }) {
+  const forfeited = duel.me.forfeited;
+  return (
+    <SafeAreaView style={[styles.screen, styles.center]}>
+      <AppText variant="title" color={D.text} style={{ textAlign: 'center' }}>
+        {forfeited ? 'Défi annulé' : 'Défi envoyé !'}
+      </AppText>
+      {!forfeited && (
+        <>
+          <AppText variant="score" color={D.correct} style={{ fontSize: 48 }}>
+            {duel.me.points}
+          </AppText>
+          <AppText color={D.muted} style={{ textAlign: 'center' }}>
+            {duel.opponent.name} a {CHALLENGE_EXPIRY_HOURS} h pour rejouer les mêmes questions. Tu seras prévenu du résultat.
+          </AppText>
+          <Button label="Partager le défi" color={Colors.accent} onPress={() => duel.challenge && shareChallenge({ id: duel.challenge.id, themeId: duel.themeId })} />
+        </>
+      )}
+      <Button label="Retour" variant="outline" color={D.text} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+    </SafeAreaView>
+  );
 }
 
 /** Attente : connexion au serveur, recherche d'adversaire. */
@@ -327,6 +376,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   const total = Math.max(1, duel.phaseEndsAt - duel.phaseStartedAt);
   const seconds = duel.phase === 'answering' ? Math.ceil(left / 1000) : duel.phase === 'reading' ? RULES.answerTimeMs / 1000 : 0;
   const reveal = duel.phase === 'reveal';
+  const danger = duel.phase === 'answering' && left <= DANGER_MS && left > 0;
   const q = duel.question;
   const lastMine = reveal ? duel.me.answers[duel.index] : undefined;
   // Ma réponse est jugée dès que le serveur l'a reçue (bonne réponse connue), sans attendre l'adversaire.
@@ -380,14 +430,21 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           rightColor={duel.opponent.color ?? Colors.opponent}
           left={<PlayerHead player={duel.me} side="left" />}
           center={
-            <View style={styles.timerBox}>
-              <AppText variant="heading" color={D.text} style={{ fontVariant: ['tabular-nums'] }}>
+            <View style={[styles.timerBox, danger && { borderColor: D.wrong }]}>
+              <AppText variant="heading" color={danger ? D.wrong : D.text} style={{ fontVariant: ['tabular-nums'] }}>
                 {seconds}
               </AppText>
             </View>
           }
-          right={<PlayerHead player={duel.opponent} side="right" />}
-          bar={<TimeBar running={duel.phase === 'answering' && duel.myChoice === null} fraction={timeBarFraction(duel, left, total)} phase={duel.phase} />}
+          right={<PlayerHead player={duel.opponent} side="right" later={duel.challenge?.leg === 1} />}
+          bar={
+            <TimeBar
+              mine={timeBarFraction(duel, duel.myResponseMs ?? null, left, total)}
+              theirs={timeBarFraction(duel, duel.opponentResponseMs ?? null, left, total)}
+              leftColor={danger && duel.myResponseMs == null ? D.wrong : Colors.player}
+              rightColor={danger && duel.opponentResponseMs == null ? D.wrong : (duel.opponent.color ?? Colors.opponent)}
+            />
+          }
         />
 
         {!online && (
@@ -434,6 +491,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
                     state={state}
                     selected={duel.myChoice === i}
                     opponentPicked={reveal && duel.opponentChoice === i}
+                    opponent={duel.opponent}
                     disabled={!online || duel.phase !== 'answering' || duel.myChoice !== null}
                     onPress={() => {
                       playSound('answered');
@@ -476,18 +534,16 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   );
 }
 
-function PlayerHead({ player, side }: { player: ParticipantView; side: 'left' | 'right' }) {
+function PlayerHead({ player, side, later = false }: { player: ParticipantView; side: 'left' | 'right'; later?: boolean }) {
   const avatar = <Avatar name={player.name} uri={player.avatar} color={side === 'left' ? Colors.player : (player.color ?? Colors.opponent)} size={46} borderColor={D.ring} />;
   const info = (
     <View style={{ alignItems: side === 'left' ? 'flex-start' : 'flex-end', flexShrink: 1 }}>
       <AppText variant="caption" color={D.muted} numberOfLines={1}>
         {player.name}
       </AppText>
-      <AppText variant="score" color={D.text} style={{ fontSize: 28 }}>
-        {player.points}
-      </AppText>
+      <ScoreCounter points={player.points} />
       <AppText variant="caption" color={player.connected ? D.correct : D.wrong} style={{ fontSize: 11, minHeight: 14 }}>
-        {!player.connected ? 'Déconnecté' : player.answeredCurrent && side === 'right' ? 'A répondu' : ''}
+        {later ? 'Jouera plus tard' : !player.connected ? 'Déconnecté' : player.answeredCurrent && side === 'right' ? 'A répondu' : ''}
       </AppText>
     </View>
   );
@@ -496,6 +552,66 @@ function PlayerHead({ player, side }: { player: ParticipantView; side: 'left' | 
       {side === 'left' ? avatar : info}
       {side === 'left' ? info : avatar}
     </View>
+  );
+}
+
+/**
+ * Score qui compte de l'ancienne à la nouvelle valeur (≈ 400 ms) avec un « +N » qui monte au-dessus et
+ * s'efface. Avec « réduire les animations », le score change directement, sans « +N » animé.
+ */
+function ScoreCounter({ points }: { points: number }) {
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(points);
+  const [gain, setGain] = useState<{ value: number; key: number } | null>(null);
+  const from = useRef(points);
+  useEffect(() => {
+    const start = from.current;
+    from.current = points;
+    if (points === start) return;
+    if (reduced || points < start) {
+      setShown(points);
+      return;
+    }
+    setGain({ value: points - start, key: Date.now() });
+    let raf = 0;
+    let t0 = 0;
+    const tick = (now: number) => {
+      if (!t0) t0 = now;
+      const t = Math.min(1, (now - t0) / 400);
+      setShown(Math.round(start + (points - start) * t));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const hide = setTimeout(() => setGain(null), 900);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(hide);
+      setShown(points);
+    };
+  }, [points, reduced]);
+  return (
+    <View>
+      {gain && <GainPop key={gain.key} value={gain.value} />}
+      <AppText variant="score" color={D.text} style={{ fontSize: 28, fontVariant: ['tabular-nums'] }}>
+        {shown}
+      </AppText>
+    </View>
+  );
+}
+
+/** « +N » vert qui monte au-dessus du score puis disparaît. */
+function GainPop({ value }: { value: number }) {
+  const y = useSharedValue(0);
+  const o = useSharedValue(1);
+  useEffect(() => {
+    y.set(withTiming(-26, { duration: 800, easing: Easing.out(Easing.cubic) }));
+    o.set(withSequence(withTiming(1, { duration: 450 }), withTiming(0, { duration: 350 })));
+  }, [y, o]);
+  const style = useAnimatedStyle(() => ({ opacity: o.get(), transform: [{ translateY: y.get() }] }));
+  return (
+    <Animated.View pointerEvents="none" style={[styles.gainPop, style]}>
+      <AppText style={styles.gainText}>+{value}</AppText>
+    </Animated.View>
   );
 }
 
@@ -515,25 +631,28 @@ function Gauge({ points, side }: { points: number; side: 'left' | 'right' }) {
 }
 
 /**
- * Remplissage de la barre de temps, d'après le chrono du serveur : pleine pendant la lecture, elle se vide
- * pendant la réponse et se fige dès que j'ai répondu, à la position de ma réponse, jusqu'à la question
- * suivante (attente de l'adversaire et révélation comprises). Sans réponse, elle finit vide.
- * Elle ne dépend que de ma réponse, jamais de celle de l'adversaire.
+ * Remplissage d'une moitié de la barre de temps, d'après le chrono du serveur : pleine pendant la lecture,
+ * elle se vide pendant la réponse et se fige dès que son joueur a répondu (`answeredMs`, temps mesuré par
+ * le serveur), jusqu'à la question suivante. Sans réponse, elle finit vide.
+ * Chaque moitié ne dépend que de la réponse de son joueur.
  */
-function timeBarFraction(duel: DuelSnapshot, left: number, total: number): number {
+function timeBarFraction(duel: DuelSnapshot, answeredMs: number | null, left: number, total: number): number {
   if (duel.phase === 'reading') return 1;
   if (duel.phase !== 'answering' && duel.phase !== 'reveal') return 0;
-  const answeredMs = duel.myResponseMs ?? null;
   if (answeredMs !== null) return 1 - answeredMs / RULES.answerTimeMs;
   return duel.phase === 'answering' ? left / total : 0;
 }
 
-function TimeBar({ running, fraction, phase }: { running: boolean; fraction: number; phase: string }) {
-  const width = phase === 'reading' ? 100 : Math.max(0, Math.min(1, fraction)) * 100;
-  const color = width < 30 && running ? D.wrong : '#8E8E93';
+/**
+ * Barre de temps en deux moitiés qui se rejoignent au centre : la mienne à gauche, celle de l'adversaire
+ * à droite. Chacune se vide vers son bord pendant que son joueur réfléchit et s'arrête net dès qu'il répond.
+ */
+function TimeBar({ mine, theirs, leftColor, rightColor }: { mine: number; theirs: number; leftColor: string; rightColor: string }) {
+  const half = (f: number) => `${Math.max(0, Math.min(1, f)) * 50}%` as const;
   return (
-    <View style={styles.timeTrack}>
-      <View style={{ width: `${width}%`, height: '100%', borderRadius: 4, backgroundColor: color }} />
+    <View style={styles.timeTrack} accessible accessibilityLabel={`Temps restant : toi ${Math.round(mine * 100)} %, adversaire ${Math.round(theirs * 100)} %`}>
+      <View style={[styles.timeHalf, { left: 0, width: half(mine), backgroundColor: leftColor }]} />
+      <View style={[styles.timeHalf, { right: 0, width: half(theirs), backgroundColor: rightColor }]} />
     </View>
   );
 }
@@ -544,6 +663,7 @@ function Choice({
   state,
   selected,
   opponentPicked,
+  opponent,
   disabled,
   onPress,
 }: {
@@ -552,14 +672,32 @@ function Choice({
   state: 'idle' | 'correct' | 'wrong';
   selected: boolean;
   opponentPicked: boolean;
+  opponent: ParticipantView;
   disabled: boolean;
   onPress: () => void;
 }) {
+  // Mauvaise réponse : petite secousse du bouton (sauf si « réduire les animations » est activé).
+  const reduced = useReducedMotion();
+  const shake = useSharedValue(0);
+  useEffect(() => {
+    if (state !== 'wrong' || reduced) return;
+    shake.set(
+      withSequence(
+        withTiming(-8, { duration: 50 }),
+        withTiming(8, { duration: 70 }),
+        withTiming(-6, { duration: 60 }),
+        withTiming(4, { duration: 50 }),
+        withTiming(0, { duration: 40 }),
+      ),
+    );
+  }, [state, reduced, shake]);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.get() }] }));
   const bg = state === 'correct' ? D.correct : state === 'wrong' ? D.wrong : D.button;
   const fg = state === 'idle' ? D.buttonText : '#FFFFFF';
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.choiceRow}>
       <View style={styles.markerSlot}>{selected && <Triangle direction="right" color="#FF3B83" label="Ta réponse" />}</View>
+      <Animated.View style={[{ flex: 1 }, shakeStyle]}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled, selected }}
@@ -574,10 +712,14 @@ function Choice({
             <Ionicons name={state === 'correct' ? 'checkmark-circle' : 'close-circle'} size={30} color="#FFFFFF" />
           </View>
         )}
+        {opponentPicked && (
+          <Animated.View entering={reduced ? undefined : ZoomIn.springify()} style={styles.opponentMark} accessible accessibilityLabel={`Réponse de ${opponent.name}`}>
+            <Avatar name={opponent.name} uri={opponent.avatar} color={opponent.color ?? Colors.opponent} size={26} borderColor="#FFFFFF" />
+          </Animated.View>
+        )}
       </Pressable>
-      <View style={styles.markerSlot}>
-        {opponentPicked && <Triangle direction="left" color="#FFFFFF" label="Réponse de l’adversaire" />}
-      </View>
+      </Animated.View>
+      <View style={styles.markerSlot} />
     </Animated.View>
   );
 }
@@ -620,6 +762,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   timeTrack: { height: 8, borderRadius: 4, backgroundColor: D.track, overflow: 'hidden' },
+  timeHalf: { position: 'absolute', top: 0, bottom: 0, borderRadius: 4 },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -648,6 +791,11 @@ const styles = StyleSheet.create({
   choices: { gap: 12 },
   choiceRow: { flexDirection: 'row', alignItems: 'center' },
   markerSlot: { width: 16, alignItems: 'center' },
+  opponentMark: { position: 'absolute', right: -6, top: -8 },
+  gainPop: { position: 'absolute', top: -18, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
+  gainText: { color: D.correct, fontWeight: '900', fontSize: 18 },
+  doubleBanner: { marginTop: 18, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, backgroundColor: '#F5B700' },
+  doubleText: { color: '#000000', fontWeight: '900', fontSize: 18, letterSpacing: 1 },
   choice: {
     flex: 1,
     minHeight: 60,

@@ -6,6 +6,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { THEMES, type FeedItem } from '@qu1z/shared';
 
+import { ReceivedChallengesCard } from '@/components/challenge-card';
+import { DailyQuestsCard } from '@/components/daily-quests';
 import { ActivityCard } from '@/components/feed-card';
 import { HeaderButton } from '@/components/header';
 import { PlayBanner } from '@/components/play-banner';
@@ -58,6 +60,10 @@ export default function FeedScreen() {
       </View>
 
       <PlayBanner themeId={quickTheme} compact />
+
+      <ReceivedChallengesCard />
+
+      <DailyQuestsCard />
 
       {feed.error && <AppText color={Colors.wrong}>Impossible de charger le fil. Vérifie ta connexion.</AppText>}
       {items.map((item, i) => (

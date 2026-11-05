@@ -123,6 +123,63 @@ const geoDrapeaux = buildIllustrated('geo-drapeaux', 'À quel pays appartient ce
   ['flags/grece', 'Grèce', 'Israël', 'Uruguay', 'Finlande', 2],
 ]);
 
+/** Questions avec temps de lecture : [énoncé, bonne réponse, leurre, leurre, leurre, difficulté, secondes de lecture]. */
+type TimedRow = [string, string, string, string, string, Difficulty, number];
+
+function buildTimed(themeId: string, rows: TimedRow[]): Question[] {
+  return build(
+    themeId,
+    rows.map(([text, a, b, c, d, difficulty]) => [text, a, b, c, d, difficulty]),
+  ).map((q, i) => ({ ...q, readingSeconds: rows[i][6] }));
+}
+
+// Démo du mode duel : questions inventées pour Qu1z.
+const histGrandesDates = buildTimed('hist-grandes-dates', [
+  ['En quelle année a eu lieu la prise de la Bastille ?', '1789', '1792', '1776', '1804', 1, 1.5],
+  ['Qui fut le premier empereur des Français ?', 'Napoléon Ier', 'Louis XIV', 'Charlemagne', 'Napoléon III', 1, 1.5],
+  ['En quelle année est tombé le mur de Berlin ?', '1989', '1991', '1985', '1961', 1, 1.5],
+  ['Quelle civilisation a bâti la cité du Machu Picchu ?', 'Les Incas', 'Les Aztèques', 'Les Mayas', 'Les Olmèques', 2, 2],
+  ['En quelle année Christophe Colomb atteint-il l’Amérique ?', '1492', '1453', '1515', '1498', 1, 2],
+  ['Pour quel pharaon a été construite la plus grande pyramide de Gizeh ?', 'Khéops', 'Toutânkhamon', 'Ramsès II', 'Khéphren', 2, 2.5],
+  ['Quelle guerre a pris fin avec l’armistice du 11 novembre 1918 ?', 'La Première Guerre mondiale', 'La guerre de 1870', 'La Seconde Guerre mondiale', 'La guerre de Crimée', 1, 2.5],
+  ['Quel roi de France était surnommé « le Roi-Soleil » ?', 'Louis XIV', 'Louis XVI', 'François Ier', 'Henri IV', 1, 2],
+  ['Dans quelle ville a été signée la déclaration d’indépendance des États-Unis ?', 'Philadelphie', 'Boston', 'New York', 'Washington', 2, 2.5],
+  ['En quelle année a eu lieu le débarquement de Normandie ?', '1944', '1942', '1945', '1940', 1, 2],
+  ['Quelle reine d’Égypte fut l’alliée de Marc Antoine ?', 'Cléopâtre', 'Néfertiti', 'Hatchepsout', 'Néfertari', 2, 2],
+  ['Qui a été le premier homme à marcher sur la Lune ?', 'Neil Armstrong', 'Buzz Aldrin', 'Youri Gagarine', 'Michael Collins', 1, 2],
+  ['Quel empire a pris Constantinople en 1453 ?', 'L’Empire ottoman', 'L’Empire byzantin', 'L’Empire perse', 'Le Saint-Empire', 2, 2],
+  ['En quelle année Jeanne d’Arc est-elle morte à Rouen ?', '1431', '1429', '1453', '1415', 3, 2],
+  ['Quel chancelier a réalisé l’unité allemande en 1871 ?', 'Otto von Bismarck', 'Guillaume II', 'Frédéric le Grand', 'Metternich', 2, 2],
+  ['Quel paquebot a coulé lors de son premier voyage en 1912 ?', 'Le Titanic', 'Le Lusitania', 'Le Britannic', 'L’Olympic', 1, 2],
+  ['Quelle ville romaine a été ensevelie par le Vésuve en 79 ?', 'Pompéi', 'Rome', 'Ostie', 'Carthage', 1, 2],
+  ['Qui a écrit le « Manifeste du parti communiste » avec Friedrich Engels ?', 'Karl Marx', 'Lénine', 'Trotski', 'Proudhon', 2, 3],
+  ['En quelle année les Françaises ont-elles obtenu le droit de vote ?', '1944', '1918', '1936', '1958', 3, 2.5],
+  ['Quel président américain a signé la proclamation d’émancipation des esclaves en 1863 ?', 'Abraham Lincoln', 'George Washington', 'Thomas Jefferson', 'Ulysses Grant', 1, 3],
+]);
+
+const natureAnimaux = buildTimed('nature-animaux', [
+  ['Quel est le plus grand animal du monde ?', 'La baleine bleue', 'L’éléphant d’Afrique', 'Le requin-baleine', 'La girafe', 1, 1.5],
+  ['Combien de cœurs possède une pieuvre ?', '3', '1', '2', '8', 2, 1.5],
+  ['Quel est l’animal terrestre le plus rapide ?', 'Le guépard', 'Le lion', 'L’antilope', 'Le lévrier', 1, 1.5],
+  ['Comment appelle-t-on le petit du kangourou ?', 'Un joey', 'Un faon', 'Un ourson', 'Un poulain', 2, 1.5],
+  ['Lequel de ces oiseaux ne peut pas voler ?', 'L’autruche', 'Le faucon', 'L’albatros', 'Le colibri', 1, 1.5],
+  ['Combien de pattes possède un insecte ?', '6', '8', '4', '10', 1, 1.5],
+  ['Lequel de ces mammifères vole vraiment, en battant des ailes ?', 'La chauve-souris', 'L’écureuil volant', 'Le lémur volant', 'Le phalanger volant', 2, 2.5],
+  ['De quoi se nourrit surtout le panda géant ?', 'De bambou', 'De poissons', 'D’insectes', 'De fruits', 1, 1.5],
+  ['Quel est le plus grand des félins ?', 'Le tigre', 'Le lion', 'Le jaguar', 'Le léopard', 2, 1.5],
+  ['En quel insecte se transforme une chenille ?', 'Un papillon', 'Une abeille', 'Une libellule', 'Un scarabée', 1, 1.5],
+  ['Quel mammifère a la gestation la plus longue ?', 'L’éléphant', 'La baleine bleue', 'La girafe', 'Le rhinocéros', 3, 2],
+  ['Sur quel continent vivent les manchots empereurs ?', 'L’Antarctique', 'L’Amérique du Nord', 'L’Europe', 'L’Asie', 1, 2],
+  ['Lequel de ces mammifères pond des œufs ?', 'L’ornithorynque', 'Le koala', 'Le wombat', 'Le castor', 2, 2],
+  ['Combien de temps vit environ une abeille ouvrière en été ?', 'Environ 6 semaines', 'Environ 1 an', 'Environ 3 jours', 'Environ 5 ans', 3, 2.5],
+  ['Quel reptile est célèbre pour changer de couleur ?', 'Le caméléon', 'L’iguane', 'Le gecko', 'Le varan', 1, 2],
+  ['Comment s’appelle le cri du loup ?', 'Le hurlement', 'Le brame', 'Le barrissement', 'Le rugissement', 2, 1.5],
+  ['Quel est le plus grand poisson du monde ?', 'Le requin-baleine', 'Le grand requin blanc', 'Le thon rouge', 'L’espadon', 2, 1.5],
+  ['Combien de bosses a un dromadaire ?', '1', '2', '3', '0', 1, 1.5],
+  ['Quel animal figure avec l’émeu sur les armoiries de l’Australie ?', 'Le kangourou', 'Le koala', 'Le wombat', 'L’ornithorynque', 2, 2.5],
+  ['Jusqu’à quel âge peut vivre une tortue géante ?', 'Plus de 150 ans', 'Environ 50 ans', 'Environ 80 ans', 'Environ 30 ans', 3, 2],
+]);
+
 export const QUESTIONS: Question[] = [
   ...cgMelange,
   ...geoCapitales,
@@ -130,6 +187,8 @@ export const QUESTIONS: Question[] = [
   ...sciEssentiels,
   ...cineGrandsFilms,
   ...sportsJo,
+  ...histGrandesDates,
+  ...natureAnimaux,
 ];
 
 export function questionsOf(themeId: string): Question[] {

@@ -70,6 +70,7 @@ export default function RootLayout() {
             <Stack.Screen name="moderation/index" />
             <Stack.Screen name="moderation/report/[id]" />
             <Stack.Screen name="announcement/[id]" />
+            <Stack.Screen name="defi/[id]" />
             <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="discover" />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />

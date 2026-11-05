@@ -42,6 +42,12 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Qu1z utilise ta position approximative (à 10 km près) seulement si tu actives le classement « À proximité »."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#FF6B57"

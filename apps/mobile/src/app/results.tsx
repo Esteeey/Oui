@@ -1,6 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -32,11 +31,13 @@ import { XP_SOUND_MS, playMusic, playSound } from '@/audio/sounds';
 import { Celebration, Crown, GOLD, ReplayButton, ResultBanner } from '@/components/results-art';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
-import { Colors, Fonts, Gradients, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
+import { XpProgress } from '@/components/xp-progress';
+import { DuelChat } from '@/components/duel-chat';
 
 const R = {
   bg: '#000000',
@@ -57,7 +58,7 @@ const PINK = '#FF3B83';
 
 const BANNER: Record<DuelOutcome, { text: string; color: string; dark: string }> = {
   win: { text: 'VICTOIRE !', color: R.win, dark: R.winDark },
-  loss: { text: 'PERDU !', color: R.loss, dark: R.lossDark },
+  loss: { text: 'DÉFAITE !', color: R.loss, dark: R.lossDark },
   draw: { text: 'ÉGALITÉ !', color: R.draw, dark: '#B45309' },
 };
 
@@ -86,7 +87,7 @@ export default function ResultsScreen() {
       const xpAt = 1500;
       timers.push(setTimeout(() => playSound('xp'), xpAt));
       timers.push(setTimeout(() => playSound('xpEnd'), xpAt + XP_SOUND_MS));
-      if (levelFromXp(r.accountXpAfter).level > levelFromXp(r.accountXpBefore).level) {
+      if (levelFromXp(r.record.xpBefore + r.record.xpGained).level > levelFromXp(r.record.xpBefore).level) {
         timers.push(setTimeout(() => playSound('levelUp'), xpAt + XP_SOUND_MS + 150));
       }
     }
@@ -142,7 +143,6 @@ export default function ResultsScreen() {
   const result = duel.result;
   const theme = getTheme(duel.themeId);
   const banner = BANNER[result.outcome];
-  const level = levelFromXp(result.accountXpAfter);
   const record = result.record;
 
   const replay = () => {
@@ -200,7 +200,7 @@ export default function ResultsScreen() {
 
           {!result.finished && !result.forfeited && (
             <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
-              Tu n’étais plus connecté à la fin du duel : pas de bonus de fin ni de victoire.
+              Tu n’étais plus connecté à la fin du duel : pas de bonus de fin.
             </AppText>
           )}
           {result.forfeited && (
@@ -210,6 +210,7 @@ export default function ResultsScreen() {
           )}
 
           <Animated.View entering={FadeInDown.delay(220).springify()} style={styles.table}>
+            <BonusRow icon="ribbon" label="Score" value={result.rewards.scorePoints ?? 0} />
             <BonusRow icon="trophy" label="Bonus fin" value={result.rewards.finishBonus} />
             <BonusRow icon="star" label="Bonus victoire" value={result.rewards.victoryBonus} />
             <BonusRow icon="flash" label="Bonus boost" value={result.rewards.boostBonus} />
@@ -239,22 +240,8 @@ export default function ResultsScreen() {
             </AppText>
           </Animated.View>
 
-          <View style={{ gap: Spacing.sm }}>
-            <View style={styles.levelRow}>
-              <AppText style={styles.levelText}>Niveau {level.level}</AppText>
-              <AppText style={styles.levelText}>
-                {level.needed ? `${level.current} / ${level.needed}` : 'Niveau maximal'}
-              </AppText>
-            </View>
-            <View style={styles.track} accessible accessibilityLabel={`Progression du niveau : ${Math.round(level.progress * 100)} %`}>
-              <LinearGradient
-                colors={[...Gradients.accent, '#7C5CFF']}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={{ width: `${Math.max(2, level.progress * 100)}%`, height: '100%', borderRadius: 999 }}
-              />
-            </View>
-          </View>
+          {/* XP du thème joué (le niveau est calculé par thème), remplie segment par segment. */}
+          <XpProgress xpBefore={record.xpBefore} rewards={result.rewards} delayMs={1500} durationMs={XP_SOUND_MS} />
 
           <ReplayButton onPress={replay} />
           {!duel.opponent.isBot && (
@@ -262,12 +249,12 @@ export default function ResultsScreen() {
               accessibilityRole="button"
               onPress={() =>
                 api('POST', '/api/challenges', { userId: duel.opponent.id, themeId: duel.themeId, rematchOf: duel.duelId })
-                  .then(() => setRematch(`Revanche proposée à ${duel.opponent.name}.`))
+                  .then((r) => setRematch((r as { playDuelId?: string | null }).playDuelId ? null : `Revanche déjà proposée à ${duel.opponent.name}.`))
                   .catch((e) => setRematch(errorMessage(e)))
               }
               style={styles.rematch}>
               <AppText variant="label" color={PINK}>
-                Proposer une revanche à {duel.opponent.name}
+                Revanche contre {duel.opponent.name}
               </AppText>
             </Tap>
           )}
@@ -276,6 +263,8 @@ export default function ResultsScreen() {
               {rematch}
             </AppText>
           )}
+
+          {!duel.opponent.isBot && !duel.challenge && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
 
           <View style={styles.secondary}>
             <Tap
@@ -377,7 +366,7 @@ function SpeedRow({
   );
 }
 
-function BonusRow({ icon, label, value }: { icon: 'trophy' | 'star' | 'flash'; label: string; value: number }) {
+function BonusRow({ icon, label, value }: { icon: 'ribbon' | 'trophy' | 'star' | 'flash'; label: string; value: number }) {
   return (
     <View style={styles.row}>
       <Ionicons name={icon} size={24} color={R.text} style={styles.rowIcon} />

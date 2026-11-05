@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -65,7 +65,11 @@ function open(n: NotificationView): void {
       return;
     case 'challenge_received':
     case 'rematch_request':
-      router.push('/play');
+    case 'challenge_accepted':
+    case 'challenge_declined':
+    case 'challenge_completed':
+      if (typeof d.challengeId === 'string') router.push(`/defi/${d.challengeId}` as Href);
+      else router.push('/play');
       return;
     default:
       if (actor) router.push({ pathname: '/player/[id]', params: { id: actor.id } });

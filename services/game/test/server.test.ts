@@ -31,6 +31,9 @@ async function stop(): Promise<void> {
 }
 
 const xpOf = async (id: string) => (await server.game.profile(id)).xp;
+/** XP des duels seuls : XP du compte moins les récompenses des défis du jour atteints. */
+const duelXpOf = async (id: string) =>
+  (await xpOf(id)) - (await server.game.quests.list(id)).quests.filter((q) => q.done).reduce((t, q) => t + q.reward, 0);
 
 async function client(token?: string): Promise<TestClient> {
   const c = await new TestClient(server.port).connect(token);
@@ -74,7 +77,7 @@ afterEach(async () => {
 });
 
 describe('récompenses XP (calculées par le serveur)', () => {
-  it('gagnant : +20 fin +40 victoire ; perdant : +20 fin ; XP du compte mise à jour', async () => {
+  it('gagnant : score + 40 fin + 100 victoire ; perdant : score + 40 fin ; XP du compte mise à jour', async () => {
     await boot();
     const { a, b } = await startPvp();
     const stopA = autoPlay(a, right);
@@ -84,13 +87,13 @@ describe('récompenses XP (calculées par le serveur)', () => {
     stopA();
     stopB();
     expect(ra.result!.outcome).toBe('win');
-    expect(ra.result!.rewards).toEqual({ finishBonus: 20, victoryBonus: 40, boostBonus: 100, total: 160 });
+    expect(ra.result!.rewards).toEqual({ scorePoints: 160, finishBonus: 40, victoryBonus: 100, boostBonus: 0, total: 300 });
     expect(rb.result!.outcome).toBe('loss');
-    expect(rb.result!.rewards).toEqual({ finishBonus: 20, victoryBonus: 0, boostBonus: 0, total: 20 });
-    expect(await xpOf(a.playerId)).toBe(160);
-    expect(await xpOf(b.playerId)).toBe(20);
+    expect(rb.result!.rewards).toEqual({ scorePoints: 0, finishBonus: 40, victoryBonus: 0, boostBonus: 0, total: 40 });
+    expect(await duelXpOf(a.playerId)).toBe(300);
+    expect(await duelXpOf(b.playerId)).toBe(40);
     expect(ra.result!.accountXpBefore).toBe(0);
-    expect(ra.result!.accountXpAfter).toBe(160);
+    expect(ra.result!.accountXpAfter).toBe(300);
   });
 
   it('chaque joueur se voit en « me » : perspective inversée, mêmes données', async () => {
@@ -120,7 +123,7 @@ describe('récompenses XP (calculées par le serveur)', () => {
     expect(ra.result!.outcome).toBe('loss');
     expect(ra.result!.rewards.total).toBe(0);
     expect(rb.result!.outcome).toBe('win');
-    expect(rb.result!.rewards).toMatchObject({ finishBonus: 20, victoryBonus: 40 });
+    expect(rb.result!.rewards).toMatchObject({ finishBonus: 40, victoryBonus: 100 });
     expect(await xpOf(a.playerId)).toBe(0);
   });
 
@@ -147,6 +150,20 @@ describe('récompenses XP (calculées par le serveur)', () => {
     expect(await xpOf(a.playerId)).toBe(xp);
   });
 
+  it('refuse un temps écoulé annoncé hors de 0 à 10 s', async () => {
+    await boot();
+    const { a, duelId } = await startPvp();
+    const s = await a.waitForDuel((x) => x.phase === 'answering', 4000, 0);
+    const duel = server.game.getDuel(duelId)!;
+    // Les réponses refusées (choix 1) ne sont pas enregistrées : seule la dernière (choix 0) compte.
+    for (const elapsedMs of [-1, 10_001, 'x']) {
+      a.send({ type: 'answer', duelId, index: s.index, choice: 1, elapsedMs });
+    }
+    a.send({ type: 'answer', duelId, index: s.index, choice: 0, elapsedMs: 100 });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(duel.state.answers[0][s.index]?.choice).toBe(0);
+  });
+
   it('le client ne peut ni fixer l’XP ni le temps de réponse', async () => {
     await boot();
     const { a, b, duelId } = await startPvp();
@@ -165,8 +182,8 @@ describe('récompenses XP (calculées par le serveur)', () => {
     const ra = await a.waitForDuel(finished, 8000, 0);
     clearInterval(timer);
     stopB();
-    expect(ra.result!.rewards.total).toBe(160);
-    expect(await xpOf(a.playerId)).toBe(160);
+    expect(ra.result!.rewards.total).toBe(300);
+    expect(await duelXpOf(a.playerId)).toBe(300);
     expect(ra.me.answers.every((x) => x.responseMs > 0)).toBe(true);
   });
 
@@ -200,6 +217,9 @@ describe('récompenses XP (calculées par le serveur)', () => {
     expect(sa.myResponseMs).toBe(recorded);
     const sb = await b.waitForDuel((x) => x.phase === 'answering' && x.opponent.answeredCurrent, 2000, 0);
     expect(sb.myResponseMs).toBeNull();
+    // Chaque moitié de barre suit son joueur : B voit le temps de A (figé), A ne voit rien pour B.
+    expect(sb.opponentResponseMs).toBe(recorded);
+    expect(sa.opponentResponseMs).toBeNull();
     // Verdict immédiat : A, qui a répondu, connaît déjà la bonne réponse ; B, qui réfléchit encore, non.
     expect(sa.correctIndex).toBe(server.game.getDuel(duelId)!.state.questions[s.index].correctIndex);
     expect(sb.correctIndex).toBeNull();
@@ -278,7 +298,7 @@ describe('déconnexions et reconnexions', () => {
     stopA();
     expect(ra.index).toBe(6);
     expect(ra.result!.outcome).toBe('win');
-    expect(ra.result!.rewards).toMatchObject({ finishBonus: 20, victoryBonus: 40 });
+    expect(ra.result!.rewards).toMatchObject({ finishBonus: 40, victoryBonus: 100 });
   });
 
   it('7-8. coupures successives : pas de réinitialisation ni de doublon', async () => {
@@ -314,8 +334,8 @@ describe('déconnexions et reconnexions', () => {
     expect(back.duelId).toBe(duelId);
     expect(back.result!.finished).toBe(false);
     expect(back.result!.rewards.finishBonus).toBe(0);
-    expect(back.result!.rewards.victoryBonus).toBe(0);
-    expect(back.result!.rewards.boostBonus).toBe(20);
+    expect(back.result!.rewards.victoryBonus).toBe(100);
+    expect(back.result!.rewards.scorePoints).toBe(40);
     // Une fois les résultats vus, on ne les renvoie plus à la connexion suivante.
     b2.send({ type: 'ackResult', duelId });
     await sleep(30);
@@ -349,7 +369,33 @@ describe('duel contre le bot', () => {
     stop();
     expect(r.opponent.name).toBe("Bot d'entraînement");
     expect(r.opponent.isBot).toBe(true);
-    expect(r.result!.rewards.finishBonus).toBe(20);
+    expect(r.result!.rewards.finishBonus).toBe(40);
+  });
+
+  it('défis du jour : un match fait avancer les objectifs, la récompense est versée une fois', async () => {
+    await boot();
+    const a = await client();
+    a.send({ type: 'play', themeId: THEME, mode: 'bot' });
+    const stop = autoPlay(a, right);
+    const r = await a.waitForDuel(finished, 8000, 0);
+    stop();
+    await sleep(100);
+    const { quests, resetsAt, day } = await server.game.quests.list(a.playerId);
+    expect(quests).toHaveLength(3);
+    expect(day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(resetsAt).toBeGreaterThan(Date.now());
+    const win = quests.find((q) => q.kind === 'win_theme')!;
+    expect(win.themeId).toBe(THEME);
+    expect(win.progress).toBe(r.result!.outcome === 'win' ? 1 : 0);
+    const correct = r.result!.record.player.filter((x) => x.correct).length;
+    for (const q of quests) {
+      if (q.kind === 'play') expect(q.progress).toBe(1);
+      if (q.kind === 'correct') expect(q.progress).toBe(Math.min(15, correct));
+    }
+    const bonus = quests.filter((q) => q.done).reduce((t, q) => t + q.reward, 0);
+    expect(await xpOf(a.playerId)).toBe(r.result!.rewards.total + bonus);
+    // Mêmes objectifs toute la journée.
+    expect((await server.game.quests.list(a.playerId)).quests.map((q) => q.id)).toEqual(quests.map((q) => q.id));
   });
 
   it('sans adversaire réel, le matchmaking bascule sur le bot', async () => {

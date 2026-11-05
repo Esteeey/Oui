@@ -29,6 +29,7 @@ export type NotificationType =
   | 'challenge_received'
   | 'challenge_accepted'
   | 'challenge_declined'
+  | 'challenge_completed'
   | 'rematch_request'
   | 'opponent_forfeit'
   | 'duel_finished'
@@ -90,8 +91,37 @@ export interface ChallengeView {
   to: UserSummary;
   themeId: string;
   kind: 'challenge' | 'rematch';
-  status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+  /**
+   * sent : envoyé (l'invitant joue ses questions) ; pending : en attente de l'ami ; accepted : l'ami joue ;
+   * completed : terminé ; declined : refusé ; expired : expiré (24 h sans réponse) ; cancelled : annulé.
+   */
+  status: ChallengeStatus;
   incoming: boolean;
   createdAt: number;
+  /** Fin du délai de réponse (création + 24 h). */
+  expiresAt: number;
   duelId: string | null;
+  /** Scores (connus une fois chaque manche jouée). */
+  fromScore: number | null;
+  toScore: number | null;
+}
+
+export type ChallengeStatus = 'sent' | 'pending' | 'accepted' | 'completed' | 'declined' | 'cancelled' | 'expired';
+
+/** Délai pour relever un défi (À AJUSTER). */
+export const CHALLENGE_EXPIRY_HOURS = 24;
+
+export const CHALLENGE_STATUS_LABEL: Record<ChallengeStatus, string> = {
+  sent: 'Envoyé',
+  pending: 'En attente',
+  accepted: 'Accepté',
+  completed: 'Terminé',
+  declined: 'Refusé',
+  cancelled: 'Annulé',
+  expired: 'Expiré',
+};
+
+/** Lien profond d'un défi (ouvre l'application) et lien web de secours (ouvre le site, ou la page d'installation). */
+export function challengeLinks(id: string, webOrigin = 'https://qu1z.qu1z-cf.workers.dev'): { app: string; web: string } {
+  return { app: `qu1z://defi/${id}`, web: `${webOrigin}/defi/${id}` };
 }

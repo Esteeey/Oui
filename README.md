@@ -4,6 +4,7 @@ Plateforme sociale et compétitive de culture générale, centrée sur le duel 1
 *Qu1z est un nom provisoire.*
 
 Dossier de conception : [`docs/CONCEPTION.md`](docs/CONCEPTION.md)
+Mode duel (règles, défis, classements, réglages) : [`docs/MODE-DUEL.md`](docs/MODE-DUEL.md)
 
 ## Structure
 
@@ -20,13 +21,13 @@ docs/              conception
 - **5 onglets** : Fil d'actualité, Explorer, Classement, Social, Profil.
 - **Duel** : classé entre joueurs réels (bot après 10 s sans adversaire) ou d'entraînement contre le bot ; 7 questions, chrono 10 s ; page Résultats (bonus, niveau, Rejouer, Chat, Partager).
 - **Social réel (serveur)** : profils (pseudo, bio, titre, profil privé, listes masquables), abonnements et demandes, abonnements aux thèmes, publications sur son mur ou dans un thème, commentaires et réponses, « Bravo », mentions @pseudo, fil d'accueil, classements, blocage.
-- 6 thèmes jouables, dont **Drapeaux du monde** en questions illustrées.
+- 8 thèmes jouables, dont **Drapeaux du monde** en questions illustrées, et deux thèmes de démonstration du mode duel (Histoire, Le monde animal).
 
 Serveur :
 
 - Le serveur fait autorité : questions, chrono, réponses, scores, résultat et **XP** (le client n'envoie que ses choix).
 - Une déconnexion ne met jamais le duel en pause ; à la reconnexion (ou réouverture de l'app), le joueur retrouve son duel ou ses résultats.
-- Récompenses : bonus fin +20, victoire +40, boost (10 XP par bonne réponse, +30 si sans-faute) ; abandon = 0 XP ; versement unique garanti par la base.
+- Récompenses : score du match + bonus fin +40 + victoire +100 (égalité +50) ; abandon = 0 XP ; versement unique garanti par la base (voir `docs/MODE-DUEL.md`).
 - Blocages et confidentialité vérifiés dans chaque requête ; limites anti-spam configurables.
 
 Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
