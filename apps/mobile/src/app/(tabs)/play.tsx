@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { THEMES, getCategory, getTheme, type ChallengeView } from '@qu1z/shared';
 
+import { ChallengeRow } from '@/components/challenge-card';
 import { PlayBanner } from '@/components/play-banner';
 import { UserRow } from '@/components/player-row';
 import { SectionHeader, type IconName } from '@/components/social';
@@ -14,6 +15,7 @@ import { api, errorMessage, useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 /** Jouer : partie rapide, duel au hasard, défis reçus et envoyés, rejouer un thème ou un adversaire. */
 export default function PlayScreen() {
@@ -60,17 +62,7 @@ export default function PlayScreen() {
         <>
           <SectionHeader title={`Défis reçus · ${incoming.length}`} />
           {incoming.map((c) => (
-            <UserRow
-              key={c.id}
-              user={c.from}
-              subtitle={`${c.kind === 'rematch' ? 'Revanche' : 'Défi'} · ${getTheme(c.themeId)?.name ?? ''}`}
-              right={
-                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-                  <Button label="Refuser" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/decline`)} />
-                  <Button label="Jouer" color={Colors.opponent} onPress={() => act(`/api/challenges/${c.id}/accept`)} />
-                </View>
-              }
-            />
+            <ChallengeRow key={c.id} c={c} onChanged={challenges.refresh} onMessage={(ok, text) => setMessage({ ok, text })} />
           ))}
         </>
       )}
@@ -78,12 +70,7 @@ export default function PlayScreen() {
         <>
           <SectionHeader title={`Défis envoyés · ${outgoing.length}`} />
           {outgoing.map((c) => (
-            <UserRow
-              key={c.id}
-              user={c.to}
-              subtitle={`En attente · ${getTheme(c.themeId)?.name ?? ''}`}
-              right={<Button label="Annuler" variant="outline" color={Colors.textMuted} onPress={() => act(`/api/challenges/${c.id}/cancel`)} />}
-            />
+            <ChallengeRow key={c.id} c={c} onChanged={challenges.refresh} onMessage={(ok, text) => setMessage({ ok, text })} />
           ))}
         </>
       )}
@@ -93,7 +80,7 @@ export default function PlayScreen() {
           <SectionHeader title="Rejouer contre" />
           {rivals.map((d) => (
             <View key={d.opponentId} style={styles.row}>
-              <Pressable
+              <Tap
                 accessibilityRole="button"
                 accessibilityLabel={`Profil de ${d.opponentName}`}
                 onPress={() => router.push({ pathname: '/player/[id]', params: { id: d.opponentId! } })}
@@ -107,7 +94,7 @@ export default function PlayScreen() {
                     {d.outcome === 'win' ? 'Victoire' : d.outcome === 'loss' ? 'Défaite' : 'Égalité'} · {getTheme(d.themeId)?.name}
                   </AppText>
                 </View>
-              </Pressable>
+              </Tap>
               <Button
                 label="Défier"
                 color={Colors.opponent}
@@ -126,7 +113,7 @@ export default function PlayScreen() {
             const category = getCategory(theme.categoryId);
             return (
               <View key={id} style={[styles.row, { borderLeftWidth: 5, borderLeftColor: category?.color ?? Colors.accent }]}>
-                <Pressable
+                <Tap
                   accessibilityRole="button"
                   onPress={() => router.push({ pathname: '/theme/[id]', params: { id } })}
                   style={styles.rowMain}>
@@ -134,7 +121,7 @@ export default function PlayScreen() {
                   <AppText variant="label" style={{ flex: 1 }} numberOfLines={1}>
                     {theme.name}
                   </AppText>
-                </Pressable>
+                </Tap>
                 <Button label="Jouer" onPress={() => duel(id, 'pvp')} />
               </View>
             );
@@ -143,13 +130,13 @@ export default function PlayScreen() {
       )}
 
       <SectionHeader title="Défier un ami" />
-      <Pressable
+      <Tap
         accessibilityRole="button"
         onPress={() => playerId && router.push({ pathname: '/player/[id]/[list]', params: { id: playerId, list: 'following' } })}
         style={styles.link}>
         <AppText variant="label">Choisir parmi les joueurs que je suis</AppText>
         <AppText muted>›</AppText>
-      </Pressable>
+      </Tap>
     </Screen>
   );
 }

@@ -3,6 +3,7 @@ import {
   botAnswer,
   duelOutcome,
   readingTimeMs,
+  scoreAnswer,
   scoreAnswers,
   totals,
   type DuelOutcome,
@@ -27,7 +28,7 @@ export const DEFAULT_TIMING: Timing = {
   introMs: RULES.introMs,
   answerMs: RULES.answerTimeMs,
   revealMs: RULES.revealMs + RULES.transitionMs,
-  readingMs: (q) => readingTimeMs(q.text, !!q.image),
+  readingMs: (q) => RULES.roundCardMs + readingTimeMs(q.text, !!q.image),
   latencyGraceMs: 300,
 };
 
@@ -321,6 +322,10 @@ export class Duel {
     const s = this.state;
     const p = s.participants[k];
     const answers = this.scored(k);
+    // Les points d'une réponse comptent dès qu'elle est enregistrée (jauge et score montent aussitôt),
+    // sans attendre la fin de la manche ; le détail des réponses, lui, reste caché jusqu'à la révélation.
+    const current = includeCurrent && s.phase === 'answering' ? s.answers[k][s.index] : undefined;
+    const currentPoints = current ? scoreAnswer(current, s.questions[s.index].correctIndex, s.index).points : 0;
     return {
       id: p.playerId,
       name: p.name,
@@ -331,7 +336,7 @@ export class Duel {
       connected: p.isBot || p.connected,
       forfeited: p.forfeited,
       answers,
-      points: totals(answers).points,
+      points: totals(answers).points + currentPoints,
       answeredCurrent: includeCurrent && s.phase === 'answering' && !!s.answers[k][s.index],
     };
   }
@@ -357,8 +362,12 @@ export class Duel {
         s.phase === 'intro' || s.phase === 'finished'
           ? null
           : { id: q.id, text: q.text, ...(q.image ? { image: q.image } : {}), choices: showChoices ? q.choices : [] },
-      correctIndex: reveal ? q.correctIndex : null,
+      // La bonne réponse est envoyée dès qu'on a répondu (sa réponse est alors définitive) : on voit
+      // tout de suite si on a juste, sans attendre l'adversaire. Celui qui n'a pas répondu ne la reçoit pas.
+      correctIndex: reveal || (s.phase === 'answering' && s.answers[k][s.index]) ? q.correctIndex : null,
       myChoice: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.choice ?? null) : null,
+      myResponseMs: s.phase === 'answering' || reveal ? (s.answers[k][s.index]?.responseMs ?? null) : null,
+      opponentResponseMs: s.phase === 'answering' || reveal ? (s.answers[other][s.index]?.responseMs ?? null) : null,
       opponentChoice: reveal ? (s.answers[other][s.index]?.choice ?? null) : null,
       me: this.view(k, true),
       opponent: this.view(other, true),

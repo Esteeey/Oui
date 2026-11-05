@@ -3,18 +3,33 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, Keyframe, ZoomIn, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  Keyframe,
+  ZoomIn,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
+import { CHALLENGE_EXPIRY_HOURS, MAX_DUEL_POINTS, RULES, getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
 
-import { MatchmakingMap } from '@/components/matchmaking-map';
+import { shareChallenge } from '@/components/challenge-card';
+
+import { MATCH_FOUND_MS, MatchmakingMap } from '@/components/matchmaking-map';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { VERSUS_CLASH_MS, VersusIntro } from '@/components/versus-intro';
-import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopMusic, stopSound } from '@/audio/sounds';
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopSound } from '@/audio/sounds';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
+import { Tap } from '@/components/tap';
 
 /** Couleurs de l'écran de duel (fond noir, boutons clairs). */
 const D = {
@@ -31,19 +46,92 @@ const D = {
   onButton: '#0E0B1A',
 };
 
-/**
- * Transition entre deux questions : la révélation reste visible, fondu au noir, court répit au noir,
- * puis la question suivante sort du noir.
- */
-const FADE_OUT_MS = 500;
+/** Fin de la révélation : la réponse reste visible, puis fondu au noir juste avant la question suivante. */
 const REVEAL_TOTAL_MS = RULES.revealMs + RULES.transitionMs;
 const FADE_TO_BLACK = new Keyframe({
   0: { opacity: 0 },
   [Math.round((RULES.revealMs / REVEAL_TOTAL_MS) * 100)]: { opacity: 0 },
-  [Math.round(((RULES.revealMs + FADE_OUT_MS) / REVEAL_TOTAL_MS) * 100)]: { opacity: 1 },
   100: { opacity: 1 },
 }).duration(REVEAL_TOTAL_MS);
-const FADE_FROM_BLACK = new Keyframe({ 0: { opacity: 1 }, 100: { opacity: 0 } }).duration(600);
+
+/**
+ * Écran « Manche N », au début de chaque question (le serveur lui réserve `RULES.roundCardMs`
+ * au début de la phase de lecture). Sur le noir de la zone centrale, sans cadre : l'icône du thème,
+ * son nom et sa catégorie, puis « Manche N » qui domine et « N sur 7 » ; tout s'efface en fondu,
+ * un court noir, puis la question apparaît. Apparitions douces, sans rebond.
+ * Les instants sont comptés depuis le début réel de la phase, pour rester calés si l'écran
+ * s'ouvre en cours de route (reprise d'un duel).
+ */
+const CARD = { icon: 200, names: 550, round: 800, hide: 1780, fadeOut: 200, question: RULES.roundCardMs } as const;
+
+/** Les 3 dernières secondes du chrono sont en rouge. */
+const DANGER_MS = 3_000;
+
+/** Apparition de l'icône : légère montée en taille, sans rebond. */
+const ICON_IN = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.7 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.cubic) },
+}).duration(260);
+
+function RoundCard({ duel, elapsed, top }: { duel: DuelSnapshot; elapsed: number; top: number }) {
+  const theme = getTheme(duel.themeId);
+  const category = theme ? getCategory(theme.categoryId) : undefined;
+  const last = duel.index === duel.questionCount - 1;
+  const at = (ms: number) => Math.max(0, ms - elapsed);
+  return (
+    <Animated.View exiting={FadeOut.duration(CARD.fadeOut)} style={[styles.card, { top }]} pointerEvents="none">
+      <Animated.View entering={ICON_IN.delay(at(CARD.icon))}>
+        <AppText style={styles.cardEmoji}>{category?.icon ?? '❓'}</AppText>
+      </Animated.View>
+      <Animated.View entering={FadeIn.delay(at(CARD.names)).duration(220)} style={styles.cardNames}>
+        <AppText color={D.text} style={styles.cardTheme} numberOfLines={1}>
+          {theme?.name ?? ''}
+        </AppText>
+        {!!category && (
+          <AppText color={D.muted} style={styles.cardCategory} numberOfLines={1}>
+            {category.name}
+          </AppText>
+        )}
+      </Animated.View>
+      <Animated.View entering={FadeIn.delay(at(CARD.round)).duration(200)} style={styles.cardRound}>
+        <AppText color={D.text} style={styles.roundText} numberOfLines={1} adjustsFontSizeToFit>
+          {last ? 'Dernière manche' : `Manche ${duel.index + 1}`}
+        </AppText>
+        <AppText color={D.muted} style={styles.roundHint}>
+          {duel.index + 1} sur {duel.questionCount}
+        </AppText>
+      </Animated.View>
+      {last && (
+        <Animated.View entering={ZoomIn.delay(at(CARD.round + 200)).springify()} style={styles.doubleBanner} accessibilityLiveRegion="polite">
+          <AppText style={styles.doubleText}>POINTS DOUBLÉS ×{RULES.lastQuestionMultiplier}</AppText>
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+}
+
+/**
+ * Temps écoulé depuis le début de la phase de lecture, et si l'écran « Manche N » est terminé.
+ * Bascule une seule fois par question, à l'instant prévu (et non au fil des rendus).
+ */
+function useRoundCard(duel: DuelSnapshot, clockOffset: number): { showing: boolean; after: boolean; elapsed: number } {
+  const reading = duel.phase === 'reading';
+  const elapsed = reading ? Math.max(0, Date.now() + clockOffset - duel.phaseStartedAt) : RULES.roundCardMs;
+  const hideAt = CARD.hide;
+  const [doneFor, setDoneFor] = useState<number | null>(null);
+  useEffect(() => {
+    if (!reading) return;
+    const id = setTimeout(() => setDoneFor(duel.index), Math.max(0, hideAt - elapsed));
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reading, duel.index, duel.phaseStartedAt]);
+  return {
+    showing: reading && doneFor !== duel.index && elapsed < hideAt,
+    // La question arrive juste après l'écran « Manche N » (et non au retour sur un duel en cours).
+    after: reading && elapsed < CARD.question + 500,
+    elapsed,
+  };
+}
 
 type Params = { themeId: string; mode?: string; resume?: string };
 
@@ -77,52 +165,106 @@ export default function DuelRoute() {
     if (live?.phase === 'finished' && live.result) router.replace('/results');
   }, [live]);
 
-  if (!live || live.phase === 'finished') {
-    return <Waiting themeId={params.themeId} />;
+  // Adversaire trouvé après une recherche : la carte plonge d'abord sur lui (étapes 6 et 7), puis le duel s'affiche.
+  const searched = useRef(false);
+  if (game.queued || (params.mode === 'pvp' && !params.resume)) searched.current = true;
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const revealing = !!live && live.phase !== 'finished' && searched.current && revealed !== live.duelId;
+  useEffect(() => {
+    if (!revealing || !live) return;
+    const duelId = live.duelId;
+    const id = setTimeout(() => setRevealed(duelId), MATCH_FOUND_MS);
+    return () => clearTimeout(id);
+    // Le minuteur ne dépend que du duel trouvé, pas des mises à jour de son état.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealing, live?.duelId]);
+
+  if (live?.phase === 'finished' && live.challenge?.leg === 1) return <ChallengeSent duel={live} />;
+  if (!live || live.phase === 'finished' || revealing) {
+    return <Waiting themeId={params.themeId} opponent={revealing ? live.opponent : null} />;
   }
   return <DuelView duel={live} />;
 }
 
-/** Attente : connexion au serveur, recherche d'adversaire. */
-function Waiting({ themeId }: { themeId: string }) {
-  const game = useGameServer();
-  const theme = getTheme(themeId);
-  const offline = game.status !== 'online';
+/**
+ * Fin de la partie de l'invitant d'un défi : son score est enregistré, l'ami rejouera les mêmes questions
+ * (il a 24 h). Lien à partager pour le prévenir aussi en dehors de l'application.
+ */
+function ChallengeSent({ duel }: { duel: DuelSnapshot }) {
+  const forfeited = duel.me.forfeited;
   return (
     <SafeAreaView style={[styles.screen, styles.center]}>
-      <MatchmakingMap label={offline ? 'Connexion au serveur…' : game.queued ? 'Recherche d’un adversaire…' : 'Préparation du duel…'} />
-      {theme && (
-        <AppText color={D.muted} style={{ textAlign: 'center' }}>
-          {theme.name}
-        </AppText>
+      <AppText variant="title" color={D.text} style={{ textAlign: 'center' }}>
+        {forfeited ? 'Défi annulé' : 'Défi envoyé !'}
+      </AppText>
+      {!forfeited && (
+        <>
+          <AppText variant="score" color={D.correct} style={{ fontSize: 48 }}>
+            {duel.me.points}
+          </AppText>
+          <AppText color={D.muted} style={{ textAlign: 'center' }}>
+            {duel.opponent.name} a {CHALLENGE_EXPIRY_HOURS} h pour rejouer les mêmes questions. Tu seras prévenu du résultat.
+          </AppText>
+          <Button label="Partager le défi" color={Colors.accent} onPress={() => duel.challenge && shareChallenge({ id: duel.challenge.id, themeId: duel.themeId })} />
+        </>
       )}
-      {game.queued && (
-        <AppText variant="caption" color={D.muted} style={{ textAlign: 'center' }}>
-          Sans adversaire au bout de 10 s, tu joues contre le bot d’entraînement.
-        </AppText>
-      )}
-      {game.status === 'offline' && (
-        <AppText variant="caption" color={D.muted} style={{ textAlign: 'center', maxWidth: 300 }}>
-          Le serveur de jeu est injoignable. Nouvelle tentative automatique…
-        </AppText>
-      )}
-      {game.lastError && <AppText color={D.wrong}>{game.lastError}</AppText>}
-      <View style={{ gap: Spacing.sm, alignSelf: 'stretch', paddingHorizontal: Spacing.xl }}>
-        {game.status === 'offline' && <Button label="Réessayer" color="#FF3B83" textColor={D.onButton} onPress={game.retry} />}
-        <Button
-          label="Annuler"
-          variant="outline"
-          color={D.text}
-          onPress={() => {
-            game.cancelQueue();
-            if (router.canGoBack()) router.back();
-            else router.replace('/');
-          }}
-        />
-      </View>
+      <Button label="Retour" variant="outline" color={D.text} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
     </SafeAreaView>
   );
 }
+
+/** Attente : connexion au serveur, recherche d'adversaire. */
+function Waiting({ opponent }: { themeId: string; opponent: ParticipantView | null }) {
+  const game = useGameServer();
+  const offline = game.status !== 'online';
+  const label = opponent ? 'Adversaire trouvé' : offline ? 'Connexion au serveur' : 'Recherche d’adversaire';
+
+  // Musique d'attente tant qu'on cherche ; elle s'efface quand l'adversaire est trouvé ou qu'on annule
+  // (la musique de duel prend ensuite le relais).
+  useEffect(() => {
+    if (opponent) return;
+    preloadSounds();
+    const stop = playMusic('search');
+    return () => stop();
+  }, [opponent]);
+  return (
+    <View style={[styles.screen, { backgroundColor: '#000000' }]}>
+      {/* La carte du monde occupe tout l'écran et défile ; le texte et l'annulation restent en bas. */}
+      <MatchmakingMap opponent={opponent} />
+      <SafeAreaView edges={['bottom']} style={waitingStyles.bottom} pointerEvents="box-none">
+        {game.status === 'offline' && (
+          <AppText variant="caption" color={D.muted} style={{ textAlign: 'center', maxWidth: 300 }}>
+            Le serveur de jeu est injoignable. Nouvelle tentative automatique…
+          </AppText>
+        )}
+        {game.lastError && <AppText color={D.wrong}>{game.lastError}</AppText>}
+        <AppText variant="caption" color="#B0B0B8" style={waitingStyles.label}>
+          {label}
+        </AppText>
+        {!opponent && (
+          <View style={{ gap: Spacing.sm, alignSelf: 'stretch', paddingHorizontal: Spacing.xl }}>
+            {game.status === 'offline' && <Button label="Réessayer" color="#FF3B83" textColor={D.onButton} onPress={game.retry} />}
+            <Button
+              label="Annuler"
+              variant="outline"
+              color={D.text}
+              onPress={() => {
+                game.cancelQueue();
+                if (router.canGoBack()) router.back();
+                else router.replace('/');
+              }}
+            />
+          </View>
+        )}
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const waitingStyles = StyleSheet.create({
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', gap: Spacing.md, paddingBottom: Spacing.lg },
+  label: { letterSpacing: 2.5, textTransform: 'uppercase', textAlign: 'center', paddingVertical: Spacing.sm },
+});
 
 function useNow(active: boolean): number {
   const [now, setNow] = useState(Date.now());
@@ -136,19 +278,31 @@ function useNow(active: boolean): number {
 
 /**
  * Sons du duel, déclenchés par les changements de phase envoyés par le serveur.
- * La justesse d'une réponse n'est connue qu'à la révélation : le son tombe donc à ce moment-là.
+ * Dès que le serveur a reçu ma réponse, il m'envoie la bonne : le son « juste » ou « faux » tombe aussitôt,
+ * sans attendre l'adversaire ; la révélation ne fait plus entendre que le résultat de l'adversaire.
  */
 function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
   const prev = useRef<{ phase: string; index: number } | null>(null);
+  /** Question dont mon verdict a déjà été joué (une seule fois, même si l'état est renvoyé). */
+  const judged = useRef<string | null>(null);
+  const questionKey = `${duel.duelId}:${duel.index}`;
+
+  // Verdict immédiat de ma réponse.
+  useEffect(() => {
+    if (duel.phase !== 'answering' || duel.myChoice === null || duel.correctIndex === null) return;
+    if (judged.current === questionKey) return;
+    judged.current = questionKey;
+    playSound(duel.myChoice === duel.correctIndex ? 'correct' : 'wrong');
+  }, [duel.phase, duel.myChoice, duel.correctIndex, questionKey]);
 
   useEffect(() => preloadSounds(), []);
 
   // Musique de fond : de l'intro VS jusqu'à la fin du duel (l'écran de duel est alors démonté).
   useEffect(() => {
-    playMusic('duel');
+    const stop = playMusic('duel');
     return () => {
       stopSound('tick');
-      stopMusic('duel');
+      stop();
     };
   }, []);
 
@@ -164,17 +318,32 @@ function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
       const id = setTimeout(() => playSound('versus'), Math.max(0, VERSUS_CLASH_MS - VERSUS_HIT_OFFSET_MS));
       return () => clearTimeout(id);
     }
-    if (duel.phase === 'reading') playSound(duel.index === RULES.questionsPerDuel - 1 ? 'bonusRound' : 'question');
+    if (duel.phase === 'reading') {
+      // Le son de la question tombe quand l'énoncé sort de l'écran « Manche N ».
+      const elapsed = Date.now() + clockOffset - duel.phaseStartedAt;
+      const wait = CARD.question - elapsed;
+      if (wait < -1000) return; // déjà passé (reprise en cours de lecture)
+      const id = setTimeout(() => playSound(duel.index === RULES.questionsPerDuel - 1 ? 'bonusRound' : 'question'), Math.max(0, wait));
+      return () => clearTimeout(id);
+    }
+    if (duel.phase === 'answering') {
+      // Les réponses apparaissent et le chrono démarre (pas au retour sur une question déjà entamée).
+      if (Date.now() + clockOffset - duel.phaseStartedAt < 1000) playSound('choices');
+      return;
+    }
     if (duel.phase === 'reveal') {
-      // Son de sa propre réponse, puis celui de l'adversaire dès que son résultat est connu.
+      // Son de sa propre réponse (s'il n'a pas déjà été joué à la réponse), puis celui de l'adversaire.
       const mine = duel.me.answers[duel.index];
-      playSound(mine?.correct ? 'correct' : mine?.choice == null ? 'timeout' : 'wrong');
+      if (judged.current !== questionKey) {
+        judged.current = questionKey;
+        playSound(mine?.correct ? 'correct' : mine?.choice == null ? 'timeout' : 'wrong');
+      }
       if (duel.opponentChoice === null || duel.opponentChoice === undefined) return;
       const opponentCorrect = duel.opponentChoice === duel.correctIndex;
       const id = setTimeout(() => playSound(opponentCorrect ? 'opponentCorrect' : 'opponentWrong'), 350);
       return () => clearTimeout(id);
     }
-  }, [duel.phase, duel.index, duel.me.answers, duel.opponentChoice, duel.correctIndex]);
+  }, [duel.phase, duel.index, duel.me.answers, duel.opponentChoice, duel.correctIndex, questionKey]);
 
   // Tic-tac des 5 dernières secondes tant qu'on n'a pas répondu, programmé d'après l'heure de fin
   // de la question (et non au fil des rendus) ; coupé dès qu'on répond ou à la révélation.
@@ -199,13 +368,31 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   const online = game.status === 'online';
   useNow(duel.phase === 'answering' || duel.phase === 'reading');
   useDuelSounds(duel, game.clockOffset);
+  const card = useRoundCard(duel, game.clockOffset);
+  const [stageTop, setStageTop] = useState(0);
 
   const left = remainingMs(duel, game.clockOffset);
-  const total = Math.max(1, duel.phaseEndsAt - duel.phaseStartedAt);
-  const seconds = duel.phase === 'answering' ? Math.ceil(left / 1000) : duel.phase === 'reading' ? RULES.answerTimeMs / 1000 : 0;
+  const myAnsweredMs = duel.myResponseMs ?? null;
+  const opponentAnsweredMs = duel.opponentResponseMs ?? null;
+  const bothAnsweredMs = myAnsweredMs !== null && opponentAnsweredMs !== null ? Math.max(myAnsweredMs, opponentAnsweredMs) : null;
+  const timerLeft = (() => {
+    if (duel.phase === 'reading') return RULES.answerTimeMs;
+    if (duel.phase === 'answering') {
+      return bothAnsweredMs === null ? left : Math.max(0, RULES.answerTimeMs - bothAnsweredMs);
+    }
+    if (duel.phase === 'reveal' && bothAnsweredMs !== null) {
+      return Math.max(0, RULES.answerTimeMs - bothAnsweredMs);
+    }
+    return 0;
+  })();
+  const timerProgress = Math.max(0, Math.min(1, timerLeft / RULES.answerTimeMs));
+  const seconds = duel.phase === 'reading' || duel.phase === 'answering' || duel.phase === 'reveal' ? Math.ceil(timerLeft / 1000) : 0;
   const reveal = duel.phase === 'reveal';
+  const danger = duel.phase === 'answering' && bothAnsweredMs === null && left <= DANGER_MS && left > 0;
   const q = duel.question;
   const lastMine = reveal ? duel.me.answers[duel.index] : undefined;
+  // Ma réponse est jugée dès que le serveur l'a reçue (bonne réponse connue), sans attendre l'adversaire.
+  const judgedNow = reveal || (duel.phase === 'answering' && duel.myChoice !== null && duel.correctIndex !== null);
 
   // Confirmation d’abandon, aussi accessible depuis l’écran « VS ».
   const quitDialog = confirmQuit && (
@@ -241,22 +428,22 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
 
   return (
     <SafeAreaView style={styles.screen}>
+      <View style={styles.topTimeTrack} accessible accessibilityRole="progressbar" accessibilityLabel={`Temps restant : ${seconds} secondes`} accessibilityValue={{ min: 0, max: 100, now: Math.round(timerProgress * 100) }}>
+        <View style={[styles.topTimeFill, { width: `${timerProgress * 100}%`, backgroundColor: danger ? D.wrong : Colors.accent }]} />
+      </View>
       <Gauge points={duel.me.points} side="left" />
       <Gauge points={duel.opponent.points} side="right" />
 
       <View style={styles.content}>
         <View style={styles.header}>
           <PlayerHead player={duel.me} side="left" />
-          <View style={styles.timerBox}>
-            <AppText variant="heading" color={D.text} style={{ fontVariant: ['tabular-nums'] }}>
+          <View style={[styles.timerBox, danger && { borderColor: D.wrong }]}>
+            <AppText variant="heading" color={danger ? D.wrong : D.text} style={{ fontVariant: ['tabular-nums'] }}>
               {seconds}
             </AppText>
           </View>
-          <PlayerHead player={duel.opponent} side="right" />
+          <PlayerHead player={duel.opponent} side="right" later={duel.challenge?.leg === 1} />
         </View>
-
-        <TimeBar running={duel.phase === 'answering' && duel.myChoice === null} fraction={left / total} phase={duel.phase} />
-
         {!online && (
           <View style={styles.banner}>
             <Ionicons name="cloud-offline" size={16} color={D.text} />
@@ -266,12 +453,15 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           </View>
         )}
 
-        <View style={styles.stage}>
+        <View style={styles.stage} onLayout={(e) => setStageTop(e.nativeEvent.layout.y)}>
           <View style={styles.questionZone}>
-            {questionImageSource(q?.image) !== null && (
-              <Image source={questionImageSource(q?.image)!} contentFit="contain" style={styles.image} accessibilityLabel="Illustration de la question" />
+            {!card.showing && questionImageSource(q?.image) !== null && (
+              <Image source={questionImageSource(q?.image)!} contentFit="contain" transition={300} style={styles.image} accessibilityLabel="Illustration de la question" />
             )}
-            <Animated.View key={`q-${duel.index}`} entering={FadeInDown.springify()}>
+            {!card.showing && (
+            <Animated.View
+              key={`q-${duel.index}`}
+              entering={card.after ? FadeInDown.delay(CARD.question - CARD.hide).duration(320).withInitialValues({ transform: [{ translateY: 12 }] }) : FadeInDown.springify()}>
               {duel.index === RULES.questionsPerDuel - 1 && (
                 <AppText variant="caption" color={D.correct} style={{ textAlign: 'center', marginBottom: Spacing.sm }}>
                   DERNIÈRE QUESTION · POINTS ×{RULES.lastQuestionMultiplier}
@@ -279,6 +469,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
               )}
               <AppText style={styles.question}>{q?.text}</AppText>
             </Animated.View>
+            )}
           </View>
 
           <View style={styles.choices}>
@@ -288,7 +479,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
               </AppText>
             ) : (
               q?.choices.map((choice, i) => {
-                const state = !reveal ? 'idle' : i === duel.correctIndex ? 'correct' : duel.myChoice === i ? 'wrong' : 'idle';
+                const state = !judgedNow ? 'idle' : i === duel.correctIndex ? 'correct' : duel.myChoice === i ? 'wrong' : 'idle';
                 return (
                   <Choice
                     key={`${duel.index}-${i}`}
@@ -297,6 +488,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
                     state={state}
                     selected={duel.myChoice === i}
                     opponentPicked={reveal && duel.opponentChoice === i}
+                    opponent={duel.opponent}
                     disabled={!online || duel.phase !== 'answering' || duel.myChoice !== null}
                     onPress={() => {
                       playSound('answered');
@@ -321,18 +513,17 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
             )}
           </View>
 
-          {reveal ? (
-            <Animated.View key={`out-${duel.index}`} entering={FADE_TO_BLACK} style={styles.fade} />
-          ) : duel.index > 0 && duel.phase === 'reading' ? (
-            <Animated.View key={`in-${duel.index}`} entering={FADE_FROM_BLACK} style={[styles.fade, { opacity: 0 }]} />
-          ) : null}
+          {reveal && <Animated.View key={`out-${duel.index}`} entering={FADE_TO_BLACK} style={styles.fade} />}
         </View>
 
-        <Pressable accessibilityRole="button" onPress={() => setConfirmQuit(true)} style={styles.quit}>
+        <Tap accessibilityRole="button" onPress={() => setConfirmQuit(true)} style={styles.quit}>
           <AppText variant="caption" color={D.muted}>
             Abandonner
           </AppText>
-        </Pressable>
+        </Tap>
+
+        {/* L'écran « Manche N » couvre toute la zone sous le haut de l'écran, qui reste visible. */}
+        {card.showing && <RoundCard key={`card-${duel.index}`} duel={duel} elapsed={card.elapsed} top={stageTop} />}
       </View>
 
       {quitDialog}
@@ -340,18 +531,16 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   );
 }
 
-function PlayerHead({ player, side }: { player: ParticipantView; side: 'left' | 'right' }) {
-  const avatar = <Avatar name={player.name} color={side === 'left' ? Colors.player : (player.color ?? Colors.opponent)} size={46} borderColor={D.ring} />;
+function PlayerHead({ player, side, later = false }: { player: ParticipantView; side: 'left' | 'right'; later?: boolean }) {
+  const avatar = <Avatar name={player.name} uri={player.avatar} color={side === 'left' ? Colors.player : (player.color ?? Colors.opponent)} size={46} borderColor={D.ring} />;
   const info = (
     <View style={{ alignItems: side === 'left' ? 'flex-start' : 'flex-end', flexShrink: 1 }}>
       <AppText variant="caption" color={D.muted} numberOfLines={1}>
         {player.name}
       </AppText>
-      <AppText variant="score" color={D.text} style={{ fontSize: 28 }}>
-        {player.points}
-      </AppText>
+      <ScoreCounter points={player.points} />
       <AppText variant="caption" color={player.connected ? D.correct : D.wrong} style={{ fontSize: 11, minHeight: 14 }}>
-        {!player.connected ? 'Déconnecté' : player.answeredCurrent && side === 'right' ? 'A répondu' : ''}
+        {later ? 'Jouera plus tard' : !player.connected ? 'Déconnecté' : player.answeredCurrent && side === 'right' ? 'A répondu' : ''}
       </AppText>
     </View>
   );
@@ -360,6 +549,66 @@ function PlayerHead({ player, side }: { player: ParticipantView; side: 'left' | 
       {side === 'left' ? avatar : info}
       {side === 'left' ? info : avatar}
     </View>
+  );
+}
+
+/**
+ * Score qui compte de l'ancienne à la nouvelle valeur (≈ 400 ms) avec un « +N » qui monte au-dessus et
+ * s'efface. Avec « réduire les animations », le score change directement, sans « +N » animé.
+ */
+function ScoreCounter({ points }: { points: number }) {
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(points);
+  const [gain, setGain] = useState<{ value: number; key: number } | null>(null);
+  const from = useRef(points);
+  useEffect(() => {
+    const start = from.current;
+    from.current = points;
+    if (points === start) return;
+    if (reduced || points < start) {
+      setShown(points);
+      return;
+    }
+    setGain({ value: points - start, key: Date.now() });
+    let raf = 0;
+    let t0 = 0;
+    const tick = (now: number) => {
+      if (!t0) t0 = now;
+      const t = Math.min(1, (now - t0) / 400);
+      setShown(Math.round(start + (points - start) * t));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const hide = setTimeout(() => setGain(null), 900);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(hide);
+      setShown(points);
+    };
+  }, [points, reduced]);
+  return (
+    <View>
+      {gain && <GainPop key={gain.key} value={gain.value} />}
+      <AppText variant="score" color={D.text} style={{ fontSize: 28, fontVariant: ['tabular-nums'] }}>
+        {shown}
+      </AppText>
+    </View>
+  );
+}
+
+/** « +N » vert qui monte au-dessus du score puis disparaît. */
+function GainPop({ value }: { value: number }) {
+  const y = useSharedValue(0);
+  const o = useSharedValue(1);
+  useEffect(() => {
+    y.set(withTiming(-26, { duration: 800, easing: Easing.out(Easing.cubic) }));
+    o.set(withSequence(withTiming(1, { duration: 450 }), withTiming(0, { duration: 350 })));
+  }, [y, o]);
+  const style = useAnimatedStyle(() => ({ opacity: o.get(), transform: [{ translateY: y.get() }] }));
+  return (
+    <Animated.View pointerEvents="none" style={[styles.gainPop, style]}>
+      <AppText style={styles.gainText}>+{value}</AppText>
+    </Animated.View>
   );
 }
 
@@ -378,22 +627,13 @@ function Gauge({ points, side }: { points: number; side: 'left' | 'right' }) {
   );
 }
 
-function TimeBar({ running, fraction, phase }: { running: boolean; fraction: number; phase: string }) {
-  const width = phase === 'reading' ? 100 : Math.max(0, Math.min(1, fraction)) * 100;
-  const color = width < 30 && running ? D.wrong : '#8E8E93';
-  return (
-    <View style={styles.timeTrack}>
-      <View style={{ width: `${width}%`, height: '100%', borderRadius: 4, backgroundColor: color }} />
-    </View>
-  );
-}
-
 function Choice({
   index,
   label,
   state,
   selected,
   opponentPicked,
+  opponent,
   disabled,
   onPress,
 }: {
@@ -402,14 +642,32 @@ function Choice({
   state: 'idle' | 'correct' | 'wrong';
   selected: boolean;
   opponentPicked: boolean;
+  opponent: ParticipantView;
   disabled: boolean;
   onPress: () => void;
 }) {
+  // Mauvaise réponse : petite secousse du bouton (sauf si « réduire les animations » est activé).
+  const reduced = useReducedMotion();
+  const shake = useSharedValue(0);
+  useEffect(() => {
+    if (state !== 'wrong' || reduced) return;
+    shake.set(
+      withSequence(
+        withTiming(-8, { duration: 50 }),
+        withTiming(8, { duration: 70 }),
+        withTiming(-6, { duration: 60 }),
+        withTiming(4, { duration: 50 }),
+        withTiming(0, { duration: 40 }),
+      ),
+    );
+  }, [state, reduced, shake]);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.get() }] }));
   const bg = state === 'correct' ? D.correct : state === 'wrong' ? D.wrong : D.button;
   const fg = state === 'idle' ? D.buttonText : '#FFFFFF';
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.choiceRow}>
       <View style={styles.markerSlot}>{selected && <Triangle direction="right" color="#FF3B83" label="Ta réponse" />}</View>
+      <Animated.View style={[{ flex: 1 }, shakeStyle]}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled, selected }}
@@ -424,10 +682,14 @@ function Choice({
             <Ionicons name={state === 'correct' ? 'checkmark-circle' : 'close-circle'} size={30} color="#FFFFFF" />
           </View>
         )}
+        {opponentPicked && (
+          <Animated.View entering={reduced ? undefined : ZoomIn.springify()} style={styles.opponentMark} accessible accessibilityLabel={`Réponse de ${opponent.name}`}>
+            <Avatar name={opponent.name} uri={opponent.avatar} color={opponent.color ?? Colors.opponent} size={26} borderColor="#FFFFFF" />
+          </Animated.View>
+        )}
       </Pressable>
-      <View style={styles.markerSlot}>
-        {opponentPicked && <Triangle direction="left" color="#FFFFFF" label="Réponse de l’adversaire" />}
-      </View>
+      </Animated.View>
+      <View style={styles.markerSlot} />
     </Animated.View>
   );
 }
@@ -469,7 +731,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  timeTrack: { height: 8, borderRadius: 4, backgroundColor: D.track, overflow: 'hidden' },
+  topTimeTrack: { height: 3, width: '100%', backgroundColor: D.track, overflow: 'hidden' },
+  topTimeFill: { height: '100%', borderRadius: 2 },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,12 +744,28 @@ const styles = StyleSheet.create({
   },
   stage: { gap: Spacing.md },
   fade: { ...StyleSheet.absoluteFill, backgroundColor: D.bg, pointerEvents: 'none' },
+  // Proportions relevées sur la référence : icône ≈ 14 % de la largeur, titre ≈ 11 %, bloc centré
+  // dans la zone sous le haut de l'écran, un peu au-dessus du milieu.
+  // left/right = marge du contenu : les jauges latérales restent visibles.
+  card: { position: 'absolute', left: 20, right: 20, bottom: 0, backgroundColor: D.bg, alignItems: 'center', justifyContent: 'center', paddingBottom: '30%' },
+  cardEmoji: { fontSize: 46, lineHeight: 56, textAlign: 'center' },
+  cardNames: { alignItems: 'center', marginTop: 10, maxWidth: '90%' },
+  cardTheme: { fontSize: 17, lineHeight: 22 },
+  cardCategory: { fontSize: 10, lineHeight: 14, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 2 },
+  cardRound: { alignItems: 'center', marginTop: 26, maxWidth: '100%' },
+  roundText: { fontFamily: Fonts.score, fontSize: 44, lineHeight: 52, letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center' },
+  roundHint: { fontSize: 14, lineHeight: 18, marginTop: 4 },
   questionZone: { minHeight: 150, justifyContent: 'center', gap: Spacing.sm },
   image: { width: '100%', height: 130, borderRadius: Radius.sm },
   question: { color: D.text, fontSize: 28, lineHeight: 34, fontWeight: '800', textAlign: 'center' },
   choices: { gap: 12 },
   choiceRow: { flexDirection: 'row', alignItems: 'center' },
   markerSlot: { width: 16, alignItems: 'center' },
+  opponentMark: { position: 'absolute', right: -6, top: -8 },
+  gainPop: { position: 'absolute', top: -18, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
+  gainText: { color: D.correct, fontWeight: '900', fontSize: 18 },
+  doubleBanner: { marginTop: 18, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999, backgroundColor: '#F5B700' },
+  doubleText: { color: '#000000', fontWeight: '900', fontSize: 18, letterSpacing: 1 },
   choice: {
     flex: 1,
     minHeight: 60,

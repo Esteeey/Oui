@@ -46,6 +46,8 @@ export function notificationText(n: NotificationView): string {
       return `${who(n)} te propose une revanche en ${theme ?? 'duel'}`;
     case 'challenge_accepted':
       return `${who(n)} a accepté ton défi en ${theme ?? 'duel'}`;
+    case 'challenge_completed':
+      return `${who(n)} a relevé ton défi en ${theme ?? 'duel'} : ${OUTCOME[String(n.data.outcome)] ?? 'résultat disponible'}`;
     case 'challenge_declined':
       return `${who(n)} a refusé ton défi en ${theme ?? 'duel'}`;
     case 'opponent_forfeit':

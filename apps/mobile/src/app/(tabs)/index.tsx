@@ -1,11 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { THEMES, type FeedItem } from '@qu1z/shared';
 
+import { ReceivedChallengesCard } from '@/components/challenge-card';
+import { DailyQuestsCard } from '@/components/daily-quests';
 import { ActivityCard } from '@/components/feed-card';
 import { HeaderButton } from '@/components/header';
 import { PlayBanner } from '@/components/play-banner';
@@ -17,6 +19,7 @@ import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 type Filter = 'all' | 'post' | 'activity';
 
@@ -44,19 +47,23 @@ export default function FeedScreen() {
           <HeaderButton icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/messages')} />
         </>
       }>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/compose')} style={styles.compose}>
-        <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.accent} size={44} uri={profile?.avatar} />
-        <AppText style={{ flex: 1, fontSize: 17 }}>Quoi de neuf ?</AppText>
-        <Ionicons name="image-outline" size={26} color={Colors.text} />
-      </Pressable>
+      <Tap accessibilityRole="button" onPress={() => router.push('/compose')} style={styles.compose}>
+        <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.accent} size={32} uri={profile?.avatar} />
+        <AppText muted style={{ flex: 1, fontSize: 15 }}>Quoi de neuf ?</AppText>
+        <Ionicons name="image-outline" size={20} color={Colors.textMuted} />
+      </Tap>
 
       <View style={styles.filters}>
         {FILTERS.map((f) => (
-          <Chip key={f.value} label={f.label} active={filter === f.value} onPress={() => setFilter(f.value)} style={{ flex: 1, paddingHorizontal: 4 }} />
+          <Chip key={f.value} label={f.label} active={filter === f.value} onPress={() => setFilter(f.value)} style={{ flex: 1, paddingHorizontal: 4, paddingVertical: 7 }} />
         ))}
       </View>
 
-      <PlayBanner themeId={quickTheme} />
+      <PlayBanner themeId={quickTheme} compact />
+
+      <ReceivedChallengesCard />
+
+      <DailyQuestsCard />
 
       {feed.error && <AppText color={Colors.wrong}>Impossible de charger le fil. Vérifie ta connexion.</AppText>}
       {items.map((item, i) => (
@@ -72,7 +79,7 @@ export default function FeedScreen() {
           <AppText muted style={{ textAlign: 'center' }}>
             Abonne-toi à des thèmes et suis des joueurs (depuis les classements, les duels ou les publications) pour remplir ton fil.
           </AppText>
-          <Button label="Explorer les thèmes" variant="outline" onPress={() => router.push('/explore')} />
+          <Button small label="Explorer les thèmes" variant="outline" onPress={() => router.push('/explore')} />
         </Card>
       )}
     </Screen>
@@ -83,11 +90,11 @@ const styles = StyleSheet.create({
   compose: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm + 4,
+    gap: Spacing.sm + 2,
     backgroundColor: Colors.surface,
     borderRadius: Radius.pill,
-    paddingVertical: Spacing.sm,
-    paddingLeft: Spacing.sm,
+    paddingVertical: 6,
+    paddingLeft: 6,
     paddingRight: Spacing.md,
     ...Shadow,
   },

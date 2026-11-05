@@ -1,7 +1,8 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, usePathname } from 'expo-router';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -17,7 +18,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GradientHeader, HEADER_OVERLAP, HeaderBack, Logo } from '@/components/header';
-import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Colors, Gradients, Fonts, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
@@ -106,14 +107,17 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 
 export function Button({
   label,
+  icon,
   onPress,
   color,
   textColor,
   variant = 'solid',
   disabled,
   style,
+  small,
 }: {
   label: string;
+  icon?: ComponentProps<typeof Ionicons>['name'];
   onPress?: () => void;
   /** Sans couleur, un bouton plein prend le dégradé rose de l'accent. */
   color?: string;
@@ -121,6 +125,8 @@ export function Button({
   variant?: 'solid' | 'outline';
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Version compacte (hauteur 38, texte 14). */
+  small?: boolean;
 }) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
@@ -136,6 +142,7 @@ export function Button({
       <Animated.View
         style={[
           styles.button,
+          small && styles.buttonSmall,
           solid ? { backgroundColor: color ?? Colors.accent } : { borderColor: color ?? Colors.accent, borderWidth: 2 },
           disabled && { opacity: 0.4 },
           animated,
@@ -143,9 +150,12 @@ export function Button({
         {solid && !color && (
           <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         )}
-        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))}>
-          {label}
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          {icon && <Ionicons name={icon} size={18} color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} />}
+          <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} style={small ? { fontSize: 14 } : undefined}>
+            {label}
+          </AppText>
+        </View>
       </Animated.View>
     </Pressable>
   );
@@ -244,7 +254,7 @@ const textStyles = StyleSheet.create<Record<Variant, TextStyle>>({
   body: { color: Colors.text, fontSize: 16, lineHeight: 22 },
   label: { color: Colors.text, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
   caption: { color: Colors.text, fontSize: 13, fontWeight: '600' },
-  score: { color: Colors.text, fontSize: 34, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  score: { color: Colors.text, fontSize: 34, fontFamily: Fonts.score, fontVariant: ['tabular-nums'] },
 });
 
 const styles = StyleSheet.create({
@@ -281,6 +291,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     overflow: 'hidden',
   },
+  buttonSmall: { minHeight: 38, paddingHorizontal: Spacing.md },
   track: { width: '100%', backgroundColor: Colors.surfaceRaised, overflow: 'hidden' },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
 });

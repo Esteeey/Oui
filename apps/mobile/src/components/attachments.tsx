@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { STICKERS, type Attachment, type GifView, type MediaView, type StickerId } from '@qu1z/shared';
 
@@ -10,6 +10,7 @@ import { AppText } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
 import { mediaUri } from '@/net/media';
+import { Tap } from '@/components/tap';
 
 /** Taille d'affichage d'une image dans une bulle ou une carte, en gardant ses proportions. */
 function fit(width: number, height: number, maxWidth: number, maxHeight: number) {
@@ -24,16 +25,16 @@ export function Photo({ media, maxWidth = 240, maxHeight = 300 }: { media: Pick<
   const uri = mediaUri(media.url)!;
   return (
     <>
-      <Pressable accessibilityRole="imagebutton" accessibilityLabel="Agrandir la photo" onPress={() => setOpen(true)}>
+      <Tap accessibilityRole="imagebutton" accessibilityLabel="Agrandir la photo" onPress={() => setOpen(true)}>
         <Image source={{ uri }} style={[size, { borderRadius: Radius.sm, backgroundColor: Colors.surfaceRaised }]} contentFit="cover" />
-      </Pressable>
+      </Tap>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setOpen(false)} style={styles.viewer}>
+        <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setOpen(false)} style={styles.viewer}>
           <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
           <View style={styles.viewerClose}>
             <Ionicons name="close" size={26} color="#fff" />
           </View>
-        </Pressable>
+        </Tap>
       </Modal>
     </>
   );
@@ -98,9 +99,9 @@ export function AttachmentTray({
       {tab === 'stickers' ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
           {STICKERS.map((s) => (
-            <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`Envoyer le sticker ${s.label}`} onPress={() => onSticker(s.id)} style={styles.stickerCell}>
+            <Tap key={s.id} accessibilityRole="button" accessibilityLabel={`Envoyer le sticker ${s.label}`} onPress={() => onSticker(s.id)} style={styles.stickerCell}>
               <Sticker id={s.id} size={84} />
-            </Pressable>
+            </Tap>
           ))}
         </ScrollView>
       ) : gifs && !gifs.available ? (
@@ -120,9 +121,9 @@ export function AttachmentTray({
           {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
             {(gifs?.gifs ?? []).map((g) => (
-              <Pressable key={g.id} accessibilityRole="button" accessibilityLabel={`Envoyer le GIF ${g.title}`} onPress={() => onGif(g)}>
+              <Tap key={g.id} accessibilityRole="button" accessibilityLabel={`Envoyer le GIF ${g.title}`} onPress={() => onGif(g)}>
                 <Image source={{ uri: g.previewUrl }} style={{ height: 96, width: Math.round((96 * g.width) / g.height), borderRadius: Radius.sm }} contentFit="cover" />
-              </Pressable>
+              </Tap>
             ))}
           </ScrollView>
           {gifs?.provider && (
@@ -138,10 +139,10 @@ export function AttachmentTray({
 
 function TrayButton({ icon, label, onPress, active }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; active?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[styles.trayButton, active && { backgroundColor: Colors.surfaceRaised }]}>
+    <Tap accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[styles.trayButton, active && { backgroundColor: Colors.surfaceRaised }]}>
       <Ionicons name={icon} size={20} color={active ? Colors.accent : Colors.text} />
       <AppText variant="caption">{label}</AppText>
-    </Pressable>
+    </Tap>
   );
 }
 

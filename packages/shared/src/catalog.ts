@@ -56,6 +56,19 @@ export const THEMES: Theme[] = [
     name: 'Jeux olympiques',
     description: 'Histoire, villes hôtes et records des JO.',
   },
+  // Thèmes de démonstration du mode duel (20 questions chacun, temps de lecture réglé question par question).
+  {
+    id: 'hist-grandes-dates',
+    categoryId: 'histoire',
+    name: 'Histoire',
+    description: 'Grandes dates et grands personnages, de l’Antiquité au XXe siècle.',
+  },
+  {
+    id: 'nature-animaux',
+    categoryId: 'animaux-nature',
+    name: 'Le monde animal',
+    description: 'Records, curiosités et habitudes des animaux.',
+  },
 ];
 
 export function getCategory(id: string): Category | undefined {

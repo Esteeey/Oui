@@ -46,6 +46,8 @@ export interface Question {
    * (ex. `flags/japon`) ou une adresse `https://` servie par le serveur.
    */
   image?: string;
+  /** Temps de lecture de l'énoncé seul, en secondes (1,5 à 3). Absent : calculé d'après la longueur du texte. */
+  readingSeconds?: number;
 }
 
 /** Question préparée pour un duel : propositions mélangées. */
@@ -56,6 +58,7 @@ export interface DuelQuestion {
   correctIndex: number;
   difficulty: Difficulty;
   image?: string;
+  readingSeconds?: number;
 }
 
 export interface PlayerAnswer {

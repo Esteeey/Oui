@@ -43,6 +43,7 @@ export function prepareDuel(pool: readonly Question[], seed: number): DuelQuesti
       correctIndex: order.indexOf(0),
       difficulty: q.difficulty,
       ...(q.image ? { image: q.image } : {}),
+      ...(q.readingSeconds !== undefined ? { readingSeconds: q.readingSeconds } : {}),
     };
   });
 }

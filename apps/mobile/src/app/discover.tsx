@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import type { UserSummary } from '@qu1z/shared';
 
@@ -11,6 +11,7 @@ import { AppText, Avatar, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 /**
  * Découvrir des joueurs : recherche par pseudo, puis suggestions (photo, pseudo, niveau, titre).
@@ -65,7 +66,7 @@ export default function DiscoverScreen() {
           <View style={styles.grid}>
             {users.map((u) => (
               <View key={u.id} style={styles.cell}>
-                <Pressable
+                <Tap
                   accessibilityRole="button"
                   accessibilityLabel={`Profil de ${u.pseudo}`}
                   onPress={() => router.push({ pathname: '/player/[id]', params: { id: u.id } })}
@@ -80,7 +81,7 @@ export default function DiscoverScreen() {
                   <AppText variant="caption" muted numberOfLines={1}>
                     {u.title ?? ' '}
                   </AppText>
-                </Pressable>
+                </Tap>
               </View>
             ))}
           </View>

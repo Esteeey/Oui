@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
@@ -29,6 +29,7 @@ import { pickImage, uploadImage, type PickedImage } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
+import { Tap } from '@/components/tap';
 
 function presenceText(p: ConversationDetail['conversation']['presence']): string | null {
   if (!p) return null;
@@ -64,9 +65,9 @@ export default function ConversationScreen() {
   if (detail.error) {
     return (
       <SafeAreaView style={styles.screen}>
-        <Pressable onPress={() => router.back()} style={{ padding: Spacing.md }}>
+        <Tap onPress={() => router.back()} style={{ padding: Spacing.md }}>
           <AppText muted>← Retour</AppText>
-        </Pressable>
+        </Tap>
         <AppText muted style={{ padding: Spacing.md }}>
           Cette conversation n’est plus disponible.
         </AppText>
@@ -162,7 +163,7 @@ export default function ConversationScreen() {
         title={
           <>
         {group && (
-          <Pressable
+          <Tap
             accessibilityRole="button"
             accessibilityLabel="Infos du groupe"
             onPress={() => router.push({ pathname: '/messages/group/[id]', params: { id } })}
@@ -176,10 +177,10 @@ export default function ConversationScreen() {
                 {group.memberCount} membre{group.memberCount > 1 ? 's' : ''} · infos du groupe
               </AppText>
             </View>
-          </Pressable>
+          </Tap>
         )}
         {other && (
-          <Pressable
+          <Tap
             accessibilityRole="button"
             onPress={() => router.push({ pathname: '/player/[id]', params: { id: other.id } })}
             style={styles.who}>
@@ -197,7 +198,7 @@ export default function ConversationScreen() {
                 </View>
               )}
             </View>
-          </Pressable>
+          </Tap>
         )}
           </>
         }
@@ -205,15 +206,15 @@ export default function ConversationScreen() {
 
       {pinned.length > 0 && (
         <View style={styles.pinnedZone}>
-          <Pressable accessibilityRole="button" onPress={() => setShowPinned(!showPinned)} style={styles.pinnedHead}>
+          <Tap accessibilityRole="button" onPress={() => setShowPinned(!showPinned)} style={styles.pinnedHead}>
             <Ionicons name="pin" size={16} color={Colors.gold} />
             <AppText variant="label" style={{ flex: 1 }} numberOfLines={1}>
               {pinned.length === 1 ? '1 message épinglé' : `${pinned.length} messages épinglés`}
             </AppText>
             <Ionicons name={showPinned ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
-          </Pressable>
+          </Tap>
           {(showPinned ? pinned : pinned.slice(0, 1)).map((p) => (
-            <Pressable
+            <Tap
               key={p.messageId}
               accessibilityRole="button"
               accessibilityLabel="Aller au message épinglé"
@@ -225,7 +226,7 @@ export default function ConversationScreen() {
               <AppText variant="caption" muted numberOfLines={1} style={{ flex: 1 }}>
                 {p.text ?? attachmentLabel(p.kind)}
               </AppText>
-            </Pressable>
+            </Tap>
           ))}
         </View>
       )}
@@ -253,7 +254,7 @@ export default function ConversationScreen() {
               onLayout={(e) => positions.current.set(m.id, e.nativeEvent.layout.y)}
               style={[styles.line, mine ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }, group && !mine && { paddingLeft: 36 }]}>
               {firstOfRun && m.sender && (
-                <Pressable
+                <Tap
                   accessibilityRole="button"
                   accessibilityLabel={`Profil de ${m.sender.pseudo}`}
                   onPress={() => router.push({ pathname: '/player/[id]', params: { id: m.sender!.id } })}
@@ -262,14 +263,14 @@ export default function ConversationScreen() {
                   <AppText variant="caption" color={avatarColor(m.sender.id)}>
                     {m.sender.pseudo}
                   </AppText>
-                </Pressable>
+                </Tap>
               )}
               {pinnedIds.has(m.id) && (
                 <AppText variant="caption" color={Colors.gold}>
                   📌 Épinglé
                 </AppText>
               )}
-              <Pressable
+              <Tap
                 accessibilityRole="button"
                 accessibilityHint="Répondre ou réagir"
                 onPress={() => setSelected(selected === m.id ? null : m.id)}
@@ -282,21 +283,21 @@ export default function ConversationScreen() {
                   highlight === m.id && styles.highlight,
                 ]}>
                 {m.replyTo && (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Voir le message d’origine" onPress={() => goTo(m.replyTo!.id)} style={styles.quote}>
+                  <Tap accessibilityRole="button" accessibilityLabel="Voir le message d’origine" onPress={() => goTo(m.replyTo!.id)} style={styles.quote}>
                     <AppText variant="caption" color={Colors.opponent}>
                       {m.replyTo.senderId === playerId ? 'Toi' : (m.replyTo.senderPseudo ?? '')}
                     </AppText>
                     <AppText variant="caption" muted numberOfLines={2}>
                       {m.replyTo.text ?? (attachmentLabel(m.replyTo.kind) || 'Message retiré')}
                     </AppText>
-                  </Pressable>
+                  </Tap>
                 )}
                 {m.attachment && <AttachmentView attachment={m.attachment} />}
                 {m.text ? <AppText>{m.text}</AppText> : null}
                 <AppText variant="caption" muted style={{ alignSelf: 'flex-end', fontSize: 11 }}>
                   {new Date(m.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                 </AppText>
-              </Pressable>
+              </Tap>
               {m.reactions.length > 0 && (
                 <View style={styles.reactions}>
                   {m.reactions.map((r) => (
@@ -311,11 +312,11 @@ export default function ConversationScreen() {
               {selected === m.id && (
                 <View style={styles.actions}>
                   {QUICK_REACTIONS.map((e) => (
-                    <Pressable key={e} accessibilityRole="button" accessibilityLabel={`Réagir ${e}`} onPress={() => react(m, e)} style={styles.emoji}>
+                    <Tap key={e} accessibilityRole="button" accessibilityLabel={`Réagir ${e}`} onPress={() => react(m, e)} style={styles.emoji}>
                       <AppText style={{ fontSize: 20 }}>{e}</AppText>
-                    </Pressable>
+                    </Tap>
                   ))}
-                  <Pressable
+                  <Tap
                     accessibilityRole="button"
                     onPress={() => {
                       setReplyTo(m);
@@ -324,9 +325,9 @@ export default function ConversationScreen() {
                     style={styles.replyButton}>
                     <Ionicons name="arrow-undo" size={16} color={Colors.text} />
                     <AppText variant="caption">Répondre</AppText>
-                  </Pressable>
+                  </Tap>
                   {!mine && (
-                    <Pressable
+                    <Tap
                       accessibilityRole="button"
                       onPress={() => {
                         setSelected(null);
@@ -339,13 +340,13 @@ export default function ConversationScreen() {
                       style={styles.replyButton}>
                       <Ionicons name="flag-outline" size={16} color={Colors.wrong} />
                       <AppText variant="caption">Signaler</AppText>
-                    </Pressable>
+                    </Tap>
                   )}
                   {canPin && (
-                    <Pressable accessibilityRole="button" onPress={() => togglePin(m)} style={styles.replyButton}>
+                    <Tap accessibilityRole="button" onPress={() => togglePin(m)} style={styles.replyButton}>
                       <Ionicons name="pin" size={16} color={Colors.gold} />
                       <AppText variant="caption">{pinnedIds.has(m.id) ? 'Désépingler' : 'Épingler'}</AppText>
-                    </Pressable>
+                    </Tap>
                   )}
                 </View>
               )}
@@ -371,12 +372,12 @@ export default function ConversationScreen() {
       ) : (
         <View style={styles.composer}>
           {replyTo && (
-            <Pressable accessibilityRole="button" onPress={() => setReplyTo(null)} style={styles.replyBanner}>
+            <Tap accessibilityRole="button" onPress={() => setReplyTo(null)} style={styles.replyBanner}>
               <AppText variant="caption" color={Colors.opponent} style={{ flex: 1 }} numberOfLines={1}>
                 Réponse à {replyTo.senderId === playerId ? 'toi' : other?.pseudo} : {replyTo.text ?? attachmentLabel(replyTo.kind)}
               </AppText>
               <Ionicons name="close" size={16} color={Colors.textMuted} />
-            </Pressable>
+            </Tap>
           )}
           {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
           {photo && (
@@ -385,20 +386,20 @@ export default function ConversationScreen() {
               <AppText variant="caption" muted style={{ flex: 1 }}>
                 Photo prête. Ajoute une légende si tu veux.
               </AppText>
-              <Pressable accessibilityRole="button" accessibilityLabel="Retirer la photo" onPress={() => setPhoto(null)} style={{ padding: 6 }}>
+              <Tap accessibilityRole="button" accessibilityLabel="Retirer la photo" onPress={() => setPhoto(null)} style={{ padding: 6 }}>
                 <Ionicons name="close" size={18} color={Colors.textMuted} />
-              </Pressable>
+              </Tap>
             </View>
           )}
           {tray && !photo && <AttachmentTray onPhoto={choosePhoto} onSticker={sendSticker} onGif={sendGif} />}
           <View style={styles.inputRow}>
-            <Pressable
+            <Tap
               accessibilityRole="button"
               accessibilityLabel={tray ? 'Fermer les pièces jointes' : 'Photo, sticker ou GIF'}
               onPress={() => setTray(!tray)}
               style={styles.plus}>
               <Ionicons name={tray ? 'close' : 'add'} size={24} color={Colors.text} />
-            </Pressable>
+            </Tap>
             <TextInput
               value={text}
               onChangeText={setText}
@@ -409,9 +410,9 @@ export default function ConversationScreen() {
               accessibilityLabel="Écrire un message"
               style={styles.input}
             />
-            <Pressable accessibilityRole="button" accessibilityLabel="Envoyer" disabled={!canSend} onPress={send} style={[styles.send, !canSend && { opacity: 0.4 }]}>
+            <Tap accessibilityRole="button" accessibilityLabel="Envoyer" disabled={!canSend} onPress={send} style={[styles.send, !canSend && { opacity: 0.4 }]}>
               <Ionicons name="send" size={20} color={Colors.onAccent} />
-            </Pressable>
+            </Tap>
           </View>
         </View>
       )}

@@ -1,11 +1,20 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  FadeInDown,
+  ZoomIn,
+  runOnJS,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   formatSeconds,
@@ -18,14 +27,17 @@ import {
   type SpeedSummary,
 } from '@qu1z/shared';
 
-import { XP_SOUND_MS, playMusic, playSound, stopMusic } from '@/audio/sounds';
+import { XP_SOUND_MS, playMusic, playSound } from '@/audio/sounds';
 import { Celebration, Crown, GOLD, ReplayButton, ResultBanner } from '@/components/results-art';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
-import { Colors, Gradients, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
+import { Tap } from '@/components/tap';
+import { XpProgress } from '@/components/xp-progress';
+import { DuelChat } from '@/components/duel-chat';
 
 const R = {
   bg: '#000000',
@@ -46,7 +58,7 @@ const PINK = '#FF3B83';
 
 const BANNER: Record<DuelOutcome, { text: string; color: string; dark: string }> = {
   win: { text: 'VICTOIRE !', color: R.win, dark: R.winDark },
-  loss: { text: 'PERDU !', color: R.loss, dark: R.lossDark },
+  loss: { text: 'DÉFAITE !', color: R.loss, dark: R.lossDark },
   draw: { text: 'ÉGALITÉ !', color: R.draw, dark: '#B45309' },
 };
 
@@ -69,30 +81,70 @@ export default function ResultsScreen() {
     if (!r) return;
     const music = r.outcome === 'win' ? 'win' : r.outcome === 'loss' ? 'loss' : 'draw';
     playSound(r.outcome === 'win' ? 'endWin' : r.outcome === 'loss' ? 'endLoss' : 'endDraw');
-    const timers = [setTimeout(() => playMusic(music), 900)];
+    let stop: (() => void) | undefined;
+    const timers = [setTimeout(() => (stop = playMusic(music)), 900)];
     if (r.accountXpAfter > r.accountXpBefore) {
       const xpAt = 1500;
       timers.push(setTimeout(() => playSound('xp'), xpAt));
       timers.push(setTimeout(() => playSound('xpEnd'), xpAt + XP_SOUND_MS));
-      if (levelFromXp(r.accountXpAfter).level > levelFromXp(r.accountXpBefore).level) {
+      if (levelFromXp(r.record.xpBefore + r.record.xpGained).level > levelFromXp(r.record.xpBefore).level) {
         timers.push(setTimeout(() => playSound('levelUp'), xpAt + XP_SOUND_MS + 150));
       }
     }
     return () => {
       timers.forEach(clearTimeout);
-      stopMusic(music);
+      stop?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duel?.duelId, duel?.result]);
+
+  // Retour là où l'on était avant de lancer le défi (l'écran de duel a été remplacé par celui-ci).
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+
+  // Glisser vers le bas (depuis le haut de la page) pour quitter : la page suit le doigt,
+  // puis part vers le bas si le geste est assez long ou rapide, sinon elle revient en place.
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const scrollY = useSharedValue(0);
+  const drag = useSharedValue(0);
+  const base = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.set(e.contentOffset.y);
+  });
+  const scrollGesture = Gesture.Native();
+  const pullDown = Gesture.Pan()
+    .activeOffsetY(12)
+    .failOffsetY(-12)
+    .failOffsetX([-24, 24])
+    .simultaneousWithExternalGesture(scrollGesture)
+    .onStart(() => {
+      base.set(0);
+    })
+    .onUpdate((e) => {
+      // Tant que la page n'est pas remontée tout en haut, le geste fait défiler : on ne compte
+      // la descente qu'à partir du moment où le haut est atteint (pas de saut).
+      if (scrollY.get() > 0 && drag.get() === 0) base.set(e.translationY);
+      else drag.set(Math.max(0, e.translationY - base.get()));
+    })
+    .onEnd((e) => {
+      const d = drag.get();
+      if (d > 140 || (d > 40 && e.velocityY > 900)) {
+        drag.set(withTiming(height, { duration: 220 }, (done) => done && runOnJS(close)()));
+      } else {
+        drag.set(withSpring(0, { damping: 22, stiffness: 240 }));
+      }
+    });
+  const dragStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: drag.get() }],
+    opacity: 1 - Math.min(0.4, drag.get() / (height * 1.5)),
+  }));
 
   if (!duel || duel.phase !== 'finished' || !duel.result) return <Redirect href="/" />;
   const result = duel.result;
   const theme = getTheme(duel.themeId);
   const banner = BANNER[result.outcome];
-  const level = levelFromXp(result.accountXpAfter);
   const record = result.record;
 
-  const close = () => (router.canGoBack() ? router.dismissTo('/') : router.replace('/'));
   const replay = () => {
     const req = game.lastRequest?.themeId === duel.themeId ? game.lastRequest : null;
     const params: Record<string, string> = { themeId: duel.themeId };
@@ -114,18 +166,21 @@ export default function ResultsScreen() {
   const theirSpeed = speedSummary(record.opponent);
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xl }} showsVerticalScrollIndicator={false}>
+    <GestureHandlerRootView style={styles.backdrop}>
+    <GestureDetector gesture={pullDown}>
+    <Animated.View style={[styles.screen, dragStyle]}>
+      <GestureDetector gesture={scrollGesture}>
+      <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: Spacing.xl }} showsVerticalScrollIndicator={false}>
         <ThemeCover themeId={duel.themeId} height={300} fadeTo={R.bg}>
-          <SafeAreaView edges={['top']} style={styles.coverContent}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={close} style={styles.close}>
+          <View style={[styles.coverContent, { paddingTop: insets.top }]}>
+            <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={close} style={[styles.close, { top: insets.top + 12 }]}>
               <Ionicons name="close" size={26} color={R.text} />
-            </Pressable>
+            </Tap>
             <View style={styles.titles}>
               <AppText style={styles.title}>RÉSULTATS</AppText>
               <AppText style={styles.subtitle}>{theme?.name}</AppText>
             </View>
-          </SafeAreaView>
+          </View>
         </ThemeCover>
 
         <View style={styles.body}>
@@ -145,7 +200,7 @@ export default function ResultsScreen() {
 
           {!result.finished && !result.forfeited && (
             <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
-              Tu n’étais plus connecté à la fin du duel : pas de bonus de fin ni de victoire.
+              Tu n’étais plus connecté à la fin du duel : pas de bonus de fin.
             </AppText>
           )}
           {result.forfeited && (
@@ -155,6 +210,7 @@ export default function ResultsScreen() {
           )}
 
           <Animated.View entering={FadeInDown.delay(220).springify()} style={styles.table}>
+            <BonusRow icon="ribbon" label="Score" value={result.rewards.scorePoints ?? 0} />
             <BonusRow icon="trophy" label="Bonus fin" value={result.rewards.finishBonus} />
             <BonusRow icon="star" label="Bonus victoire" value={result.rewards.victoryBonus} />
             <BonusRow icon="flash" label="Bonus boost" value={result.rewards.boostBonus} />
@@ -184,37 +240,23 @@ export default function ResultsScreen() {
             </AppText>
           </Animated.View>
 
-          <View style={{ gap: Spacing.sm }}>
-            <View style={styles.levelRow}>
-              <AppText style={styles.levelText}>Niveau {level.level}</AppText>
-              <AppText style={styles.levelText}>
-                {level.needed ? `${level.current} / ${level.needed}` : 'Niveau maximal'}
-              </AppText>
-            </View>
-            <View style={styles.track} accessible accessibilityLabel={`Progression du niveau : ${Math.round(level.progress * 100)} %`}>
-              <LinearGradient
-                colors={[...Gradients.accent, '#7C5CFF']}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={{ width: `${Math.max(2, level.progress * 100)}%`, height: '100%', borderRadius: 999 }}
-              />
-            </View>
-          </View>
+          {/* XP du thème joué (le niveau est calculé par thème), remplie segment par segment. */}
+          <XpProgress xpBefore={record.xpBefore} rewards={result.rewards} delayMs={1500} durationMs={XP_SOUND_MS} />
 
           <ReplayButton onPress={replay} />
           {!duel.opponent.isBot && (
-            <Pressable
+            <Tap
               accessibilityRole="button"
               onPress={() =>
                 api('POST', '/api/challenges', { userId: duel.opponent.id, themeId: duel.themeId, rematchOf: duel.duelId })
-                  .then(() => setRematch(`Revanche proposée à ${duel.opponent.name}.`))
+                  .then((r) => setRematch((r as { playDuelId?: string | null }).playDuelId ? null : `Revanche déjà proposée à ${duel.opponent.name}.`))
                   .catch((e) => setRematch(errorMessage(e)))
               }
               style={styles.rematch}>
               <AppText variant="label" color={PINK}>
-                Proposer une revanche à {duel.opponent.name}
+                Revanche contre {duel.opponent.name}
               </AppText>
-            </Pressable>
+            </Tap>
           )}
           {rematch && (
             <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
@@ -222,26 +264,28 @@ export default function ResultsScreen() {
             </AppText>
           )}
 
+          {!duel.opponent.isBot && !duel.challenge && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
+
           <View style={styles.secondary}>
-            <Pressable
+            <Tap
               accessibilityRole="button"
               accessibilityLabel="Discuter avec l’adversaire"
               disabled={duel.opponent.isBot}
               onPress={() => router.push({ pathname: '/messages/new', params: { userId: duel.opponent.id } })}
               style={styles.secondaryButton}>
               <Ionicons name="chatbubble-ellipses" size={28} color={duel.opponent.isBot ? '#52525B' : R.text} />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} style={styles.secondaryButton}>
+            </Tap>
+            <Tap accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} style={styles.secondaryButton}>
               <Ionicons name="share-social" size={28} color={R.text} />
-            </Pressable>
+            </Tap>
           </View>
 
-          <Pressable accessibilityRole="button" onPress={() => setDetails((d) => !d)} style={styles.detailsToggle}>
+          <Tap accessibilityRole="button" onPress={() => setDetails((d) => !d)} style={styles.detailsToggle}>
             <AppText variant="label" color={R.muted}>
               {details ? 'Masquer le détail des questions' : 'Voir le détail des questions'}
             </AppText>
             <Ionicons name={details ? 'chevron-up' : 'chevron-down'} size={18} color={R.muted} />
-          </Pressable>
+          </Tap>
           {details &&
             record.questions.map((q, i) => {
               const mine = record.player[i];
@@ -267,8 +311,11 @@ export default function ResultsScreen() {
               );
             })}
         </View>
-      </ScrollView>
-    </View>
+      </Animated.ScrollView>
+      </GestureDetector>
+    </Animated.View>
+    </GestureDetector>
+    </GestureHandlerRootView>
   );
 }
 
@@ -319,7 +366,7 @@ function SpeedRow({
   );
 }
 
-function BonusRow({ icon, label, value }: { icon: 'trophy' | 'star' | 'flash'; label: string; value: number }) {
+function BonusRow({ icon, label, value }: { icon: 'ribbon' | 'trophy' | 'star' | 'flash'; label: string; value: number }) {
   return (
     <View style={styles.row}>
       <Ionicons name={icon} size={24} color={R.text} style={styles.rowIcon} />
@@ -343,6 +390,7 @@ function Pill({ label, correct, points, ms, answered }: { label: string; correct
 }
 
 const styles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: '#000000' },
   screen: { flex: 1, backgroundColor: R.bg },
   coverContent: { flex: 1 },
   close: {
@@ -367,7 +415,7 @@ const styles = StyleSheet.create({
   card: { alignSelf: 'stretch', borderWidth: 2, borderRadius: 6, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', gap: 8 },
   cardName: { color: R.text, fontSize: 16, fontWeight: '700' },
   ring: { borderWidth: 4, borderRadius: 50, padding: 3 },
-  cardScore: { fontSize: 36, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  cardScore: { fontSize: 36, fontFamily: Fonts.score, fontVariant: ['tabular-nums'] },
   vs: {
     position: 'absolute',
     left: '50%',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import type { UserSummary } from '@qu1z/shared';
 
@@ -7,6 +7,7 @@ import { AppText, Avatar } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 const MENTION_AT_END = /(^|\s)@([\p{L}\p{N}_.-]{1,20})$/u;
 
@@ -36,7 +37,7 @@ export function MentionSuggestions({ text, onChange }: { text: string; onChange:
   return (
     <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.sm }}>
       {users.map((u) => (
-        <Pressable
+        <Tap
           key={u.id}
           accessibilityRole="button"
           accessibilityLabel={`Mentionner ${u.pseudo}`}
@@ -44,7 +45,7 @@ export function MentionSuggestions({ text, onChange }: { text: string; onChange:
           style={styles.chip}>
           <Avatar name={u.pseudo} color={avatarColor(u.id)} uri={u.avatar} size={24} />
           <AppText variant="caption">@{u.pseudo}</AppText>
-        </Pressable>
+        </Tap>
       ))}
     </ScrollView>
   );

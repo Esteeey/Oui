@@ -10,6 +10,9 @@ import { AppText, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
 
+/** Puces de destination, plus petites que celles des filtres. */
+const chip = { paddingHorizontal: 12, paddingVertical: 6 } as const;
+
 /** Publier depuis l'accueil : sur son mur, ou dans un thème auquel on est abonné. */
 export default function ComposeScreen() {
   const themes = useApi<{ themes: ThemeInfo[] }>('/api/themes');
@@ -20,11 +23,11 @@ export default function ComposeScreen() {
 
   return (
     <Screen title="Nouvelle publication" back="close">
-      <AppText variant="label" muted>
+      <AppText variant="caption" muted>
         Publier sur
       </AppText>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: Spacing.sm, alignItems: 'flex-start' }}>
-        <Chip label="Mon mur" active={targetId === 'profile'} onPress={() => setTargetId('profile')} />
+        <Chip label="Mon mur" active={targetId === 'profile'} onPress={() => setTargetId('profile')} style={chip} />
         {subscribed.map(({ themeId }) => {
           const theme = getTheme(themeId);
           if (!theme) return null;
@@ -35,6 +38,7 @@ export default function ComposeScreen() {
               color={getCategory(theme.categoryId)?.color ?? Colors.accent}
               active={targetId === themeId}
               onPress={() => setTargetId(themeId)}
+              style={chip}
             />
           );
         })}

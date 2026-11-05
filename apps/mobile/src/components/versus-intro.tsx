@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient as FadeGradient } from 'expo-linear-gradient';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -22,6 +22,7 @@ import { getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '
 import { Avatar } from '@/components/ui';
 import { Colors } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
+import { Tap } from '@/components/tap';
 
 type P = [number, number];
 
@@ -192,9 +193,9 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
       </Animated.View>
 
       <View style={[styles.top, { paddingTop: insets.top + 12 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Abandonner le duel" hitSlop={8} onPress={onBack} style={styles.round}>
+        <Tap accessibilityRole="button" accessibilityLabel="Abandonner le duel" hitSlop={8} onPress={onBack} style={styles.round}>
           <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-        </Pressable>
+        </Tap>
       </View>
       {children}
     </View>

@@ -1,6 +1,10 @@
+import { Inter_900Black } from '@expo-google-fonts/inter/900Black';
+import { useFonts } from 'expo-font';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, type ReactNode } from 'react';
 
 import { Colors } from '@/constants/theme';
@@ -24,16 +28,28 @@ const navigationTheme = {
 };
 
 export default function RootLayout() {
+  // Police des scores, embarquée : même rendu sur le téléphone que sur le PC (sinon chaque appareil prend sa police système).
+  const [fontsLoaded, fontError] = useFonts({ Inter_900Black });
+  const ready = fontsLoaded || !!fontError;
+
   useEffect(() => {
-    SplashScreen.hideAsync();
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+
+  useEffect(() => {
     // Toucher une notification push ouvre la conversation ou le centre de notifications.
     return listenToPushTaps();
   }, []);
 
+  if (!ready) return null;
   return (
     <ThemeProvider value={navigationTheme}>
       <GameServerProvider>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.navy }} edges={['top']}>
           <StatusBar style="light" />
+          <View style={{ height: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.navy }}>
+            <Text style={{ color: Colors.onAccent, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>BÊTA · v1.0.7</Text>
+          </View>
           <BannedGate>
           <Stack
             screenOptions={{
@@ -60,12 +76,14 @@ export default function RootLayout() {
             <Stack.Screen name="moderation/index" />
             <Stack.Screen name="moderation/report/[id]" />
             <Stack.Screen name="announcement/[id]" />
+            <Stack.Screen name="defi/[id]" />
             <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="discover" />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="compose" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
           </BannedGate>
+        </SafeAreaView>
       </GameServerProvider>
     </ThemeProvider>
   );

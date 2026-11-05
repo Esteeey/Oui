@@ -9,7 +9,7 @@ import { AppText } from '@/components/ui';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 
 /** Grande bannière « Prêt pour un duel ? » : lance un duel classé sur le thème donné. */
-export function PlayBanner({ themeId, title = 'Prêt pour un duel ?' }: { themeId: string; title?: string }) {
+export function PlayBanner({ themeId, title = 'Prêt pour un duel ?', compact }: { themeId: string; title?: string; compact?: boolean }) {
   const theme = getTheme(themeId);
   const category = theme ? getCategory(theme.categoryId) : undefined;
   return (
@@ -18,19 +18,19 @@ export function PlayBanner({ themeId, title = 'Prêt pour un duel ?' }: { themeI
       accessibilityLabel={`Jouer un duel : ${theme?.name ?? ''}`}
       onPress={() => router.push({ pathname: '/duel/[themeId]', params: { themeId, mode: 'pvp' } })}
       style={({ pressed }) => [pressed && { transform: [{ scale: 0.98 }] }]}>
-      <LinearGradient colors={Gradients.banner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.play}>
-        <AppText style={{ fontSize: 40 }}>{category?.icon ?? '🎯'}</AppText>
+      <LinearGradient colors={Gradients.banner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.play, compact && styles.playCompact]}>
+        <AppText style={{ fontSize: compact ? 28 : 40 }}>{category?.icon ?? '🎯'}</AppText>
         <View style={styles.divider} />
         <View style={{ flex: 1, gap: 2 }}>
-          <AppText variant="heading" color={Colors.onAccent}>
+          <AppText variant={compact ? 'label' : 'heading'} color={Colors.onAccent}>
             {title}
           </AppText>
           <AppText variant="caption" color="rgba(255,255,255,0.8)">
             {theme?.name} · 7 questions
           </AppText>
         </View>
-        <View style={styles.playButton}>
-          <Ionicons name="play" size={26} color={Colors.accent} />
+        <View style={[styles.playButton, compact && styles.playButtonCompact]}>
+          <Ionicons name="play" size={compact ? 18 : 26} color={Colors.accent} />
         </View>
       </LinearGradient>
     </Pressable>
@@ -47,5 +47,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md + 4,
   },
   divider: { width: 2, alignSelf: 'stretch', marginVertical: 6, backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 1 },
+  playCompact: { paddingVertical: Spacing.sm + 2, paddingHorizontal: Spacing.md, gap: Spacing.sm + 4, borderRadius: Radius.sm },
+  playButtonCompact: { width: 38, height: 34, borderRadius: 10 },
   playButton: { width: 56, height: 48, borderRadius: Radius.sm, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
 });

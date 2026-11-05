@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { notificationText, type ChallengeView, type NotificationView, type UserSummary } from '@qu1z/shared';
 
@@ -14,6 +14,7 @@ import { api, errorMessage, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
 
 import { timeAgo } from '@/utils/time';
+import { Tap } from '@/components/tap';
 
 /** Icône des notifications sans acteur (progression, classement, système). */
 const ICONS: Partial<Record<NotificationView['type'], { icon: IconName; color: string }>> = {
@@ -64,7 +65,11 @@ function open(n: NotificationView): void {
       return;
     case 'challenge_received':
     case 'rematch_request':
-      router.push('/play');
+    case 'challenge_accepted':
+    case 'challenge_declined':
+    case 'challenge_completed':
+      if (typeof d.challengeId === 'string') router.push(`/defi/${d.challengeId}` as Href);
+      else router.push('/play');
       return;
     default:
       if (actor) router.push({ pathname: '/player/[id]', params: { id: actor.id } });
@@ -98,11 +103,11 @@ export default function ActivityScreen() {
       headerRight={<HeaderButton icon="settings-outline" label="Réglages des notifications" onPress={() => router.push('/settings/notifications')} />}>
       <View style={styles.header}>
         {(list.data?.unread ?? 0) > 0 && (
-          <Pressable accessibilityRole="button" onPress={() => act('POST', '/api/notifications/read-all')} style={{ padding: Spacing.xs }}>
+          <Tap accessibilityRole="button" onPress={() => act('POST', '/api/notifications/read-all')} style={{ padding: Spacing.xs }}>
             <AppText variant="label" color={Colors.accent}>
               Tout marquer comme lu
             </AppText>
-          </Pressable>
+          </Tap>
         )}
       </View>
       {error && <AppText color={Colors.wrong}>{error}</AppText>}
@@ -134,7 +139,7 @@ export default function ActivityScreen() {
           const challengeId = typeof n.data.challengeId === 'string' ? n.data.challengeId : null;
           const challengePending = (n.type === 'challenge_received' || n.type === 'rematch_request') && challengeId && pendingChallenges.has(challengeId);
           return (
-            <Pressable key={n.id} accessibilityRole="button" onPress={() => tap(n)} style={styles.row}>
+            <Tap key={n.id} accessibilityRole="button" onPress={() => tap(n)} style={styles.row}>
               {actor ? (
                 <Avatar name={actor.pseudo} color={avatarColor(actor.id)} uri={actor.avatar} size={40} />
               ) : (
@@ -161,7 +166,7 @@ export default function ActivityScreen() {
                 )}
               </View>
               {!n.read && <View accessibilityLabel="Non lue" style={styles.dot} />}
-            </Pressable>
+            </Tap>
           );
         })}
       </View>

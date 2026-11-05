@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { api } from '@/net/api';
@@ -51,6 +51,7 @@ export function listenToPushTaps(): () => void {
     const data = response.notification.request.content.data as Record<string, string>;
     if (data.kind === 'message' && data.conversationId) router.push({ pathname: '/messages/[id]', params: { id: data.conversationId } });
     else if (data.kind === 'message_request' || data.kind === 'group_invitation') router.push('/messages');
+    else if (data.challengeId) router.push(`/defi/${data.challengeId}` as Href);
     else router.push('/notifications');
   });
   return () => sub.remove();

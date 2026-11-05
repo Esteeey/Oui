@@ -11,6 +11,7 @@ import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
@@ -30,10 +31,10 @@ export default function PeopleScreen() {
     Share.share({ message: `Viens me défier sur Qu1z ! Mon pseudo : @${me.data?.pseudo ?? ''}` }).catch(() => {});
 
   const link = (label: string, value: number | undefined, onPress: () => void) => (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.link}>
+    <Tap accessibilityRole="button" onPress={onPress} style={styles.link}>
       <AppText variant="label">{label}</AppText>
       <AppText muted>{value !== undefined ? `${value}  ›` : '›'}</AppText>
-    </Pressable>
+    </Tap>
   );
 
   return (
@@ -46,11 +47,11 @@ export default function PeopleScreen() {
       <SectionHeader
         title="Suggestions"
         action={
-          <Pressable accessibilityRole="link" onPress={() => router.push('/discover')} hitSlop={8}>
+          <Tap accessibilityRole="link" onPress={() => router.push('/discover')} hitSlop={8}>
             <AppText variant="label" color={Colors.accent}>
               Tout voir
             </AppText>
-          </Pressable>
+          </Tap>
         }
       />
       {people.data && people.data.suggestions.length === 0 && <AppText muted>Pas encore d’autres joueurs à te proposer.</AppText>}
@@ -98,7 +99,7 @@ export default function PeopleScreen() {
         const category = theme ? getCategory(theme.categoryId) : undefined;
         if (!theme || !category) return null;
         return (
-          <Pressable
+          <Tap
             key={t.themeId}
             accessibilityRole="button"
             onPress={() => router.push({ pathname: '/theme/[id]', params: { id: t.themeId } })}
@@ -107,7 +108,7 @@ export default function PeopleScreen() {
               {category.icon} {theme.name}
             </AppText>
             <AppText muted>{t.subscribers} abonné{t.subscribers > 1 ? 's' : ''}</AppText>
-          </Pressable>
+          </Tap>
         );
       })}
 

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { AppealSummary, ReportSummary, SoundOverride } from '@qu1z/shared';
 
@@ -9,6 +9,7 @@ import { SectionHeader } from '@/components/social';
 import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
+import { Tap } from '@/components/tap';
 
 /** Panneau d'administration (rôle admin) : point d'entrée vers les outils de l'équipe. */
 export default function AdminScreen() {
@@ -64,7 +65,7 @@ function Stat({ value }: { value: string }) {
 
 function Entry({ icon, label, hint, href }: { icon: ComponentProps<typeof Ionicons>['name']; label: string; hint: string; href: Href }) {
   return (
-    <Pressable accessibilityRole="button" onPress={() => router.push(href)} style={styles.row}>
+    <Tap accessibilityRole="button" onPress={() => router.push(href)} style={styles.row}>
       <Ionicons name={icon} size={22} color={Colors.accent} />
       <View style={{ flex: 1, gap: 2 }}>
         <AppText variant="label">{label}</AppText>
@@ -73,7 +74,7 @@ function Entry({ icon, label, hint, href }: { icon: ComponentProps<typeof Ionico
         </AppText>
       </View>
       <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-    </Pressable>
+    </Tap>
   );
 }
 

@@ -1,18 +1,19 @@
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { UserSummary } from '@qu1z/shared';
 
 import { AppText, Avatar } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { avatarColor } from '@/utils/avatar';
+import { Tap } from '@/components/tap';
 
 /** Ligne de joueur : avatar, pseudo, titre équipé (et niveau si demandé). Toute la ligne ouvre le profil. */
 export function UserRow({ user, showLevel = false, right, subtitle }: { user: UserSummary; showLevel?: boolean; right?: ReactNode; subtitle?: string }) {
   return (
     <View style={styles.row}>
-      <Pressable
+      <Tap
         accessibilityRole="button"
         accessibilityLabel={`Profil de ${user.pseudo}`}
         onPress={() => router.push({ pathname: '/player/[id]', params: { id: user.id } })}
@@ -26,7 +27,7 @@ export function UserRow({ user, showLevel = false, right, subtitle }: { user: Us
             {subtitle ?? [user.title, showLevel ? `Niveau ${user.level}` : null].filter(Boolean).join(' · ')}
           </AppText>
         </View>
-      </Pressable>
+      </Tap>
       {right}
     </View>
   );

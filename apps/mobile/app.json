@@ -2,7 +2,7 @@
   "expo": {
     "name": "Qu1z",
     "slug": "qu1z",
-    "version": "1.0.0",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "qu1z",
@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.qu1z.app",
       "adaptiveIcon": {
         "backgroundColor": "#0E0B1A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,6 +39,12 @@
         {
           "photosPermission": "Qu1z accède à tes photos pour que tu puisses en envoyer et choisir ta photo de profil.",
           "cameraPermission": "Qu1z utilise l’appareil photo pour que tu puisses prendre une photo à envoyer."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Qu1z utilise ta position approximative (à 10 km près) seulement si tu actives le classement « À proximité »."
         }
       ],
       [

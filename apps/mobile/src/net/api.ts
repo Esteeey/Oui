@@ -115,7 +115,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   hidden: 'Cette liste est masquée.',
   network: 'Serveur injoignable.',
   challenger_offline: 'Le joueur qui t’a défié n’est pas connecté. Réessaie plus tard.',
-  busy: 'L’un de vous est déjà en duel.',
+  busy: 'Tu es déjà en duel : termine-le avant de jouer ce défi.',
   not_connected_by_follow: 'Vous devez être abonnés l’un à l’autre (dans un sens au moins) pour vous défier.',
   forbidden: 'Action non autorisée.',
   already_requested: 'Tu as déjà envoyé une demande à ce joueur.',

@@ -12,6 +12,7 @@ import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
 import { subscribersLabel, useThemeInfos } from '@/state/themes';
+import { Tap } from '@/components/tap';
 
 function normalize(text: string): string {
   return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -96,7 +97,7 @@ function ThemeRow({ themeId, level }: { themeId: string; level: number }) {
   const category = getCategory(theme.categoryId)!;
   const infos = useThemeInfos();
   return (
-    <Pressable
+    <Tap
       accessibilityRole="button"
       onPress={() => router.push({ pathname: '/theme/[id]', params: { id: theme.id } })}
       style={[styles.row, { borderLeftColor: category.color }]}>
@@ -110,7 +111,7 @@ function ThemeRow({ themeId, level }: { themeId: string; level: number }) {
       <AppText variant="caption" color={category.color}>
         Niv. {level}
       </AppText>
-    </Pressable>
+    </Tap>
   );
 }
 

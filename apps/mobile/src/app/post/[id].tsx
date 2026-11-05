@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { MAX_COMMENT_LENGTH, type CommentView, type PostView } from '@qu1z/shared';
 
@@ -13,6 +13,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
+import { Tap } from '@/components/tap';
 
 /** Une publication, ses commentaires et les réponses (un niveau). */
 export default function PostScreen() {
@@ -49,12 +50,12 @@ export default function PostScreen() {
 
   const renderComment = (c: CommentView, isReply: boolean) => (
     <View key={c.id} style={[styles.comment, isReply && { marginLeft: 40 }]}>
-      <Pressable
+      <Tap
         accessibilityRole="button"
         accessibilityLabel={`Profil de ${c.author.pseudo}`}
         onPress={() => router.push({ pathname: '/player/[id]', params: { id: c.author.id } })}>
         <Avatar name={c.author.pseudo} color={avatarColor(c.author.id)} uri={c.author.avatar} size={32} />
-      </Pressable>
+      </Tap>
       <View style={{ flex: 1, gap: 4 }}>
         <View style={styles.bubble}>
           <AppText variant="caption">
@@ -65,11 +66,11 @@ export default function PostScreen() {
           </AppText>
           <RichText text={c.text} mentions={c.mentions} />
         </View>
-        <Pressable accessibilityRole="button" onPress={() => setReplyTo(c)} style={{ alignSelf: 'flex-start', padding: 4 }}>
+        <Tap accessibilityRole="button" onPress={() => setReplyTo(c)} style={{ alignSelf: 'flex-start', padding: 4 }}>
           <AppText variant="caption" muted>
             Répondre
           </AppText>
-        </Pressable>
+        </Tap>
       </View>
     </View>
   );
@@ -89,11 +90,11 @@ export default function PostScreen() {
 
       <View style={styles.input}>
         {replyTo && (
-          <Pressable accessibilityRole="button" onPress={() => setReplyTo(null)}>
+          <Tap accessibilityRole="button" onPress={() => setReplyTo(null)}>
             <AppText variant="caption" color={Colors.opponent}>
               Réponse à {replyTo.author.pseudo} · annuler
             </AppText>
-          </Pressable>
+          </Tap>
         )}
         <TextInput
           value={text}

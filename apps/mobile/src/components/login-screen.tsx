@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PSEUDO_PATTERN } from '@qu1z/shared';
@@ -12,6 +12,7 @@ import { AppText, Button } from '@/components/ui';
 import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
 import { ApiError, authRequest, errorMessage, TOKEN_KEY } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
+import { Tap } from '@/components/tap';
 
 type Mode = 'login' | 'register';
 
@@ -77,7 +78,7 @@ export function LoginScreen() {
             <View style={styles.sheet}>
               <View style={styles.tabs} accessibilityRole="tablist">
                 {(['login', 'register'] as const).map((m) => (
-                  <Pressable
+                  <Tap
                     key={m}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: mode === m }}
@@ -86,7 +87,7 @@ export function LoginScreen() {
                     <AppText variant="label" color={mode === m ? Colors.text : Colors.textMuted}>
                       {m === 'login' ? 'Connexion' : 'Inscription'}
                     </AppText>
-                  </Pressable>
+                  </Tap>
                 ))}
               </View>
 
@@ -126,13 +127,13 @@ export function LoginScreen() {
                 returnKeyType="go"
                 onSubmitEditing={submit}
                 right={
-                  <Pressable
+                  <Tap
                     accessibilityRole="button"
                     accessibilityLabel={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                     hitSlop={10}
                     onPress={() => setShowPassword((v) => !v)}>
                     <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={Colors.textMuted} />
-                  </Pressable>
+                  </Tap>
                 }
               />
               {register && (
@@ -154,14 +155,14 @@ export function LoginScreen() {
                 onPress={submit}
               />
 
-              <Pressable accessibilityRole="button" onPress={() => switchMode(register ? 'login' : 'register')} style={styles.switch}>
+              <Tap accessibilityRole="button" onPress={() => switchMode(register ? 'login' : 'register')} style={styles.switch}>
                 <AppText muted style={styles.center}>
                   {register ? 'Déjà un compte ? ' : 'Pas encore de compte ? '}
                   <AppText variant="label" color={Colors.accent}>
                     {register ? 'Se connecter' : 'S’inscrire'}
                   </AppText>
                 </AppText>
-              </Pressable>
+              </Tap>
             </View>
           </ScrollView>
         </SafeAreaView>

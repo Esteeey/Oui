@@ -9,14 +9,16 @@ import { api, apiBase } from '@/net/api';
 /**
  * Sons et musiques de Qu1z : tous originaux, synthétisés pour l'appli (scripts de génération hors dépôt).
  * Effets : un lecteur préchargé par son, rembobiné à chaque lecture.
- * Musiques : une seule à la fois (musique de duel en boucle, ou musique de résultat).
+ * Musiques : une seule à la fois (musiques de recherche et de duel en boucle, ou musique de résultat).
  * Un administrateur peut remplacer chaque son depuis le panneau d'administration : le remplacement,
  * servi par le serveur de jeu, prend la place du son d'origine.
  */
 const SFX = {
   launch: require('../../assets/sounds/qz_lancement.wav'),
+  pinPop: require('../../assets/sounds/qz_pop.wav'),
   versus: require('../../assets/sounds/s10_vs.wav'),
   question: require('../../assets/sounds/qz_question.wav'),
+  choices: require('../../assets/sounds/qz_reponses.wav'),
   bonusRound: require('../../assets/sounds/s09_manche_bonus.wav'),
   answered: require('../../assets/sounds/qz_reponse_validee.wav'),
   tick: require('../../assets/sounds/qz_tic_tac.wav'),
@@ -34,6 +36,7 @@ const SFX = {
 } as const;
 
 const MUSIC = {
+  search: require('../../assets/sounds/qz_musique_recherche.mp3'),
   duel: require('../../assets/sounds/qz_musique_duel.mp3'),
   win: require('../../assets/sounds/qz_musique_victoire.mp3'),
   loss: require('../../assets/sounds/qz_musique_defaite.mp3'),
@@ -44,7 +47,7 @@ export type SoundName = keyof typeof SFX;
 export type MusicName = keyof typeof MUSIC;
 
 /** Identifiant de chaque musique dans le catalogue partagé des sons (panneau d'administration). */
-const MUSIC_ID: Record<MusicName, GameSoundId> = { duel: 'musicDuel', win: 'musicWin', loss: 'musicLoss', draw: 'musicDraw' };
+const MUSIC_ID: Record<MusicName, GameSoundId> = { search: 'musicSearch', duel: 'musicDuel', win: 'musicWin', loss: 'musicLoss', draw: 'musicDraw' };
 
 /** Son d'origine, livré avec l'appli. */
 export function defaultSoundSource(id: GameSoundId): number {
@@ -82,13 +85,40 @@ export async function refreshSoundOverrides(force = false): Promise<void> {
   const previous = overrides;
   overrides = next;
   const changed = (id: GameSoundId) => previous.get(id) !== next.get(id);
-  for (const [name, player] of players) if (changed(name)) replaceSource(player, name);
-  for (const [name, player] of musicPlayers) if (changed(MUSIC_ID[name])) replaceSource(player, MUSIC_ID[name]);
+  // On recrée les lecteurs concernés plutôt que de changer leur fichier : sur Android, changer la source
+  // d'un lecteur déjà chargé ne prend pas toujours effet, et l'ancien son restait.
+  for (const name of [...players.keys()]) {
+    if (!changed(name)) continue;
+    release(players.get(name));
+    try {
+      players.set(name, createAudioPlayer(soundSource(name)));
+    } catch {
+      players.delete(name);
+    }
+  }
+  for (const name of [...musicPlayers.keys()]) {
+    if (!changed(MUSIC_ID[name])) continue;
+    const old = musicPlayers.get(name)!;
+    // Pas `old.playing` : un lecteur tout juste créé, encore en chargement, n'est pas « en lecture »,
+    // et la musique ne reprenait alors jamais avec le nouveau fichier.
+    const wasPlaying = current === name && musicEnabled;
+    musicPlayers.delete(name);
+    release(old);
+    // La musique en cours reprend aussitôt avec le nouveau fichier (et son entrée en fondu complète).
+    if (wasPlaying) start(name);
+  }
 }
 
-function replaceSource(player: AudioPlayer, id: GameSoundId) {
+function release(player: AudioPlayer | undefined) {
+  if (!player) return;
+  const fade = fades.get(player);
+  if (fade) {
+    clearInterval(fade);
+    fades.delete(player);
+  }
   try {
-    player.replace(soundSource(id));
+    player.pause();
+    player.remove();
   } catch {}
 }
 
@@ -99,7 +129,7 @@ export const TICK_WINDOW_MS = 5000;
 /** Durée du son de montée d'XP. */
 export const XP_SOUND_MS = 1650;
 
-const MUSIC_VOLUME: Record<MusicName, number> = { duel: 0.35, win: 0.6, loss: 0.6, draw: 0.6 };
+const MUSIC_VOLUME: Record<MusicName, number> = { search: 0.4, duel: 0.35, win: 0.6, loss: 0.6, draw: 0.6 };
 
 // ---------------------------------------------------------------- préférences
 
@@ -180,6 +210,8 @@ export function setSoundEnabled(on: boolean) {
 // ---------------------------------------------------------------- musiques
 
 const musicPlayers = new Map<MusicName, AudioPlayer>();
+/** Musiques jouées en boucle (avec une entrée en fondu). */
+const LOOPED = new Set<MusicName>(['search', 'duel']);
 let current: MusicName | null = null;
 const fades = new Map<AudioPlayer, ReturnType<typeof setInterval>>();
 
@@ -189,7 +221,7 @@ function musicPlayer(name: MusicName): AudioPlayer | null {
     try {
       prepare();
       player = createAudioPlayer(soundSource(MUSIC_ID[name]));
-      player.loop = name === 'duel';
+      player.loop = LOOPED.has(name);
       musicPlayers.set(name, player);
     } catch {
       return null;
@@ -229,19 +261,43 @@ function fadeOut(name: MusicName, ms: number) {
   });
 }
 
-/** Lance une musique depuis le début, en arrêtant (en fondu) celle qui jouait. */
-export function playMusic(name: MusicName) {
+/** Numéro du dernier lancement de musique : un écran n'arrête que la musique qu'il a lui-même lancée. */
+let session = 0;
+
+/**
+ * Lance une musique depuis le début, en arrêtant (en fondu) celle qui jouait.
+ * Renvoie de quoi l'arrêter : sans effet si une autre musique (ou la même, relancée par un autre écran)
+ * a pris le relais entre-temps. Sinon, l'écran qui se ferme pendant que le suivant s'ouvre
+ * (ex. annuler une recherche puis en relancer une aussitôt) coupait la musique du nouvel écran.
+ */
+export function playMusic(name: MusicName): (ms?: number) => void {
   if (current && current !== name) fadeOut(current, 500);
   current = name;
-  if (!musicEnabled) return;
+  const mine = ++session;
+  const stop = (ms = 700) => {
+    if (session === mine) stopMusic(name, ms);
+  };
+  if (musicEnabled) start(name);
+  return stop;
+}
+
+/** Lecture depuis le début, avec une entrée en fondu pour les musiques en boucle. */
+function start(name: MusicName) {
   const player = musicPlayer(name);
   if (!player) return;
+  const looped = LOOPED.has(name);
   try {
-    player.volume = name === 'duel' ? 0 : MUSIC_VOLUME[name];
-    player.seekTo(0).catch(() => {});
-    player.play();
-    if (name === 'duel') fadeTo(player, MUSIC_VOLUME.duel, 800);
+    player.volume = looped ? 0 : MUSIC_VOLUME[name];
   } catch {}
+  // Rembobinage séparé de la lecture : sur un lecteur encore en chargement, il peut échouer,
+  // et la musique ne devait pas rester muette pour autant.
+  try {
+    if (player.currentTime > 0) player.seekTo(0).catch(() => {});
+  } catch {}
+  try {
+    player.play();
+  } catch {}
+  if (looped) fadeTo(player, MUSIC_VOLUME[name], 800);
 }
 
 /** Arrête la musique en cours (en fondu). Sans nom, arrête celle qui joue ; avec un nom, seulement si c'est elle. */
@@ -249,6 +305,7 @@ export function stopMusic(name?: MusicName, ms = 700) {
   if (!current || (name && name !== current)) return;
   const playing = current;
   current = null;
+  session++;
   fadeOut(playing, ms);
 }
 
@@ -260,8 +317,8 @@ export function setMusicEnabled(on: boolean) {
   const player = musicPlayers.get(current);
   if (!on) {
     if (player) fadeTo(player, 0, 200, () => player.pause());
-  } else if (current === 'duel') {
-    playMusic('duel'); // les musiques de résultat, courtes, ne sont pas relancées
+  } else if (LOOPED.has(current)) {
+    start(current); // les musiques de résultat, courtes, ne sont pas relancées
   }
 }
 

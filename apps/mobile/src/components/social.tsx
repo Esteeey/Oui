@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentProps, ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { divisionFor } from '@qu1z/shared';
 
 import { AppText } from '@/components/ui';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
+import { Tap } from '@/components/tap';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -46,7 +47,7 @@ export function Chip({
   style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <Pressable
+    <Tap
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
       onPress={onPress}
@@ -57,7 +58,7 @@ export function Chip({
       <AppText variant="label" color={active ? Colors.onAccent : Colors.text} style={{ fontSize: 14 }} numberOfLines={1}>
         {label}
       </AppText>
-    </Pressable>
+    </Tap>
   );
 }
 
@@ -73,7 +74,7 @@ export function Segmented<T extends string>({
   return (
     <View style={styles.segmented}>
       {options.map((o) => (
-        <Pressable
+        <Tap
           key={o.value}
           accessibilityRole="button"
           onPress={() => onChange(o.value)}
@@ -81,7 +82,7 @@ export function Segmented<T extends string>({
           <AppText variant="label" color={o.value === value ? Colors.onAccent : Colors.textMuted}>
             {o.label}
           </AppText>
-        </Pressable>
+        </Tap>
       ))}
     </View>
   );
@@ -101,7 +102,7 @@ export function IconButton({
   color?: string;
 }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={10} onPress={onPress} style={styles.iconButton}>
+    <Tap accessibilityRole="button" accessibilityLabel={label} hitSlop={10} onPress={onPress} style={styles.iconButton}>
       <Ionicons name={icon} size={24} color={color} />
       {!!badge && (
         <View style={styles.badge}>
@@ -110,7 +111,7 @@ export function IconButton({
           </AppText>
         </View>
       )}
-    </Pressable>
+    </Tap>
   );
 }
 

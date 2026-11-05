@@ -80,6 +80,10 @@ export interface PublicProfile extends UserSummary {
   cover: string | null;
   /** Pays choisi (code ISO), renvoyé seulement au joueur lui-même. */
   country?: string | null;
+  /** Région choisie, renvoyée seulement au joueur lui-même. */
+  region?: string | null;
+  /** Position approximative enregistrée (classement « À proximité »), seulement pour le joueur lui-même. */
+  hasLocation?: boolean;
 }
 
 export type PostTarget = { kind: 'profile' } | { kind: 'theme'; themeId: string };
@@ -124,9 +128,44 @@ export interface ActivityView {
 export type FeedItem = { kind: 'post'; at: number; post: PostView } | { kind: 'activity'; at: number; activity: ActivityView };
 
 /** Amis (joueurs suivis et soi-même), joueurs du même pays, ou tout le monde. */
-export type LeaderboardScope = 'following' | 'country' | 'world';
-/** Cote (permanente) ou XP gagnée pendant la saison en cours (le mois). */
-export type LeaderboardPeriod = 'rating' | 'season';
+export type LeaderboardScope = 'following' | 'country' | 'region' | 'nearby' | 'world';
+/** XP gagnée cette semaine, XP gagnée pendant la saison (le mois), ou cote (permanente). */
+export type LeaderboardPeriod = 'week' | 'season' | 'rating';
+
+/** Rayon du classement « À proximité », en km. À AJUSTER. */
+export const NEARBY_KM = 50;
+/** Précision gardée pour la position (en degrés, environ 11 km) : jamais la position exacte. */
+export const LOCATION_PRECISION_DEG = 0.1;
+
+/** Semaine du classement : du lundi 00:00 UTC au lundi suivant (remise à zéro). À AJUSTER. */
+export function weekOf(at: number): { startsAt: number; endsAt: number } {
+  const d = new Date(at);
+  const day = (d.getUTCDay() + 6) % 7; // lundi = 0
+  const startsAt = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day);
+  return { startsAt, endsAt: startsAt + 7 * 86_400_000 };
+}
+
+/** Régions de France (classement « Région »). */
+export const REGIONS_FR = [
+  'Auvergne-Rhône-Alpes',
+  'Bourgogne-Franche-Comté',
+  'Bretagne',
+  'Centre-Val de Loire',
+  'Corse',
+  'Grand Est',
+  'Hauts-de-France',
+  'Île-de-France',
+  'Normandie',
+  'Nouvelle-Aquitaine',
+  'Occitanie',
+  'Pays de la Loire',
+  "Provence-Alpes-Côte d'Azur",
+  'Guadeloupe',
+  'Martinique',
+  'Guyane',
+  'La Réunion',
+  'Mayotte',
+] as const;
 
 export interface LeaderboardRow {
   rank: number;

@@ -4,8 +4,10 @@
  */
 export const GAME_SOUNDS = [
   { id: 'launch', kind: 'effect', label: 'Lancement', when: 'Quand on lance une partie' },
+  { id: 'pinPop', kind: 'effect', label: 'Pop d’épingle', when: 'Chaque épingle sur la carte de recherche' },
   { id: 'versus', kind: 'effect', label: 'Entrée VS', when: 'Choc des deux moitiés de l’intro' },
   { id: 'question', kind: 'effect', label: 'Nouvelle question', when: 'À chaque question' },
+  { id: 'choices', kind: 'effect', label: 'Réponses affichées', when: 'Quand les réponses apparaissent et que le chrono démarre' },
   { id: 'bonusRound', kind: 'effect', label: 'Manche bonus', when: 'Dernière question, points ×2' },
   { id: 'answered', kind: 'effect', label: 'Réponse validée', when: 'Quand on touche une réponse' },
   { id: 'tick', kind: 'effect', label: 'Tic-tac', when: 'Les 5 dernières secondes' },
@@ -20,6 +22,7 @@ export const GAME_SOUNDS = [
   { id: 'xp', kind: 'effect', label: 'XP qui monte', when: 'Écran de fin, si on gagne de l’XP' },
   { id: 'xpEnd', kind: 'effect', label: 'Fin de la montée d’XP', when: 'Juste après l’XP' },
   { id: 'levelUp', kind: 'effect', label: 'Passage de niveau', when: 'Si le niveau augmente' },
+  { id: 'musicSearch', kind: 'music', label: 'Musique de recherche', when: 'En boucle pendant la recherche d’adversaire' },
   { id: 'musicDuel', kind: 'music', label: 'Musique de duel', when: 'En boucle pendant toute la partie' },
   { id: 'musicWin', kind: 'music', label: 'Musique de victoire', when: 'Écran de fin' },
   { id: 'musicLoss', kind: 'music', label: 'Musique de défaite', when: 'Écran de fin' },
@@ -31,7 +34,7 @@ export type GameSoundId = (typeof GAME_SOUNDS)[number]['id'];
 export const isGameSoundId = (id: unknown): id is GameSoundId => GAME_SOUNDS.some((s) => s.id === id);
 
 /** Taille maximale d'un son envoyé (une musique MP3 de quelques minutes). */
-export const SOUND_MAX_BYTES = 5 * 1024 * 1024;
+export const SOUND_MAX_BYTES = 10 * 1024 * 1024;
 
 /** Formats lus partout (iPhone, Android, navigateur). */
 export const SOUND_FORMATS_LABEL = 'WAV, MP3 ou M4A';
