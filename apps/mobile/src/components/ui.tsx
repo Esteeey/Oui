@@ -1,8 +1,7 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, usePathname } from 'expo-router';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -107,7 +106,6 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 
 export function Button({
   label,
-  icon,
   onPress,
   color,
   textColor,
@@ -117,7 +115,6 @@ export function Button({
   small,
 }: {
   label: string;
-  icon?: ComponentProps<typeof Ionicons>['name'];
   onPress?: () => void;
   /** Sans couleur, un bouton plein prend le dégradé rose de l'accent. */
   color?: string;
@@ -150,12 +147,9 @@ export function Button({
         {solid && !color && (
           <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         )}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          {icon && <Ionicons name={icon} size={18} color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} />}
-          <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} style={small ? { fontSize: 14 } : undefined}>
-            {label}
-          </AppText>
-        </View>
+        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} style={small ? { fontSize: 14 } : undefined}>
+          {label}
+        </AppText>
       </Animated.View>
     </Pressable>
   );

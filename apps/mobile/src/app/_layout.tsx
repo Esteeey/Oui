@@ -3,8 +3,6 @@ import { useFonts } from 'expo-font';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, type ReactNode } from 'react';
 
 import { Colors } from '@/constants/theme';
@@ -45,11 +43,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={navigationTheme}>
       <GameServerProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.navy }} edges={['top']}>
           <StatusBar style="light" />
-          <View style={{ height: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.navy }}>
-            <Text style={{ color: Colors.onAccent, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>BÊTA · v1.0.7</Text>
-          </View>
           <BannedGate>
           <Stack
             screenOptions={{
@@ -83,7 +77,6 @@ export default function RootLayout() {
             <Stack.Screen name="compose" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
           </BannedGate>
-        </SafeAreaView>
       </GameServerProvider>
     </ThemeProvider>
   );
