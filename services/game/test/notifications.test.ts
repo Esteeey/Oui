@@ -181,58 +181,119 @@ describe('notifications d’abonnement', () => {
   });
 });
 
-describe('défis', () => {
-  it('impossible sans abonnement ; possible si l’un suit l’autre ; acceptation = duel pour les deux', async () => {
+describe('défis asynchrones', () => {
+  type Created = ChallengeView & { playDuelId: string | null };
+
+  /** Joue toutes les questions d'un duel (bonnes ou mauvaises réponses) et attend sa fin. */
+  async function playAll(u: U, duelId: string, pick: 'right' | 'wrong') {
+    const answered = new Set<number>();
+    const timer = setInterval(() => {
+      const snap = u.ws.lastDuel();
+      if (!snap || snap.duelId !== duelId || snap.phase !== 'answering' || answered.has(snap.index)) return;
+      answered.add(snap.index);
+      const correct = server.game.getDuel(duelId)!.state.questions[snap.index].correctIndex;
+      u.ws.send({ type: 'answer', duelId, index: snap.index, choice: pick === 'right' ? correct : (correct + 1) % 4 });
+    }, 5);
+    const end = await u.ws.waitForDuel((x) => x.duelId === duelId && x.phase === 'finished', 8000, 0);
+    clearInterval(timer);
+    await sleep(150);
+    return end;
+  }
+
+  /** A défie B et joue sa partie (manche 1). */
+  async function sendAndPlay(a: U, b: U, themeId = 'geo-capitales') {
+    const c = await ok(call<Created>(a, 'POST', '/api/challenges', { userId: b.id, themeId }));
+    expect(c.status).toBe('sent');
+    expect(c.playDuelId).toBeTruthy();
+    const leg1 = await playAll(a, c.playDuelId!, 'right');
+    expect(leg1.challenge).toEqual({ id: c.id, leg: 1 });
+    expect(leg1.result).toBeNull();
+    return c;
+  }
+
+  it('l’invitant joue d’abord ; l’ami rejoue plus tard les MÊMES questions ; récompenses pour les deux', async () => {
     const a = await user('Thomas');
     const b = await user('Paul');
     expect((await call(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'geo-capitales' })).status).toBe(403);
-    await follow(b, a); // B suit A : A peut défier B, et inversement.
-    const c = await ok(call<ChallengeView>(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'geo-capitales' }));
-    const again = await ok(call<ChallengeView>(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'geo-capitales' }));
-    expect(again.id).toBe(c.id);
-    const received = (await notifs(b)).notifications.find((n) => n.type === 'challenge_received')!;
-    expect(received.data.challengeId).toBe(c.id);
+    await follow(b, a);
+    const c0 = await ok(call<Created>(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'geo-capitales' }));
+    // Pendant que l'invitant joue, l'ami ne voit rien et n'est pas encore prévenu.
+    expect((await ok(call<{ challenges: ChallengeView[] }>(b, 'GET', '/api/challenges'))).challenges).toHaveLength(0);
+    expect((await notifs(b)).notifications.find((n) => n.type === 'challenge_received')).toBeUndefined();
+    const questions = server.game.getDuel(c0.playDuelId!)!.state.questions.map((q) => `${q.id}:${q.choices.join('|')}`);
+    await playAll(a, c0.playDuelId!, 'right');
 
-    const fromA = a.ws.messages.length;
-    const fromB = b.ws.messages.length;
-    // Double clic sur « Accepter » : un seul duel.
+    const pending = await ok(call<ChallengeView>(a, 'GET', `/api/challenges/${c0.id}`));
+    expect(pending.status).toBe('pending');
+    expect(pending.fromScore).toBeGreaterThan(0);
+    expect(pending.expiresAt - pending.createdAt).toBe(24 * 3_600_000);
+    const received = (await notifs(b)).notifications.find((n) => n.type === 'challenge_received')!;
+    expect(received.data.challengeId).toBe(c0.id);
+    // Renvoi du même défi : on retrouve celui qui existe, sans nouvelle partie.
+    const again = await ok(call<Created>(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'geo-capitales' }));
+    expect(again.id).toBe(c0.id);
+    expect(again.playDuelId).toBeNull();
+
+    // Double clic sur « Jouer » : un seul duel. L'invitant n'a pas besoin d'être connecté.
+    await a.ws.close();
     const [r1, r2] = await Promise.all([
-      call<{ duelId?: string }>(b, 'POST', `/api/challenges/${c.id}/accept`),
-      call<{ duelId?: string }>(b, 'POST', `/api/challenges/${c.id}/accept`),
+      call<{ duelId?: string }>(b, 'POST', `/api/challenges/${c0.id}/accept`),
+      call<{ duelId?: string }>(b, 'POST', `/api/challenges/${c0.id}/accept`),
     ]);
     expect([r1.status, r2.status].sort()).toEqual([200, 404]);
     const duelId = (r1.body.duelId ?? r2.body.duelId)!;
-    const sa = await a.ws.waitForDuel(() => true, 3000, fromA);
-    const sb = await b.ws.waitForDuel(() => true, 3000, fromB);
-    expect(sa.duelId).toBe(duelId);
-    expect(sb.duelId).toBe(duelId);
-    expect(sa.opponent.id).toBe(b.id);
-    expect((await notifs(a)).notifications.map((n) => n.type)).toContain('challenge_accepted');
-    // Le défi traité disparaît du centre de B.
-    expect((await notifs(b)).notifications.find((n) => n.type === 'challenge_received')).toBeUndefined();
+    const leg2 = server.game.getDuel(duelId)!;
+    expect(leg2.state.questions.map((q) => `${q.id}:${q.choices.join('|')}`)).toEqual(questions);
+    const end = await playAll(b, duelId, 'wrong');
+    expect(end.challenge).toEqual({ id: c0.id, leg: 2 });
+    expect(end.opponent.id).toBe(a.id);
+    expect(end.result!.outcome).toBe('loss');
+    expect(end.opponent.points).toBe(pending.fromScore);
+
+    const done = await ok(call<ChallengeView>(b, 'GET', `/api/challenges/${c0.id}`));
+    expect(done.status).toBe('completed');
+    expect(done.toScore).toBe(0);
+    const [{ xp }] = await db.query<{ xp: number }>('SELECT xp FROM users WHERE id = $1', [a.id]);
+    // XP des duels : l'XP du compte moins les récompenses des défis du jour atteints.
+    const questBonus = (await server.game.quests.list(a.id)).quests.filter((q) => q.done).reduce((t, q) => t + q.reward, 0);
+    expect(xp - questBonus).toBe(pending.fromScore! + 40 + 100);
+    const aTypes = (await db.query<{ type: string }>('SELECT type FROM notifications WHERE user_id = $1', [a.id])).map((r) => r.type);
+    expect(aTypes).toEqual(expect.arrayContaining(['challenge_accepted', 'challenge_completed']));
   });
 
-  it('refus : le lanceur est prévenu ; défi d’un joueur bloqué impossible', async () => {
+  it('refus : l’invitant est prévenu ; défi d’un joueur bloqué impossible', async () => {
     const a = await user('Thomas');
     const b = await user('Paul');
     await follow(a, b);
-    const c = await ok(call<ChallengeView>(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'sports-jo' }));
+    const c = await sendAndPlay(a, b, 'sports-jo');
     await ok(call(b, 'POST', `/api/challenges/${c.id}/decline`));
+    expect((await ok(call<ChallengeView>(a, 'GET', `/api/challenges/${c.id}`))).status).toBe('declined');
     expect((await notifs(a)).notifications.map((n) => n.type)).toContain('challenge_declined');
     await ok(call(b, 'POST', '/api/blocks', { userId: a.id }));
     expect((await call(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'sports-jo' })).status).toBe(403);
   });
 
-  it('accepter un défi dont le lanceur est hors ligne : refusé proprement', async () => {
+  it('expiré au bout de 24 h : plus possible de le relever', async () => {
     const a = await user('Thomas');
     const b = await user('Paul');
     await follow(a, b);
-    const c = await ok(call<ChallengeView>(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'sports-jo' }));
-    await a.ws.close();
-    await sleep(50);
-    const r = await call<{ error: string }>(b, 'POST', `/api/challenges/${c.id}/accept`);
-    expect(r.status).toBe(409);
-    expect(r.body.error).toBe('challenger_offline');
+    const c = await sendAndPlay(a, b, 'sports-jo');
+    await db.query("UPDATE challenges SET created_at = now() - interval '25 hours' WHERE id = $1", [c.id]);
+    expect((await ok(call<ChallengeView>(b, 'GET', `/api/challenges/${c.id}`))).status).toBe('expired');
+    expect((await call(b, 'POST', `/api/challenges/${c.id}/accept`)).status).toBe(404);
+  });
+
+  it('l’invitant abandonne sa propre partie : le défi est annulé, l’ami n’est pas dérangé', async () => {
+    const a = await user('Thomas');
+    const b = await user('Paul');
+    await follow(a, b);
+    const c = await ok(call<Created>(a, 'POST', '/api/challenges', { userId: b.id, themeId: 'sports-jo' }));
+    await a.ws.waitForDuel((x) => x.duelId === c.playDuelId && x.phase === 'reading', 3000, 0);
+    a.ws.send({ type: 'forfeit', duelId: c.playDuelId! });
+    await a.ws.waitForDuel((x) => x.duelId === c.playDuelId && x.phase === 'finished', 3000, 0);
+    await sleep(150);
+    expect((await ok(call<ChallengeView>(a, 'GET', `/api/challenges/${c.id}`))).status).toBe('cancelled');
+    expect((await notifs(b)).notifications.find((n) => n.type === 'challenge_received')).toBeUndefined();
   });
 
   it('revanche après un duel, abandon de l’adversaire notifié', async () => {
@@ -247,10 +308,42 @@ describe('défis', () => {
     await a.ws.waitForDuel((x) => x.phase === 'finished' && x.result !== null, 3000, 0);
     await sleep(100);
     expect((await notifs(a)).notifications.map((n) => n.type)).toContain('opponent_forfeit');
-    // Revanche sans abonnement : permise car ils viennent de s'affronter.
-    const r = await ok(call<ChallengeView>(b, 'POST', '/api/challenges', { userId: a.id, themeId: 'geo-capitales', rematchOf: s.duelId }));
+    // Revanche sans abonnement : permise car ils viennent de s'affronter. B joue d'abord, puis A est prévenu.
+    const r = await ok(call<Created>(b, 'POST', '/api/challenges', { userId: a.id, themeId: 'geo-capitales', rematchOf: s.duelId }));
     expect(r.kind).toBe('rematch');
+    await playAll(b, r.playDuelId!, 'right');
     expect((await notifs(a)).notifications.map((n) => n.type)).toContain('rematch_request');
+  });
+});
+
+describe('mini chat de fin de match', () => {
+  it('relaie les messages entre les deux joueurs, nettoie le texte, refuse les inconnus et les bloqués', async () => {
+    const a = await user('Thomas');
+    const b = await user('Paul');
+    const c = await user('Intrus');
+    a.ws.send({ type: 'play', themeId: 'geo-capitales', mode: 'pvp' });
+    await a.ws.waitFor((m) => m.type === 'queued');
+    b.ws.send({ type: 'play', themeId: 'geo-capitales', mode: 'pvp' });
+    const s = await a.ws.waitForDuel(() => true, 3000, 0);
+    await a.ws.waitForDuel((x) => x.phase === 'reading', 3000, 0);
+    b.ws.send({ type: 'forfeit', duelId: s.duelId });
+    await a.ws.waitForDuel((x) => x.phase === 'finished' && x.result !== null, 3000, 0);
+
+    a.ws.send({ type: 'duelChat', duelId: s.duelId, text: '  GG   !  ' + 'x'.repeat(300) });
+    const got = await b.ws.waitFor((m) => m.type === 'duelChat');
+    expect(got.type === 'duelChat' && got.messages[0].text.startsWith('GG !')).toBe(true);
+    expect(got.type === 'duelChat' && got.messages[0].text.length).toBe(140);
+    b.ws.send({ type: 'duelChatHistory', duelId: s.duelId });
+    const history = await b.ws.waitFor((m) => m.type === 'duelChat' && m.messages.length === 1 && m.messages[0].from === a.id);
+    expect(history.type).toBe('duelChat');
+
+    c.ws.send({ type: 'duelChat', duelId: s.duelId, text: 'coucou' });
+    await c.ws.waitFor((m) => m.type === 'error' && m.code === 'not_in_duel');
+
+    await ok(call(b, 'POST', '/api/blocks', { userId: a.id }));
+    a.ws.send({ type: 'duelChat', duelId: s.duelId, text: 'encore' });
+    await sleep(150);
+    expect(server.game['chats'].get(s.duelId)).toHaveLength(1);
   });
 });
 

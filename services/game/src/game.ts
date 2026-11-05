@@ -2,7 +2,10 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import {
   BOT_NAME,
+  DUEL_CHAT_MAX_LENGTH,
+  FAST_ANSWER_MS,
   INITIAL_RATING,
+  REWARDS,
   RULES,
   computeRewards,
   getTheme,
@@ -14,7 +17,10 @@ import {
   unlockedTitles,
   type DuelRecord,
   type DuelResult,
+  type DuelChatMessage,
+  type DuelQuestion,
   type DuelSnapshot,
+  type PlayerAnswer,
   type Profile,
   type ServerMessage,
 } from '@qu1z/shared';
@@ -22,6 +28,7 @@ import {
 import { DEFAULT_TIMING, Duel, type Participant, type Timing } from './duel';
 import type { Notifier } from './notifier';
 import { RateLimiter, DEFAULT_LIMITS, type Limits } from './rate-limit';
+import { Quests } from './quests';
 import { Repo, type UserRow } from './repo';
 
 
@@ -34,6 +41,12 @@ export interface GameOptions {
   limits?: Partial<Limits>;
   /** Envoi d'un message à toutes les connexions d'un joueur (fourni par le serveur WebSocket). */
   send: (playerId: string, message: ServerMessage) => void;
+}
+
+/** Multiplicateur d'XP (boost) : 1 par défaut, réglable par la variable d'environnement QU1Z_XP_MULTIPLIER (ex. 2). */
+export function xpMultiplier(): number {
+  const m = Number(process.env.QU1Z_XP_MULTIPLIER);
+  return Number.isFinite(m) && m >= 1 && m <= 5 ? m : REWARDS.multiplier;
 }
 
 export function hashToken(token: string): string {
@@ -50,6 +63,8 @@ export class Game {
   readonly limiter: RateLimiter;
   /** Branché par le serveur ; absent dans certains tests. */
   notifier?: Notifier;
+  /** Fin d'une manche de défi asynchrone (branché par les défis). */
+  onChallengeLeg?: (duel: Duel, results: (DuelResult | null)[]) => Promise<void>;
   private readonly timing: Timing;
   private readonly now: () => number;
   private readonly matchTimeoutMs: number;
@@ -61,6 +76,10 @@ export class Game {
   private readonly queue = new Map<string, { playerId: string; since: number; timer: ReturnType<typeof setTimeout> }>();
   /** Écritures d'un duel, enchaînées pour garder leur ordre. */
   private readonly writes = new Map<string, Promise<void>>();
+  /** Mini chat de fin de match, gardé en mémoire (30 derniers messages par duel). */
+  private readonly chats = new Map<string, DuelChatMessage[]>();
+  /** Défis du jour (objectifs quotidiens). */
+  readonly quests: Quests;
 
   constructor(options: GameOptions) {
     this.repo = options.repo;
@@ -69,15 +88,16 @@ export class Game {
     this.matchTimeoutMs = options.matchTimeoutMs ?? 10_000;
     this.limiter = new RateLimiter({ ...DEFAULT_LIMITS, ...options.limits } as Limits, this.now);
     this.send = options.send;
+    this.quests = new Quests(this.repo.db, this.now);
   }
 
   /** Reprise des duels non terminés : ils continuent selon l'horloge réelle. */
   async restore(): Promise<void> {
     for (const state of await this.repo.unfinishedDuels()) {
-      for (const p of state.participants) if (!p.isBot) p.connected = false;
+      for (const p of state.participants) if (!p.isBot && !p.ghost) p.connected = false;
       const duel = Duel.restore(state, this.timing, this.now, (d) => this.changed(d), (d) => void this.finished(d));
       this.duels.set(duel.id, duel);
-      for (const p of state.participants) if (!p.isBot) this.active.set(p.playerId, duel.id);
+      for (const p of state.participants) if (!p.isBot && !p.ghost) this.active.set(p.playerId, duel.id);
     }
   }
 
@@ -182,13 +202,30 @@ export class Game {
     this.send(playerId, { type: 'queued', themeId, since });
   }
 
-  /** Duel issu d'un défi accepté entre deux joueurs réels. Refusé si l'un d'eux est déjà en duel. */
-  async startChallengeDuel(fromId: string, toId: string, themeId: string): Promise<string | null> {
-    if (this.active.has(fromId) || this.active.has(toId)) return null;
+  /**
+   * Défi asynchrone, manche 1 : l'invitant joue tout de suite ses 7 questions ; l'ami (absent) les rejouera
+   * plus tard. Refusé (null) si l'invitant est déjà en duel.
+   */
+  async startChallengeLeg1(fromId: string, toId: string, themeId: string, challengeId: string): Promise<Duel | null> {
+    if (this.active.has(fromId)) return null;
     this.cancelQueue(fromId);
+    const friend: Participant = { ...(await this.human(toId, themeId)), ghost: 'pending', connected: true };
+    return this.startDuel(themeId, 'pvp', [await this.human(fromId, themeId), friend], { challenge: { id: challengeId, leg: 1 } });
+  }
+
+  /** Défi asynchrone, manche 2 : l'ami rejoue les MÊMES questions contre les réponses enregistrées de l'invitant. */
+  async startChallengeLeg2(
+    toId: string,
+    fromId: string,
+    themeId: string,
+    challengeId: string,
+    questions: DuelQuestion[],
+    script: PlayerAnswer[],
+  ): Promise<Duel | null> {
+    if (this.active.has(toId)) return null;
     this.cancelQueue(toId);
-    const duel = await this.startDuel(themeId, 'pvp', [await this.human(fromId, themeId), await this.human(toId, themeId)]);
-    return duel.id;
+    const challenger: Participant = { ...(await this.human(fromId, themeId)), ghost: 'replay', script, connected: true };
+    return this.startDuel(themeId, 'pvp', [await this.human(toId, themeId), challenger], { questions, challenge: { id: challengeId, leg: 2 } });
   }
 
   cancelQueue(playerId: string): void {
@@ -221,6 +258,7 @@ export class Game {
       name: BOT_NAME,
       color: null,
       isBot: true,
+      level: levelFromXp(await this.repo.themeXp(playerId, themeId)).level,
       rating: INITIAL_RATING,
       connected: true,
       forfeited: false,
@@ -228,18 +266,24 @@ export class Game {
     await this.startDuel(themeId, 'bot', [await this.human(playerId, themeId), bot]);
   }
 
-  private async startDuel(themeId: string, mode: 'bot' | 'pvp', participants: [Participant, Participant]): Promise<Duel> {
-    const questions = prepareDuel(questionsOf(themeId), Math.floor(Math.random() * 2 ** 31));
+  private async startDuel(
+    themeId: string,
+    mode: 'bot' | 'pvp',
+    participants: [Participant, Participant],
+    options: { questions?: DuelQuestion[]; challenge?: { id: string; leg: 1 | 2 } } = {},
+  ): Promise<Duel> {
+    const questions = options.questions ?? prepareDuel(questionsOf(themeId), Math.floor(Math.random() * 2 ** 31));
     const duel = Duel.create(
-      { id: randomUUID(), themeId, mode, questions, participants },
+      { id: randomUUID(), themeId, mode, questions, participants, challenge: options.challenge ?? null },
       this.timing,
       this.now,
       (d) => this.changed(d),
       (d) => void this.finished(d),
     );
     this.duels.set(duel.id, duel);
-    const humans = participants.filter((p) => !p.isBot).map((p) => p.playerId);
-    for (const id of humans) this.active.set(id, duel.id);
+    // Joueurs réels du duel (pour l'historique) : l'ami qui jouera plus tard n'en fait pas encore partie.
+    const humans = participants.filter((p) => !p.isBot && p.ghost !== 'pending').map((p) => p.playerId);
+    for (const p of participants) if (!p.isBot && !p.ghost) this.active.set(p.playerId, duel.id);
     this.writes.set(duel.id, this.repo.createDuel(structuredClone(duel.state), humans));
     this.changed(duel);
     return duel;
@@ -252,12 +296,40 @@ export class Game {
     return duel && duel.participantIndex(playerId) >= 0 ? duel : null;
   }
 
-  async answer(playerId: string, duelId: string, index: number, choice: number): Promise<void> {
+  async answer(playerId: string, duelId: string, index: number, choice: number, elapsedMs?: number): Promise<void> {
     const duel = this.ownedDuel(playerId, duelId);
     if (!duel) return this.send(playerId, { type: 'error', code: 'not_in_duel', message: 'Duel introuvable.' });
-    const result = duel.answer(playerId, index, choice);
+    const result = duel.answer(playerId, index, choice, elapsedMs);
     // En cas de refus (doublon, trop tard…), on renvoie l'état réel pour resynchroniser l'écran.
     if (!result.ok) await this.pushTo(playerId, duel);
+  }
+
+  /**
+   * Mini chat entre les deux joueurs réels d'un duel (pas le bot ni un défi rejoué). Texte de 1 à 140 caractères,
+   * limité contre le spam, jamais entre joueurs qui se sont bloqués.
+   */
+  async duelChat(playerId: string, duelId: string, text: string): Promise<void> {
+    const duel = this.ownedDuel(playerId, duelId);
+    if (!duel) return this.send(playerId, { type: 'error', code: 'not_in_duel', message: 'Duel introuvable.' });
+    const other = duel.state.participants[1 - duel.participantIndex(playerId)];
+    if (other.isBot || other.ghost) return;
+    const clean = text.replace(/\s+/g, ' ').trim().slice(0, DUEL_CHAT_MAX_LENGTH);
+    if (!clean) return;
+    if (!this.limiter.allow('chat', playerId)) return this.send(playerId, { type: 'error', code: 'rate_limited', message: 'Doucement : trop de messages.' });
+    const blocked = await this.repo.db.query(
+      'SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)',
+      [playerId, other.playerId],
+    );
+    if (blocked.length) return;
+    const message: DuelChatMessage = { from: playerId, text: clean, at: this.now() };
+    const list = [...(this.chats.get(duelId) ?? []), message].slice(-30);
+    this.chats.set(duelId, list);
+    for (const id of [playerId, other.playerId]) this.send(id, { type: 'duelChat', duelId, messages: [message] });
+  }
+
+  duelChatHistory(playerId: string, duelId: string): void {
+    if (!this.ownedDuel(playerId, duelId)) return;
+    this.send(playerId, { type: 'duelChat', duelId, messages: this.chats.get(duelId) ?? [] });
   }
 
   forfeit(playerId: string, duelId: string): void {
@@ -293,26 +365,49 @@ export class Game {
     // Les résultats d'un duel terminé partent après le versement des récompenses (`finished`).
     if (duel.isFinished) return;
     for (const p of duel.state.participants) {
-      if (!p.isBot) this.send(p.playerId, { type: 'duel', snapshot: { ...duel.snapshotFor(p.playerId), result: null } });
+      if (!p.isBot && !p.ghost) this.send(p.playerId, { type: 'duel', snapshot: { ...duel.snapshotFor(p.playerId), result: null } });
     }
   }
 
   private async finished(duel: Duel): Promise<void> {
     await this.persist(duel);
+    const leg = duel.state.challenge?.leg;
     const results: (DuelResult | null)[] = [];
     for (const [k, p] of duel.state.participants.entries()) {
-      if (p.isBot) {
+      if (!p.ghost) this.active.delete(p.playerId);
+      // Manche 1 d'un défi : pas encore de résultat (il dépend de la partie de l'ami).
+      if (p.isBot || p.ghost === 'pending' || leg === 1) {
         results.push(null);
         continue;
       }
-      this.active.delete(p.playerId);
       results.push(await this.grantRewards(duel, k));
     }
+    await this.recordQuests(duel, results).catch((err) => console.error('Défis du jour', err));
     await this.notifyAfterDuel(duel, results).catch((err) => console.error('Notification', err));
+    if (leg) await this.onChallengeLeg?.(duel, results).catch((err) => console.error('Défi', err));
     for (const p of duel.state.participants) {
-      if (p.isBot) continue;
-      await this.pushTo(p.playerId, duel);
+      if (p.isBot || p.ghost === 'pending') continue;
+      // L'invitant rejoué n'est pas dans ce duel : il verra le résultat à sa prochaine connexion.
+      if (p.ghost !== 'replay') await this.pushTo(p.playerId, duel);
       this.send(p.playerId, { type: 'profile', profile: await this.profile(p.playerId) });
+    }
+  }
+
+  /** Défis du jour : chaque joueur récompensé fait avancer ses objectifs (le serveur compte, pas le téléphone). */
+  private async recordQuests(duel: Duel, results: (DuelResult | null)[]): Promise<void> {
+    for (const [k, p] of duel.state.participants.entries()) {
+      const result = results[k];
+      if (p.isBot || !result) continue;
+      const mine = duel.scored(k);
+      const correct = mine.filter((a) => a.correct);
+      await this.quests.record(p.playerId, {
+        themeId: duel.state.themeId,
+        outcome: result.outcome,
+        finished: result.finished && !result.forfeited,
+        correct: correct.length,
+        fast: correct.filter((a) => a.responseMs < FAST_ANSWER_MS).length,
+        score: totals(mine).points,
+      });
     }
   }
 
@@ -331,10 +426,11 @@ export class Game {
     const outcome = duel.outcomeFor(k);
     const rewards = computeRewards({
       outcome,
+      score: totals(mine).points,
       finished: finishedFlag,
       forfeited: me.forfeited,
-      correct: totals(mine).correct,
-      questions: s.questions.length,
+      opponentForfeited: other.forfeited,
+      multiplier: xpMultiplier(),
     });
     const correctAnswers = mine.filter((a) => a.correct);
     return this.repo.grantOnce(s.id, me.playerId, s.themeId, me.rating, (stats, accountXp) => {

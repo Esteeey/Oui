@@ -147,6 +147,12 @@ export class Repo {
     };
   }
 
+  /** XP du joueur dans un thème (0 s'il n'y a jamais joué). */
+  async themeXp(userId: string, themeId: string): Promise<number> {
+    const rows = await this.db.query<{ xp: number }>('SELECT xp FROM theme_stats WHERE user_id = $1 AND theme_id = $2', [userId, themeId]);
+    return Number(rows[0]?.xp ?? 0);
+  }
+
   async themeRating(userId: string, themeId: string): Promise<number> {
     const rows = await this.db.query<{ rating: number }>('SELECT rating FROM theme_stats WHERE user_id = $1 AND theme_id = $2', [
       userId,

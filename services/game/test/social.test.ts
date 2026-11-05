@@ -366,4 +366,58 @@ describe('classements réels', () => {
     await ok(call(me, 'PATCH', '/api/me/profile', { country: null }));
     expect((await country()).rows).toEqual([]);
   });
+
+  it('semaine : XP gagnée depuis lundi, ma position même hors du haut du classement ; région et à proximité', async () => {
+    const me = await user('Moi');
+    const a = await user('Alice');
+    const b = await user('Bruno');
+    const c = await user('Chloe');
+    for (const [u, xp] of [
+      [me, 50],
+      [a, 300],
+      [b, 200],
+      [c, 100],
+    ] as const) {
+      await db.query(
+        `INSERT INTO daily_quests (user_id, day, quest_id, position, kind, label, goal, reward, progress, completed_at)
+         VALUES ($1, current_date, 'play', 0, 'play', 'Joue 3 matchs', 3, $2, 3, now())`,
+        [u.id, xp],
+      );
+    }
+    type Row = { user: UserSummary; rank: number; rating: number; isMe: boolean };
+    type Board = { rows: Row[]; me: Row | null; week?: { startsAt: number; endsAt: number } };
+    const board = (q: string) => ok(call<Board>(me, 'GET', `/api/leaderboard?period=week${q}`));
+
+    const top2 = await board('&limit=2');
+    expect(top2.rows.map((r) => r.user.pseudo)).toEqual(['Alice', 'Bruno']);
+    expect(top2.me).toMatchObject({ rank: 4, rating: 50, isMe: true });
+    expect(new Date(top2.week!.startsAt).getUTCDay()).toBe(1);
+    expect(top2.week!.endsAt - top2.week!.startsAt).toBe(7 * 86_400_000);
+    expect(top2.week!.endsAt).toBeGreaterThan(Date.now());
+    // Un duel d'un thème ne compte pas les défis du jour.
+    expect((await board('&theme=geo-capitales')).rows).toEqual([]);
+
+    // Région : même pays et même région.
+    expect((await board('&scope=region')).rows).toEqual([]);
+    const mine = await ok(call<PublicProfile>(me, 'PATCH', '/api/me/profile', { country: 'FR', region: 'Bretagne' }));
+    expect(mine.region).toBe('Bretagne');
+    await ok(call(b, 'PATCH', '/api/me/profile', { country: 'FR', region: 'Bretagne' }));
+    await ok(call(a, 'PATCH', '/api/me/profile', { country: 'FR', region: 'Normandie' }));
+    expect((await board('&scope=region')).rows.map((r) => r.user.pseudo)).toEqual(['Bruno', 'Moi']);
+
+    // À proximité : position arrondie, rayon de 50 km.
+    expect((await call(me, 'PATCH', '/api/me/profile', { location: { lat: 120, lon: 0 } })).status).toBe(400);
+    const located = await ok(call<PublicProfile>(me, 'PATCH', '/api/me/profile', { location: { lat: 48.1173, lon: -1.6778 } }));
+    expect(located.hasLocation).toBe(true);
+    await ok(call(c, 'PATCH', '/api/me/profile', { location: { lat: 48.2, lon: -1.5 } }));
+    await ok(call(a, 'PATCH', '/api/me/profile', { location: { lat: 43.6, lon: 1.44 } }));
+    expect((await board('&scope=nearby')).rows.map((r) => r.user.pseudo)).toEqual(['Chloe', 'Moi']);
+    const [{ geo_lat }] = await db.query<{ geo_lat: number }>('SELECT geo_lat FROM profiles WHERE user_id = $1', [me.id]);
+    expect(geo_lat).toBeCloseTo(48.1, 5);
+    // Ni la région ni la position d'un autre joueur ne sont renvoyées.
+    const other = await ok(call<PublicProfile>(me, 'GET', `/api/users/${c.id}`));
+    expect('hasLocation' in other || 'region' in other).toBe(false);
+    await ok(call(me, 'PATCH', '/api/me/profile', { location: null }));
+    expect((await board('&scope=nearby')).rows).toEqual([]);
+  });
 });

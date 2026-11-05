@@ -100,7 +100,14 @@ export class Notifier {
       if (!(await this.prefs(userId)).push[category]) return null;
       const [latest] = await this.list(userId);
       if (!latest) return null;
-      return { title: 'Qu1z', body: notificationText(latest), data: { kind: 'notification', notificationId: latest.id }, channelId: 'community' };
+      const challengeId = typeof latest.data.challengeId === 'string' ? latest.data.challengeId : null;
+      return {
+        title: 'Qu1z',
+        body: notificationText(latest),
+        // Un défi s'ouvre directement sur sa page (qu1z://defi/{id}).
+        data: { kind: 'notification', notificationId: latest.id, ...(challengeId ? { challengeId } : {}) },
+        channelId: 'community',
+      };
     });
   }
 

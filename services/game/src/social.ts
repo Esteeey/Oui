@@ -11,6 +11,9 @@ import {
   isSticker,
   levelFromXp,
   seasonOf,
+  weekOf,
+  NEARBY_KM,
+  LOCATION_PRECISION_DEG,
   unlockedTitles,
   type ActivityView,
   type CommentView,
@@ -113,9 +116,18 @@ export class Social {
 
   async profile(viewer: string, targetId: string): Promise<PublicProfile> {
     const [row] = await this.db.query<
-      SummaryRow & { bio: string; is_private: boolean; show_followers: boolean; show_following: boolean; cover_key: string | null; country: string | null }
+      SummaryRow & {
+        bio: string;
+        is_private: boolean;
+        show_followers: boolean;
+        show_following: boolean;
+        cover_key: string | null;
+        country: string | null;
+        region: string | null;
+        geo_lat: number | null;
+      }
     >(
-      `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following, p.country,
+      `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following, p.country, p.region, p.geo_lat,
          (SELECT storage_key FROM media WHERE id = p.cover_media_id AND removed_by_moderation_at IS NULL) AS cover_key
        FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 AND u.status <> 'banned'`,
       [targetId],
@@ -164,7 +176,7 @@ export class Social {
       canSeeFollowers: isMe || (canSeeContent && row.show_followers),
       canSeeFollowing: isMe || (canSeeContent && row.show_following),
       cover: mediaUrl(row.cover_key),
-      ...(isMe ? { country: row.country } : {}),
+      ...(isMe ? { country: row.country, region: row.region, hasLocation: row.geo_lat !== null } : {}),
     };
   }
 
@@ -182,6 +194,8 @@ export class Social {
       showFollowing?: unknown;
       equippedTitle?: unknown;
       country?: unknown;
+      region?: unknown;
+      location?: unknown;
     },
   ): Promise<PublicProfile> {
     await this.db.transaction(async (tx) => {
@@ -218,6 +232,24 @@ export class Social {
       if (patch.country !== undefined) {
         if (patch.country !== null && !isCountryCode(patch.country)) throw new SocialError(400, 'invalid_country');
         await tx.query('UPDATE profiles SET country = $2 WHERE user_id = $1', [userId, patch.country]);
+      }
+      if (patch.region !== undefined) {
+        const region = patch.region === null ? null : String(patch.region).trim();
+        if (region !== null && (region.length < 1 || region.length > 60)) throw new SocialError(400, 'invalid_region');
+        await tx.query('UPDATE profiles SET region = $2 WHERE user_id = $1', [userId, region]);
+      }
+      // Position approximative (arrondie à ~11 km), seulement pour le classement « À proximité ».
+      if (patch.location !== undefined) {
+        if (patch.location === null) {
+          await tx.query('UPDATE profiles SET geo_lat = NULL, geo_lon = NULL WHERE user_id = $1', [userId]);
+        } else {
+          const { lat, lon } = patch.location as { lat?: unknown; lon?: unknown };
+          if (typeof lat !== 'number' || typeof lon !== 'number' || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180)) {
+            throw new SocialError(400, 'invalid_location');
+          }
+          const round = (v: number) => Math.round(v / LOCATION_PRECISION_DEG) * LOCATION_PRECISION_DEG;
+          await tx.query('UPDATE profiles SET geo_lat = $2, geo_lon = $3 WHERE user_id = $1', [userId, round(lat), round(lon)]);
+        }
       }
       if (patch.equippedTitle !== undefined) {
         const title = patch.equippedTitle === null ? null : String(patch.equippedTitle);
@@ -653,35 +685,52 @@ export class Social {
     scope: LeaderboardScope,
     limit = 100,
     period: LeaderboardPeriod = 'rating',
-  ): Promise<LeaderboardRow[]> {
+  ): Promise<{ rows: LeaderboardRow[]; me: LeaderboardRow | null }> {
     // Par thème : la cote du thème ; général : moyenne des 3 meilleurs thèmes ($2 nul).
     const ratingSql = `SELECT user_id, rating FROM theme_stats WHERE $2::text IS NOT NULL AND theme_id = $2
       UNION ALL
       SELECT user_id, round(avg(rating))::int AS rating FROM (
         SELECT user_id, rating, row_number() OVER (PARTITION BY user_id ORDER BY rating DESC) AS rn FROM theme_stats
       ) t WHERE $2::text IS NULL AND rn <= 3 GROUP BY user_id`;
-    // Saison : XP gagnée pendant le mois en cours (dans le thème s'il est donné).
-    const season = seasonOf(Date.now());
-    const seasonSql = `SELECT d.user_id, sum(d.xp_awarded)::int AS rating FROM duel_results d JOIN duels du ON du.id = d.duel_id
-      WHERE d.created_at >= $5 AND d.created_at < $6 AND ($2::text IS NULL OR du.theme_id = $2)
-      GROUP BY d.user_id HAVING sum(d.xp_awarded) > 0`;
-    const rows = await this.db.query<SummaryRow & { rating: number }>(
-      `WITH ratings AS (${period === 'season' ? seasonSql : ratingSql})
-       SELECT ${SUMMARY_COLUMNS}, r.rating FROM ratings r JOIN users u ON u.id = r.user_id JOIN profiles p ON p.user_id = u.id
-       WHERE u.status <> 'banned' AND ${notBlocked('u.id')}
-         AND ($3::text = 'world'
-           OR ($3 = 'following' AND (u.id = $1 OR u.id IN (SELECT followee_id FROM follows WHERE follower_id = $1)))
-           -- Pays : jamais de classement pour qui n'a pas choisi de pays (l'égalité avec NULL est fausse).
-           OR ($3 = 'country' AND p.country = (SELECT country FROM profiles WHERE user_id = $1)))
-       ORDER BY r.rating DESC, u.id LIMIT $4`,
+    // Saison (le mois) ou semaine (du lundi 00:00 UTC) : XP gagnée pendant la période, dans le thème s'il est donné.
+    // Le classement général compte aussi les récompenses des défis du jour.
+    const window = period === 'week' ? weekOf(Date.now()) : seasonOf(Date.now());
+    const periodSql = `SELECT user_id, sum(xp)::int AS rating FROM (
+        SELECT d.user_id, d.xp_awarded AS xp FROM duel_results d JOIN duels du ON du.id = d.duel_id
+        WHERE d.created_at >= $5 AND d.created_at < $6 AND ($2::text IS NULL OR du.theme_id = $2)
+        UNION ALL
+        SELECT q.user_id, q.reward AS xp FROM daily_quests q
+        WHERE $2::text IS NULL AND $7::boolean AND q.completed_at >= $5 AND q.completed_at < $6
+      ) x GROUP BY user_id HAVING sum(xp) > 0`;
+    const ranked = await this.db.query<SummaryRow & { rating: number; rn: number }>(
+      `WITH ratings AS (${period === 'rating' ? ratingSql : periodSql}),
+       me AS (SELECT country, region, geo_lat, geo_lon FROM profiles WHERE user_id = $1),
+       ranked AS (
+         SELECT ${SUMMARY_COLUMNS}, r.rating, row_number() OVER (ORDER BY r.rating DESC, u.id) AS rn
+         FROM ratings r JOIN users u ON u.id = r.user_id JOIN profiles p ON p.user_id = u.id, me
+         WHERE u.status <> 'banned' AND ${notBlocked('u.id')}
+           AND ($3::text = 'world'
+             OR ($3 = 'following' AND (u.id = $1 OR u.id IN (SELECT followee_id FROM follows WHERE follower_id = $1)))
+             -- Pays, région, position : jamais de classement pour qui ne les a pas choisis (l'égalité avec NULL est fausse).
+             OR ($3 = 'country' AND p.country = me.country)
+             OR ($3 = 'region' AND p.country = me.country AND p.region = me.region)
+             OR ($3 = 'nearby' AND p.geo_lat IS NOT NULL AND me.geo_lat IS NOT NULL
+               AND 6371 * 2 * asin(sqrt(
+                 power(sin(radians(p.geo_lat - me.geo_lat) / 2), 2)
+                 + cos(radians(me.geo_lat)) * cos(radians(p.geo_lat)) * power(sin(radians(p.geo_lon - me.geo_lon) / 2), 2)
+               )) <= ${NEARBY_KM}))
+       )
+       SELECT * FROM ranked WHERE rn <= $4 OR id = $1 ORDER BY rn`,
       [
         viewer,
         themeId,
         scope,
         Math.min(Math.max(1, limit), 100),
-        ...(period === 'season' ? [new Date(season.startsAt), new Date(season.endsAt)] : []),
+        ...(period === 'rating' ? [] : [new Date(window.startsAt), new Date(window.endsAt), period === 'week']),
       ],
     );
-    return rows.map((r, i) => ({ rank: i + 1, user: summary(r), rating: r.rating, isMe: r.id === viewer }));
+    const all = ranked.map((r) => ({ rank: Number(r.rn), user: summary(r), rating: r.rating, isMe: r.id === viewer }));
+    const top = Math.min(Math.max(1, limit), 100);
+    return { rows: all.filter((r) => r.rank <= top), me: all.find((r) => r.isMe) ?? null };
   }
 }

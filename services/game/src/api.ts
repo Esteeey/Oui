@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { MEDIA_MAX_BYTES, THEMES, seasonOf, type Restriction } from '@qu1z/shared';
+import { MEDIA_MAX_BYTES, SOUND_MAX_BYTES, THEMES, seasonOf, weekOf, type LeaderboardPeriod, type LeaderboardScope, type Restriction } from '@qu1z/shared';
 
 import { randomUUID } from 'node:crypto';
 
@@ -42,15 +42,15 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   return parsed;
 }
 
-/** Corps binaire (envoi d'image). La taille est vérifiée pendant la lecture, sans tout charger d'abord. */
-async function readRaw(req: IncomingMessage): Promise<Buffer> {
+/** Corps binaire (image, son). La taille est vérifiée pendant la lecture, sans tout charger d'abord. */
+async function readRaw(req: IncomingMessage, maxBytes = MEDIA_MAX_BYTES): Promise<Buffer> {
   const declared = Number(req.headers['content-length']);
-  if (declared > MEDIA_MAX_BYTES) throw new SocialError(413, 'too_large');
+  if (declared > maxBytes) throw new SocialError(413, 'too_large');
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MEDIA_MAX_BYTES) throw new SocialError(413, 'too_large');
+    if (size > maxBytes) throw new SocialError(413, 'too_large');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -93,7 +93,8 @@ type Handler = (ctx: {
   params: string[];
   query: URLSearchParams;
   body: () => Promise<Record<string, unknown>>;
-  raw: () => Promise<Buffer>;
+  /** Corps binaire ; `maxBytes` : plafond (par défaut celui des images). */
+  raw: (maxBytes?: number) => Promise<Buffer>;
   token: string;
 }) => Promise<unknown>;
 
@@ -411,6 +412,7 @@ export function createApi(
       const b = await body();
       return challenges.create(userId, uuid(b.userId), String(b.themeId ?? ''), b.rematchOf ? uuid(b.rematchOf) : undefined);
     }],
+    ['GET', /^\/api\/challenges\/([0-9a-f-]{36})$/, async ({ userId, params }) => challenges.view(userId, uuid(params[0]))],
     ['POST', /^\/api\/challenges\/([^/]+)\/accept$/, async ({ userId, params }) => challenges.accept(userId, uuid(params[0]))],
     ['POST', /^\/api\/challenges\/([^/]+)\/decline$/, async ({ userId, params }) => challenges.decline(userId, uuid(params[0]))],
     ['POST', /^\/api\/challenges\/([^/]+)\/cancel$/, async ({ userId, params }) => challenges.cancel(userId, uuid(params[0]))],
@@ -419,7 +421,7 @@ export function createApi(
     ['GET', /^\/api\/sounds$/, async () => ({ sounds: await sounds.overrides() })],
     ['GET', /^\/api\/admin\/sounds$/, async ({ userId }) => ({ sounds: await sounds.list(userId) })],
     ['PUT', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params, query, raw }) =>
-      sounds.set(userId, params[0], await raw(), query.get('name'))],
+      sounds.set(userId, params[0], await raw(SOUND_MAX_BYTES), query.get('name'))],
     ['DELETE', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params }) => sounds.reset(userId, params[0])],
 
     // Annonces officielles : publiées uniquement par un administrateur.
@@ -451,19 +453,21 @@ export function createApi(
       return { ...row, createdAt: new Date(row.created_at).getTime() };
     }],
 
+    // Défis du jour : 3 objectifs, leur avancée et le prochain minuit.
+    ['GET', /^\/api\/quests$/, async ({ userId }) => game.quests.list(userId)],
+
     // Classements
     ['GET', /^\/api\/leaderboard$/, async ({ userId, query }) => {
-      const period = query.get('period') === 'season' ? 'season' : 'rating';
+      const p = query.get('period');
+      const period: LeaderboardPeriod = p === 'season' || p === 'week' ? p : 'rating';
       if (period === 'season') await medals.closeFinishedSeasons();
+      const s = query.get('scope');
+      const scope: LeaderboardScope = s === 'following' || s === 'country' || s === 'region' || s === 'nearby' ? s : 'world';
+      const board = await social.leaderboard(userId, query.get('theme') || null, scope, Number(query.get('limit')) || 100, period);
       return {
-        rows: await social.leaderboard(
-          userId,
-          query.get('theme') || null,
-          query.get('scope') === 'following' || query.get('scope') === 'country' ? (query.get('scope') as 'following' | 'country') : 'world',
-          Number(query.get('limit')) || 100,
-          period,
-        ),
+        ...board,
         ...(period === 'season' ? { season: seasonOf(Date.now()) } : {}),
+        ...(period === 'week' ? { week: weekOf(Date.now()) } : {}),
       };
     }],
   ];
@@ -552,7 +556,7 @@ export function createApi(
           params: match.slice(1).map(decodeURIComponent),
           query: url.searchParams,
           body: () => readBody(req),
-          raw: () => readRaw(req),
+          raw: (maxBytes) => readRaw(req, maxBytes),
           token,
         });
         return json(res, 200, result ?? { ok: true });

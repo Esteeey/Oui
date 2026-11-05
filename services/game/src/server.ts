@@ -156,9 +156,13 @@ export async function startServer(port: number, options: ServerOptions): Promise
         case 'cancelQueue':
           return game.cancelQueue(playerId);
         case 'answer':
-          return game.answer(playerId, str(msg.duelId), num(msg.index), num(msg.choice));
+          return game.answer(playerId, str(msg.duelId), num(msg.index), num(msg.choice), msg.elapsedMs === undefined ? undefined : num(msg.elapsedMs));
         case 'forfeit':
           return game.forfeit(playerId, str(msg.duelId));
+        case 'duelChat':
+          return game.duelChat(playerId, str(msg.duelId), str(msg.text));
+        case 'duelChatHistory':
+          return game.duelChatHistory(playerId, str(msg.duelId));
         case 'ackResult':
           return game.ackResult(playerId, str(msg.duelId));
         default:
