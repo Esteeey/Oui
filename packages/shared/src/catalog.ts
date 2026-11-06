@@ -69,7 +69,36 @@ export const THEMES: Theme[] = [
     name: 'Le monde animal',
     description: 'Records, curiosités et habitudes des animaux.',
   },
+  {
+    id: 'music-hits',
+    categoryId: 'musique',
+    name: 'Hits et artistes',
+    description: 'Chansons, albums et artistes qui ont marqué la musique.',
+  },
+  {
+    id: 'gaming-cult',
+    categoryId: 'jeux-video',
+    name: 'Jeux vidéo cultes',
+    description: 'Consoles, studios et jeux qui ont marqué plusieurs générations.',
+  },
+  {
+    id: 'food-world',
+    categoryId: 'gastronomie',
+    name: 'Saveurs du monde',
+    description: 'Spécialités, ingrédients et traditions culinaires.',
+  },
+  {
+    id: 'tech-inventions',
+    categoryId: 'technologie',
+    name: 'Inventions et technologie',
+    description: 'Les idées et outils qui ont transformé notre quotidien.',
+  },
 ];
+
+export function registerTheme(theme: Theme): void {
+  const index = THEMES.findIndex((item) => item.id === theme.id);
+  if (index < 0) THEMES.push(theme); else THEMES[index] = theme;
+}
 
 export function getCategory(id: string): Category | undefined {
   return CATEGORIES.find((c) => c.id === id);

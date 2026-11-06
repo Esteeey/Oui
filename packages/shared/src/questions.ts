@@ -1,4 +1,5 @@
 import type { Difficulty, Question } from './types';
+import { EXTRA_QUESTIONS } from './extra-questions';
 
 /**
  * Premier jeu de questions, rédigé pour Qu1z (prototype).
@@ -189,7 +190,13 @@ export const QUESTIONS: Question[] = [
   ...sportsJo,
   ...histGrandesDates,
   ...natureAnimaux,
+  ...EXTRA_QUESTIONS,
 ];
+
+export function registerThemeQuestions(themeId: string, questions: Question[]): void {
+  for (let index = QUESTIONS.length - 1; index >= 0; index--) { if (QUESTIONS[index].themeId === themeId) QUESTIONS.splice(index, 1); }
+  QUESTIONS.push(...questions);
+}
 
 export function questionsOf(themeId: string): Question[] {
   return QUESTIONS.filter((q) => q.themeId === themeId);

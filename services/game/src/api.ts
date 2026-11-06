@@ -19,6 +19,7 @@ import { Medals } from './medals';
 import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
 import { GameSounds } from './sounds';
+import { ThemeCatalog } from './theme-catalog';
 
 const MAX_BODY = 16 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -116,6 +117,7 @@ export function createApi(
   accounts: Accounts,
   push: Push,
   deletion: AccountDeletion,
+  themeCatalog: ThemeCatalog,
 ) {
   const medals = new Medals(game.repo.db);
   const sounds = new GameSounds(game.repo.db);
@@ -281,6 +283,10 @@ export function createApi(
       return { ok: true };
     }],
 
+    ['GET', /^\/api\/theme-catalog$/, async () => ({ themes: await themeCatalog.list() })],
+    ['POST', /^\/api\/admin\/themes$/, async ({ userId, body }) => themeCatalog.create(userId, await body())],
+    ['PUT', /^\/api\/admin\/themes\/([^/]+)\/(icon|cover)$/, async ({ userId, params, raw }) => themeCatalog.setAsset(userId, params[0], params[1] as 'icon' | 'cover', await raw(MEDIA_MAX_BYTES))],
+    ['POST', /^\/api\/admin\/themes\/([^/]+)\/publish$/, async ({ userId, params }) => ({ theme: await themeCatalog.publish(userId, params[0]) })],
     // Thèmes
     ['GET', /^\/api\/themes$/, async ({ userId }) => ({ themes: await social.themeInfo(userId, THEMES.map((t) => t.id)) })],
     ['PUT', /^\/api\/themes\/([^/]+)\/subscription$/, async ({ userId, params }) => social.setThemeSubscription(userId, params[0], true)],

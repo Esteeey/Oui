@@ -18,6 +18,7 @@ import { gifProviderFromEnv, type GifProvider } from './gifs';
 import { Media, MemoryStore, type MediaStore } from './media';
 import { Notifier } from './notifier';
 import { Social } from './social';
+import { ThemeCatalog } from './theme-catalog';
 
 const HEARTBEAT_MS = 10_000;
 
@@ -66,11 +67,14 @@ export async function startServer(port: number, options: ServerOptions): Promise
     for (const ws of sockets.get(playerId) ?? []) if (ws.readyState === WebSocket.OPEN) ws.send(data);
   };
 
+  const mediaStore = options.mediaStore ?? new MemoryStore();
+  const themeCatalog = new ThemeCatalog(options.repo.db, mediaStore);
+  await themeCatalog.load();
   const game = new Game({ ...options, send });
   await game.restore();
   const notifier = new Notifier(game.repo.db, send);
   game.notifier = notifier;
-  const media = new Media(game.repo.db, options.mediaStore ?? new MemoryStore(), game.limiter);
+  const media = new Media(game.repo.db, mediaStore, game.limiter);
   const gifs = options.gifs === undefined ? gifProviderFromEnv() : options.gifs;
   const social = new Social(game.repo.db, game.limiter, notifier, media);
   const challenges = new Challenges(game.repo.db, game, notifier);
@@ -99,7 +103,7 @@ export async function startServer(port: number, options: ServerOptions): Promise
     for (const ws of sockets.get(userId) ?? []) ws.close();
   });
   const accounts = new Accounts(game.repo.db, game.limiter, options.email ?? emailSenderFromEnv(), options.requireVerifiedEmail ?? false);
-  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation, accounts, push, deletion);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation, accounts, push, deletion, themeCatalog);
   const sweep = setInterval(() => {
     void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err));
     void deletion.purgeExpired().catch((err) => console.error('Purge des comptes supprimés', err));

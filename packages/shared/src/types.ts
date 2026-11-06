@@ -29,6 +29,9 @@ export interface Theme {
   categoryId: CategoryId;
   name: string;
   description: string;
+  iconUrl?: string | null;
+  coverUrl?: string | null;
+  questionCount?: number;
 }
 
 export type Difficulty = 1 | 2 | 3;
