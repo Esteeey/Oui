@@ -67,6 +67,7 @@ export default function ResultsScreen() {
   const duel = game.duel;
   const [details, setDetails] = useState(false);
   const [rematch, setRematch] = useState<string | null>(null);
+  const [rematchBusy, setRematchBusy] = useState(false);
 
   useEffect(() => {
     if (duel?.phase === 'finished' && duel.result) game.ackResult(duel.duelId);
@@ -145,11 +146,22 @@ export default function ResultsScreen() {
   const banner = BANNER[result.outcome];
   const record = result.record;
 
-  const replay = () => {
-    const req = game.lastRequest?.themeId === duel.themeId ? game.lastRequest : null;
-    const params: Record<string, string> = { themeId: duel.themeId };
-    if (req?.mode === 'pvp') params.mode = 'pvp';
-    router.replace({ pathname: '/duel/[themeId]', params: params as { themeId: string } });
+  const replay = async () => {
+    if (!duel.challenge || rematchBusy) return;
+    setRematchBusy(true);
+    setRematch(null);
+    try {
+      const response = await api<{ playDuelId: string | null }>('POST', '/api/challenges', {
+        userId: duel.opponent.id,
+        themeId: duel.themeId,
+        rematchOf: duel.duelId,
+      });
+      setRematch(response.playDuelId ? 'La revanche démarre…' : `Une revanche est déjà proposée à ${duel.opponent.name}.`);
+    } catch (e) {
+      setRematch(errorMessage(e));
+    } finally {
+      setRematchBusy(false);
+    }
   };
   const share = () =>
     Share.share({
@@ -243,25 +255,15 @@ export default function ResultsScreen() {
           {/* XP du thème joué (le niveau est calculé par thème), remplie segment par segment. */}
           <XpProgress xpBefore={record.xpBefore} rewards={result.rewards} delayMs={1500} durationMs={XP_SOUND_MS} />
 
-          <ReplayButton onPress={replay} />
-          {!duel.opponent.isBot && (
-            <Tap
-              accessibilityRole="button"
-              onPress={() =>
-                api('POST', '/api/challenges', { userId: duel.opponent.id, themeId: duel.themeId, rematchOf: duel.duelId })
-                  .then((r) => setRematch((r as { playDuelId?: string | null }).playDuelId ? null : `Revanche déjà proposée à ${duel.opponent.name}.`))
-                  .catch((e) => setRematch(errorMessage(e)))
-              }
-              style={styles.rematch}>
-              <AppText variant="label" color={PINK}>
-                Revanche contre {duel.opponent.name}
-              </AppText>
-            </Tap>
-          )}
-          {rematch && (
-            <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
-              {rematch}
-            </AppText>
+          {duel.challenge && (
+            <>
+              <ReplayButton onPress={replay} />
+              {rematch && (
+                <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
+                  {rematch}
+                </AppText>
+              )}
+            </>
           )}
 
           {!duel.opponent.isBot && !duel.challenge && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
@@ -457,7 +459,6 @@ const styles = StyleSheet.create({
   levelText: { color: R.text, fontSize: 17, fontWeight: '800' },
   track: { height: 16, borderRadius: 999, backgroundColor: '#2A2A2E', overflow: 'hidden' },
   secondary: { flexDirection: 'row', gap: 12 },
-  rematch: { alignItems: 'center', justifyContent: 'center', minHeight: 44, borderWidth: 1.5, borderColor: PINK, borderRadius: 10 },
   secondaryButton: { flex: 1, height: 54, borderRadius: 10, backgroundColor: '#111113', alignItems: 'center', justifyContent: 'center' },
   detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Spacing.sm },
   detail: { borderTopWidth: 1, borderTopColor: R.line, paddingTop: Spacing.sm, gap: 6 },
