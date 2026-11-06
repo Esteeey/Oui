@@ -1,5 +1,6 @@
 import type { Difficulty, Question } from './types';
 import { EXTRA_QUESTIONS } from './extra-questions';
+import { GENERATED_QUESTIONS } from './generated-questions';
 
 /**
  * Premier jeu de questions, rédigé pour Qu1z (prototype).
@@ -181,7 +182,7 @@ const natureAnimaux = buildTimed('nature-animaux', [
   ['Jusqu’à quel âge peut vivre une tortue géante ?', 'Plus de 150 ans', 'Environ 50 ans', 'Environ 80 ans', 'Environ 30 ans', 3, 2],
 ]);
 
-export const QUESTIONS: Question[] = [
+const LEGACY_QUESTIONS: Question[] = [
   ...cgMelange,
   ...geoCapitales,
   ...geoDrapeaux,
@@ -191,6 +192,12 @@ export const QUESTIONS: Question[] = [
   ...histGrandesDates,
   ...natureAnimaux,
   ...EXTRA_QUESTIONS,
+];
+
+const GENERATED_THEME_IDS = new Set(GENERATED_QUESTIONS.map((question) => question.themeId));
+export const QUESTIONS: Question[] = [
+  ...GENERATED_QUESTIONS,
+  ...LEGACY_QUESTIONS.filter((question) => !GENERATED_THEME_IDS.has(question.themeId)),
 ];
 
 export function registerThemeQuestions(themeId: string, questions: Question[]): void {

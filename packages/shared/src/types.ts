@@ -14,7 +14,8 @@ export type CategoryId =
   | 'technologie'
   | 'mode-luxe'
   | 'litterature-bd'
-  | 'culture-pop';
+  | 'culture-pop'
+  | 'marques';
 
 export interface Category {
   id: CategoryId;

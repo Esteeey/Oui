@@ -17,6 +17,7 @@ export const CATEGORIES: Category[] = [
   { id: 'mode-luxe', name: 'Mode et luxe', icon: '👜', color: '#E7C26B' },
   { id: 'litterature-bd', name: 'Littérature et BD', icon: '📚', color: '#C9845A' },
   { id: 'culture-pop', name: 'Culture pop', icon: '⚡', color: '#FFD23F' },
+  { id: 'marques', name: 'Logos et marques', icon: '🏷️', color: '#67D5C6' },
 ];
 
 export const THEMES: Theme[] = [
@@ -93,6 +94,24 @@ export const THEMES: Theme[] = [
     name: 'Inventions et technologie',
     description: 'Les idées et outils qui ont transformé notre quotidien.',
   },
+  { id: "nature-faune", categoryId: "animaux-nature", name: "Faune remarquable", description: "Animaux, comportements et records du monde vivant.", questionCount: 50 },
+  { id: "culture-logique", categoryId: "culture-generale", name: "Logique et énigmes", description: "Questions de raisonnement et casse-têtes.", questionCount: 50 },
+  { id: "culture-celebrites", categoryId: "culture-pop", name: "Célébrités", description: "Personnalités célèbres du monde entier.", questionCount: 50 },
+  { id: "culture-divertissement", categoryId: "culture-pop", name: "Divertissement", description: "Loisirs, spectacles et culture populaire.", questionCount: 50 },
+  { id: "culture-familial", categoryId: "culture-generale", name: "Quiz en famille", description: "Questions accessibles à partager en famille.", questionCount: 50 },
+  { id: "histoire-antique", categoryId: "histoire", name: "Antiquité et civilisations", description: "Civilisations et repères de l’Antiquité.", questionCount: 50 },
+  { id: "histoire-moderne", categoryId: "histoire", name: "Repères historiques", description: "Dates et événements qui ont marqué l’histoire.", questionCount: 50 },
+  { id: "loisirs-passe-temps", categoryId: "culture-pop", name: "Loisirs et passe-temps", description: "Activités, jeux et loisirs du quotidien.", questionCount: 50 },
+  { id: "humanites", categoryId: "culture-generale", name: "Arts et humanités", description: "Arts, idées et grandes figures de la pensée.", questionCount: 50 },
+  { id: "litterature-auteurs", categoryId: "litterature-bd", name: "Auteurs et littérature", description: "Écrivains et repères littéraires.", questionCount: 50 },
+  { id: "litterature-oeuvres", categoryId: "litterature-bd", name: "Œuvres littéraires", description: "Romans, personnages et œuvres célèbres.", questionCount: 50 },
+  { id: "cinema-acteurs", categoryId: "cinema", name: "Acteurs et cinéma", description: "Acteurs, rôles et histoire du cinéma.", questionCount: 50 },
+  { id: "musique-artistes", categoryId: "musique", name: "Artistes et musique", description: "Musiciens, chansons et albums.", questionCount: 50 },
+  { id: "musique-cultures", categoryId: "musique", name: "Cultures musicales", description: "Genres, instruments et traditions musicales.", questionCount: 50 },
+  { id: "personnalites", categoryId: "culture-pop", name: "Personnalités", description: "Figures connues et parcours remarquables.", questionCount: 50 },
+  { id: "mythes-religions", categoryId: "histoire", name: "Mythes et religions", description: "Récits mythologiques et traditions religieuses.", questionCount: 50 },
+  { id: "sports-equipes", categoryId: "sports", name: "Sports et équipes", description: "Compétitions, équipes et disciplines sportives.", questionCount: 50 },
+  { id: "logos-marques", categoryId: "marques", name: "Logos des marques", description: "Reconnais une marque à son logo.", questionCount: 50 },
 ];
 
 export function registerTheme(theme: Theme): void {
