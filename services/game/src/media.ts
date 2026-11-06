@@ -79,8 +79,8 @@ export const mediaUrl = (key: string | null | undefined): string | null => (key 
 
 /** Dimensions maximales après redimensionnement. */
 const MAX_SIDE = { message: 1600, post: 1600, avatar: 512, group: 512, cover: 1500 } as const;
-/** Images recadrées (largeur / hauteur) : photos de profil et de groupe en carré, couverture en bandeau. */
-const CROP_RATIO: Partial<Record<MediaPurpose, number>> = { avatar: 1, group: 1, cover: 3 };
+/** Images recadrées (largeur / hauteur) : photos de profil, de groupe et de couverture en carré. */
+const CROP_RATIO: Partial<Record<MediaPurpose, number>> = { avatar: 1, group: 1, cover: 1 };
 const MAX_ANIMATED_SIDE = 720;
 const MAX_INPUT_PIXELS = 40_000_000;
 const MAX_FRAMES = 300;
@@ -106,7 +106,7 @@ export const mediaView = (r: MediaRow): MediaView => ({
 /**
  * Envoi de médias : type vérifié sur le contenu (pas sur l'extension ni l'en-tête), 8 Mo maximum,
  * métadonnées (EXIF, GPS…) supprimées, orientation appliquée, image redimensionnée et réencodée en WebP.
- * Un GIF animé reste animé (WebP animé) ; une photo de profil est recadrée en carré, une couverture en bandeau.
+ * Un GIF animé reste animé (WebP animé) ; les photos de profil, de groupe et de couverture sont recadrées en carré.
  */
 export class Media {
   constructor(
