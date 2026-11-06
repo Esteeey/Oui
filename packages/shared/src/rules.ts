@@ -7,8 +7,8 @@
  * 3. les 4 réponses apparaissent, le chrono démarre `choicesLeadMs` (400 ms) plus tard ;
  * 4. chrono de 10 s, le temps écoulé est mesuré depuis le début du chrono ;
  * 5. la manche se termine quand les deux joueurs ont répondu ou quand les 10 s sont écoulées (pas de réponse = faux) ;
- * 6. révélation (bonne réponse en vert, mauvaise en rouge, réponse de l'adversaire) pendant `revealMs` (1500 ms) ;
- * 7. pause de `transitionMs` (1500 ms), puis manche suivante.
+ * 6. révélation (bonne réponse en vert, mauvaise en rouge, réponse de l'adversaire) pendant `revealMs` (1000 ms) ;
+ * 7. pause de `transitionMs` (500 ms), puis manche suivante.
  */
 export const RULES = {
   questionsPerDuel: 7,
@@ -24,13 +24,13 @@ export const RULES = {
   /** Temps de lecture supplémentaire pour regarder une illustration. */
   imageReadingBonusMs: 1_000,
   /** Affichage de la bonne réponse et du choix de l'adversaire. */
-  revealMs: 1_500,
+  revealMs: 1_000,
   /** Pause (fondu au noir) après la révélation, avant la manche suivante. */
-  transitionMs: 1_500,
+  transitionMs: 500,
   /** Écran « Manche N » au début de chaque question, avant l'énoncé. */
   roundCardMs: 2_000,
   /** Présentation des deux joueurs avant la première question. */
-  introMs: 3_500,
+  introMs: 6_500,
 
   /** Multiplicateur de la dernière question. */
   lastQuestionMultiplier: 2,
