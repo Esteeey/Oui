@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
-import { CATEGORIES, RULES, registerTheme, registerThemeQuestions, type CategoryId, type Question, type Theme } from '@qu1z/shared';
+import { CATEGORIES, RULES, THEMES, registerTheme, registerThemeQuestions, type CategoryId, type Question, type Theme } from '@qu1z/shared';
 import type { Database } from './db/database';
 import type { MediaStore } from './media';
 import { SocialError } from './social';
@@ -9,7 +9,7 @@ type QuestionInput = { text: string; choices: [string, string, string, string]; 
 type Row = { id: string; category_id: CategoryId; name: string; description: string; questions: QuestionInput[]; icon_key: string | null; cover_key: string | null; published: boolean };
 type AssetKind = 'icon' | 'cover';
 const slug = (id: string) => 'custom-' + id;
-const imageKey = (id: string, kind: AssetKind) => 'theme' + (kind === 'icon' ? 'icons' : 'covers') + '/' + id.replaceAll('-', '') + '.webp';
+const imageKey = (kind: AssetKind) => 'theme' + (kind === 'icon' ? 'icons' : 'covers') + '/' + randomUUID().replaceAll('-', '') + '.webp';
 
 export class ThemeCatalog {
   constructor(private readonly db: Database, private readonly store: MediaStore) {}
@@ -29,10 +29,21 @@ export class ThemeCatalog {
   async load(): Promise<void> {
     const rows = await this.db.query<Row>('SELECT * FROM custom_themes WHERE published = true ORDER BY created_at');
     for (const row of rows) { registerTheme(this.theme(row)); registerThemeQuestions(slug(row.id), this.questions(row)); }
+    const overrides = await this.db.query<{ theme_id: string; icon_key: string | null; cover_key: string | null }>('SELECT theme_id, icon_key, cover_key FROM theme_asset_overrides');
+    for (const override of overrides) {
+      const base = THEMES.find((theme) => theme.id === override.theme_id && !theme.id.startsWith('custom-'));
+      if (base) registerTheme({ ...base, iconUrl: override.icon_key ? this.store.url(override.icon_key) : base.iconUrl, coverUrl: override.cover_key ? this.store.url(override.cover_key) : base.coverUrl });
+    }
   }
   async list(): Promise<Theme[]> {
     const rows = await this.db.query<Row>('SELECT * FROM custom_themes WHERE published = true ORDER BY created_at');
-    return rows.map((row) => this.theme(row));
+    const custom = rows.map((row) => this.theme(row));
+    const overrides = await this.db.query<{ theme_id: string; icon_key: string | null; cover_key: string | null }>('SELECT theme_id, icon_key, cover_key FROM theme_asset_overrides');
+    const builtIn = overrides.flatMap((override) => {
+      const base = THEMES.find((theme) => theme.id === override.theme_id && !theme.id.startsWith('custom-'));
+      return base ? [{ ...base, iconUrl: override.icon_key ? this.store.url(override.icon_key) : base.iconUrl, coverUrl: override.cover_key ? this.store.url(override.cover_key) : base.coverUrl }] : [];
+    });
+    return [...custom, ...builtIn];
   }
   async create(admin: string, input: Record<string, unknown>): Promise<{ id: string }> {
     await this.requireAdmin(admin);
@@ -57,14 +68,25 @@ export class ThemeCatalog {
   }
   async setAsset(admin: string, themeId: string, kind: AssetKind, data: Buffer): Promise<void> {
     await this.requireAdmin(admin);
-    const id = this.uuid(themeId);
+    const custom = themeId.startsWith('custom-');
+    const id = custom ? this.uuid(themeId) : themeId;
+    if (!custom && !THEMES.some((theme) => theme.id === themeId && !theme.id.startsWith('custom-'))) throw new SocialError(404, 'not_found');
     if (!data.length || data.length > 8 * 1024 * 1024) throw new SocialError(413, 'too_large');
     let normalized: Buffer;
     try { normalized = await sharp(data, { limitInputPixels: 40_000_000 }).rotate().resize(kind === 'icon' ? 512 : { width: 1500, height: 700, fit: 'cover' }).webp({ quality: 82 }).toBuffer(); }
     catch { throw new SocialError(415, 'unsupported_format'); }
-    const key = imageKey(id, kind);
+    const key = imageKey(kind);
     await this.store.put(key, normalized, 'image/webp');
-    await this.db.query('UPDATE custom_themes SET ' + (kind === 'icon' ? 'icon_key' : 'cover_key') + ' = $2 WHERE id = $1', [id, key]);
+    if (custom) {
+      await this.db.query('UPDATE custom_themes SET ' + (kind === 'icon' ? 'icon_key' : 'cover_key') + ' = $2 WHERE id = $1', [id, key]);
+      return;
+    }
+    const [old] = await this.db.query<{ icon_key: string | null; cover_key: string | null }>('SELECT icon_key, cover_key FROM theme_asset_overrides WHERE theme_id = $1', [themeId]);
+    const iconKey = kind === 'icon' ? key : old?.icon_key ?? null;
+    const coverKey = kind === 'cover' ? key : old?.cover_key ?? null;
+    await this.db.query(`INSERT INTO theme_asset_overrides (theme_id, icon_key, cover_key, updated_by) VALUES ($1, $2, $3, $4)
+      ON CONFLICT (theme_id) DO UPDATE SET icon_key = EXCLUDED.icon_key, cover_key = EXCLUDED.cover_key, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [themeId, iconKey, coverKey, admin]);
   }
   async publish(admin: string, themeId: string): Promise<Theme> {
     await this.requireAdmin(admin);
