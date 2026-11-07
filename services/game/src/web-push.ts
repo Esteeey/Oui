@@ -1,4 +1,4 @@
-import webpush, { type PushSubscription } from 'web-push';
+import { sendNotification, setVapidDetails, type PushSubscription } from 'web-push';
 
 import type { Database } from './db/database';
 import { SocialError } from './social';
@@ -10,7 +10,7 @@ export class WebPush {
   private readonly subject = process.env.WEB_PUSH_VAPID_SUBJECT ?? 'mailto:admin@example.invalid';
 
   constructor(private readonly db: Database, private readonly isForeground: (id: string) => boolean) {
-    if (this.publicKey && this.privateKey) webpush.setVapidDetails(this.subject, this.publicKey, this.privateKey);
+    if (this.publicKey && this.privateKey) setVapidDetails(this.subject, this.publicKey, this.privateKey);
   }
 
   async register(userId: string, value: unknown, userAgent: string | null): Promise<void> {
@@ -37,7 +37,7 @@ export class WebPush {
       'SELECT endpoint, p256dh, auth FROM web_push_subscriptions WHERE user_id = $1', [userId]);
     const results = await Promise.all(subscriptions.map(async (sub) => {
       try {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload), { TTL: 120, urgency: 'high' });
+        await sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload), { TTL: 120, urgency: 'high' });
         return true;
       } catch (error) {
         const status = (error as { statusCode?: number }).statusCode;
