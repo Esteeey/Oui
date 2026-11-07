@@ -123,11 +123,14 @@ export class LiveInvitations {
       if (!changed.length) throw new SocialError(409, 'invitation_expired_or_handled');
       status = next;
     }
-    const [invitation] = (await this.views(viewer)).filter((x) => x.id === id);
-    if (!invitation) throw new SocialError(404, 'not_found');
-    const event = { type: 'duelInvitation' as const, invitation };
-    this.send(row.sender_id, event); this.send(row.receiver_id, event);
-    return { invitation, ...(matchId ? { matchId } : {}) };
+    // Construire une vue par destinataire : `incoming` est relatif au lecteur et ne
+    // doit pas être envoyé avec la même valeur aux deux joueurs.
+    const [senderInvitation] = (await this.views(row.sender_id)).filter((x) => x.id === id);
+    const [receiverInvitation] = (await this.views(row.receiver_id)).filter((x) => x.id === id);
+    if (!senderInvitation || !receiverInvitation) throw new SocialError(404, 'not_found');
+    this.send(row.sender_id, { type: 'duelInvitation', invitation: senderInvitation });
+    this.send(row.receiver_id, { type: 'duelInvitation', invitation: receiverInvitation });
+    return { invitation: viewer === row.sender_id ? senderInvitation : receiverInvitation, ...(matchId ? { matchId } : {}) };
   }
 
   async expire(): Promise<void> {
