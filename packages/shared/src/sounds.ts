@@ -3,8 +3,9 @@
  * Chaque identifiant correspond à un moment précis du jeu ; l'appli garde un son d'origine pour chacun.
  */
 export const GAME_SOUNDS = [
-  { id: 'launch', kind: 'effect', label: 'Lancement', when: 'Quand on lance une partie' },
-  { id: 'pinPop', kind: 'effect', label: 'Pop d’épingle', when: 'Chaque épingle sur la carte de recherche' },
+  { id: 'playMenu', kind: 'effect', label: 'Ouverture du menu Jouer', when: 'À l’ouverture de l’animation du menu Jouer' },
+  { id: 'launch', kind: 'effect', label: 'Lancement de partie', when: 'Au démarrage d’un duel ou d’un défi' },
+  { id: 'pinPop', kind: 'effect', label: 'Pop d’épingle', when: 'Chaque épingle qui apparaît pendant la recherche' },
   { id: 'versus', kind: 'effect', label: 'Entrée VS', when: 'Choc des deux moitiés de l’intro' },
   { id: 'question', kind: 'effect', label: 'Nouvelle question', when: 'À chaque question' },
   { id: 'choices', kind: 'effect', label: 'Réponses affichées', when: 'Quand les réponses apparaissent et que le chrono démarre' },
