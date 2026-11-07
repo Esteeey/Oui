@@ -50,6 +50,9 @@ export function listenToPushTaps(): () => void {
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as Record<string, string>;
     if (data.kind === 'message' && data.conversationId) router.push({ pathname: '/messages/[id]', params: { id: data.conversationId } });
+    else if (data.kind === 'duel_invitation') {
+      // Le fournisseur global récupère les invitations valides au hello et ouvre la modal sans changer de page.
+    }
     else if (data.kind === 'message_request' || data.kind === 'group_invitation') router.push('/messages');
     else if (data.challengeId) router.push(`/defi/${data.challengeId}` as Href);
     else router.push('/notifications');

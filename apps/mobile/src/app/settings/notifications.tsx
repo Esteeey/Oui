@@ -1,18 +1,23 @@
-import { Switch, View } from 'react-native';
+import { Platform, Switch, View } from 'react-native';
+import { useState } from 'react';
 
 import { NOTIFICATION_CATEGORIES, type NotificationCategory, type NotificationPrefs } from '@qu1z/shared';
 
 import { SectionHeader } from '@/components/social';
-import { AppText, Card, Screen } from '@/components/ui';
+import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
+import { enableWebPush, webPushAvailable } from '@/net/web-push';
+import { useGameServer } from '@/state/game-server';
 
 /** Réglages des notifications : push par catégorie, connexions des personnes suivies, aperçus. */
 export default function NotificationSettingsScreen() {
   const prefs = useApi<NotificationPrefs>('/api/me/notification-preferences');
   const p = prefs.data;
+  const { refreshInvitePrefs } = useGameServer();
+  const [webPushMessage, setWebPushMessage] = useState('');
   const save = (patch: Partial<NotificationPrefs> | { push: Partial<Record<NotificationCategory, boolean>> }) =>
-    api('PATCH', '/api/me/notification-preferences', patch).catch(() => {});
+    api('PATCH', '/api/me/notification-preferences', patch).then(() => refreshInvitePrefs()).catch(() => {});
 
   return (
     <Screen title="Notifications" back>
@@ -25,6 +30,25 @@ export default function NotificationSettingsScreen() {
         {NOTIFICATION_CATEGORIES.filter((c) => c.id !== 'friends_online').map((c) => (
           <Row key={c.id} label={c.label} value={p?.push[c.id] ?? true} onChange={(v) => save({ push: { [c.id]: v } })} />
         ))}
+      </Card>
+
+      {Platform.OS === 'web' && webPushAvailable() && <>
+        <SectionHeader title="Notifications sur ce navigateur" />
+        <Card style={{ gap: Spacing.sm }}>
+          <AppText variant="caption" muted>Reçois une notification si tu n’as pas QuizX ouvert au premier plan.</AppText>
+          <Button label="Activer les notifications Web Push" onPress={() => {
+            setWebPushMessage('');
+            void enableWebPush().then(() => setWebPushMessage('Notifications activées sur ce navigateur.')).catch((e: unknown) => setWebPushMessage(e instanceof Error ? e.message : 'Activation impossible.'));
+          }} />
+          {!!webPushMessage && <AppText variant="caption" muted>{webPushMessage}</AppText>}
+        </Card>
+      </>}
+
+      <SectionHeader title="Défis en direct" />
+      <Card style={{ gap: Spacing.md }}>
+        <Row label="Notifications de défis" hint="Être averti des invitations de duel reçues." value={p?.duelInvites ?? true} onChange={(v) => save({ duelInvites: v })} />
+        <Row label="Son d’invitation" value={p?.duelInviteSound ?? true} onChange={(v) => save({ duelInviteSound: v })} />
+        <Row label="Vibration d’invitation" value={p?.duelInviteVibration ?? true} onChange={(v) => save({ duelInviteVibration: v })} />
       </Card>
 
       <SectionHeader title="Connexions" />

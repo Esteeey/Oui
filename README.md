@@ -36,6 +36,7 @@ Limites actuelles (voir `docs/PLAN-SOCIAL.md`) :
 - **Notifications push** (téléphone) : messages avec aperçu masquable, notifications communautaires selon les préférences.
 - **Notifications** : centre complet (likes regroupés, commentaires, mentions, abonnements, progression, classements, défis, annonces), préférences, temps réel. Les notifications push sur téléphone arrivent plus tard.
 - **Défis** entre joueurs liés par un abonnement, revanche après un duel.
+- **Invitations de duel en direct** : WebSocket commun web/mobile, réponses accept/refuse/annule, expiration serveur à 120 s, reprise après reconnexion et notification push Expo/Web Push si aucune session n’est au premier plan.
 - **Recherche** de joueurs et de thèmes depuis tous les onglets, page **Découvrir des joueurs**, suggestions pendant la saisie d'une mention.
 - **Messagerie privée** : demandes de message, conversations texte, réponses, réactions, Envoyé / Lu, présence (abonnés mutuels), épinglage.
 - **Médias** : photo de profil, photos dans les messages et les publications (galerie ou appareil photo), 12 stickers originaux, GIF (avec une clé GIPHY ou Tenor). Images vérifiées, nettoyées (EXIF, position) et redimensionnées par le serveur.
@@ -69,6 +70,11 @@ Médias : en local, les images sont rangées dans `services/game/data/media` et 
 | `QU1Z_REQUIRE_EMAIL` | `1` ou `0` : e-mail confirmé exigé pour la messagerie, les publications et les groupes (par défaut : oui si `RESEND_API_KEY`). |
 | `QU1Z_APP_URL` | Adresse ouverte par le lien magique (par défaut `qu1z://`, ou l’adresse du site web). |
 | `EXPO_ACCESS_TOKEN` | Jeton Expo si la sécurité renforcée des push est activée ; `QU1Z_PUSH=0` coupe les push. |
+| `WEB_PUSH_VAPID_PUBLIC_KEY` | Clé publique VAPID utilisée par le navigateur pour s’abonner aux notifications. |
+| `WEB_PUSH_VAPID_PRIVATE_KEY` | Clé privée VAPID ; garder uniquement côté serveur. |
+| `WEB_PUSH_VAPID_SUBJECT` | Contact VAPID, par exemple `mailto:admin@votre-domaine.fr`. |
+
+Le Web Push nécessite HTTPS (localhost est accepté en développement), les trois clés VAPID, et l’autorisation du navigateur. Générer une paire avec `npx web-push generate-vapid-keys`, puis configurer ces variables sur le serveur. Sur iOS, les notifications Web Push nécessitent une web app installée depuis Safari ; l’application native utilise Expo Push.
 
 Nommer le premier administrateur (serveur de jeu arrêté en local) :
 

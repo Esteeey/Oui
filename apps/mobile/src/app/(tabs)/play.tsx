@@ -95,11 +95,10 @@ export default function PlayScreen() {
                   </AppText>
                 </View>
               </Tap>
-              <Button
-                label="Défier"
-                color={Colors.opponent}
-                onPress={() => act('/api/challenges', { userId: d.opponentId, themeId: d.themeId }, `Défi envoyé à ${d.opponentName}.`)}
-              />
+              <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                <Button small label="Défi 24 h" color={Colors.opponent} onPress={() => act('/api/challenges', { userId: d.opponentId, themeId: d.themeId }, `Défi envoyé à ${d.opponentName}.`)} />
+                <Button small label="En direct" onPress={() => act('/api/live-invitations', { userId: d.opponentId, themeId: d.themeId }, `Invitation envoyée à ${d.opponentName}.`)} />
+              </View>
             </View>
           ))}
         </>

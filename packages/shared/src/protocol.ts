@@ -1,5 +1,6 @@
 import type { Rewards } from './rewards';
 import type { DuelOutcome, DuelQuestion, ScoredAnswer } from './types';
+import type { LiveInvitation } from './social';
 
 /** Statistiques d'un joueur dans un thème (tenues par le serveur). */
 export interface ThemeStats {
@@ -117,6 +118,7 @@ export interface DuelSnapshot {
 
 export type ClientMessage =
   | { type: 'hello'; token?: string }
+  | { type: 'activity'; foreground: boolean }
   | { type: 'play'; themeId: string; mode: 'bot' | 'pvp' }
   | { type: 'cancelQueue' }
   /** `elapsedMs` : temps écoulé mesuré par le téléphone depuis le début du chrono (contrôlé, refusé hors de 0 à 10 s). */
@@ -139,6 +141,8 @@ export const DUEL_CHAT_MAX_LENGTH = 140;
 export const QUICK_CHAT = ['GG !', 'Bien joué !', 'Revanche ?', 'Trop fort 😅', 'La prochaine fois !'] as const;
 
 export type ServerMessage =
+  /** Invitation de duel en direct : état synchronisé sur toutes les connexions du compte. */
+  | { type: 'duelInvitation'; invitation: LiveInvitation }
   /** Messages du mini chat de fin de match (nouveaux, ou tous à la demande). */
   | { type: 'duelChat'; duelId: string; messages: DuelChatMessage[] }
   | { type: 'welcome'; playerId: string; token: string; profile: Profile }

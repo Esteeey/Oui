@@ -5,6 +5,8 @@ import { MEDIA_MAX_BYTES, SOUND_MAX_BYTES, THEMES, seasonOf, weekOf, type Leader
 import { randomUUID } from 'node:crypto';
 
 import type { Challenges } from './challenges';
+import type { LiveInvitations } from './live-invitations';
+import type { WebPush } from './web-push';
 import type { Discovery } from './discovery';
 import type { GifProvider } from './gifs';
 import type { Groups } from './groups';
@@ -118,6 +120,8 @@ export function createApi(
   push: Push,
   deletion: AccountDeletion,
   themeCatalog: ThemeCatalog,
+  liveInvitations: LiveInvitations,
+  webPush: WebPush,
 ) {
   const medals = new Medals(game.repo.db);
   const sounds = new GameSounds(game.repo.db);
@@ -126,6 +130,10 @@ export function createApi(
       const user = (await game.repo.user(userId))!;
       return { profile: await game.profile(userId), role: user.role, status: user.status, titles: social.titles(user.xp) };
     }],
+
+    ['GET', /^\/api\/me\/themes\/([^/]+)\/question-progress$/, async ({ userId, params }) => ({
+      seenQuestions: await game.repo.seenQuestionCount(userId, params[0]),
+    })],
 
     // Profils
     ['GET', /^\/api\/users\/([^/]+)$/, async ({ userId, params }) => social.profile(userId, uuid(params[0]))],
@@ -400,6 +408,15 @@ export function createApi(
     ['DELETE', /^\/api\/messages\/([^/]+)$/, async ({ userId, params }) => messaging.hide(userId, uuid(params[0]))],
 
     // Notifications
+    ['GET', /^\/api\/me\/web-push-key$/, async () => ({ publicKey: webPush.publicKey })],
+    ['PUT', /^\/api\/me\/web-push$/, async ({ userId, body }) => {
+      const b = await body();
+      return webPush.register(userId, b.subscription, null);
+    }],
+    ['DELETE', /^\/api\/me\/web-push$/, async ({ userId, body }) => {
+      const b = await body();
+      await webPush.remove(userId, String(b.endpoint ?? ''));
+    }],
     ['GET', /^\/api\/notifications$/, async ({ userId }) => ({
       notifications: await notifier.list(userId),
       unread: await notifier.unread(userId),
@@ -410,6 +427,13 @@ export function createApi(
     ['PATCH', /^\/api\/me\/notification-preferences$/, async ({ userId, body }) => notifier.setPrefs(userId, await body())],
 
     // Défis
+    ['GET', /^\/api\/live-invitations$/, async ({ userId }) => liveInvitations.list(userId)],
+    ['POST', /^\/api\/live-invitations$/, async ({ userId, body }) => {
+      const b = await body();
+      return liveInvitations.create(userId, uuid(b.userId), String(b.themeId ?? ''));
+    }],
+    ['POST', /^\/api\/live-invitations\/([^/]+)\/(accept|decline|cancel)$/, async ({ userId, params }) =>
+      liveInvitations.respond(userId, uuid(params[0]), params[1] as 'accept' | 'decline' | 'cancel')],
     ['GET', /^\/api\/challenges$/, async ({ userId }) => ({ challenges: await challenges.list(userId) })],
     ['GET', /^\/api\/users\/([^/]+)\/can-challenge$/, async ({ userId, params }) => ({
       canChallenge: await challenges.canChallenge(userId, uuid(params[0])),

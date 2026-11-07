@@ -8,6 +8,8 @@ export interface PushMessage {
   data: Record<string, string>;
   /** Canal Android : les messages sont séparés des notifications communautaires. */
   channelId: 'messages' | 'community';
+  sound?: 'default' | null;
+  vibrate?: number[];
 }
 
 /** Envoi des notifications push. Renvoie les jetons à supprimer (appareil désinscrit). */
@@ -41,7 +43,7 @@ export class ExpoPushSender implements PushSender {
           accept: 'application/json',
           ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
         },
-        body: JSON.stringify(chunk.map((m) => ({ ...m, sound: 'default', priority: 'high' }))),
+        body: JSON.stringify(chunk.map((m) => ({ ...m, sound: m.sound === undefined ? 'default' : m.sound, priority: 'high' }))),
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) throw new Error(`Expo push ${res.status}`);
@@ -66,6 +68,7 @@ export class Push {
     private readonly db: Database,
     private readonly sender: PushSender | null,
     private readonly isOnline: (userId: string) => boolean,
+    private readonly isForeground: (userId: string) => boolean = isOnline,
   ) {}
 
   async register(userId: string, token: unknown, platform: unknown): Promise<void> {
@@ -88,17 +91,17 @@ export class Push {
   }
 
   /** Envoie à chaque destinataire hors ligne (comptes bannis exclus). */
-  async notify(userIds: string[], build: (userId: string) => Promise<Omit<PushMessage, 'to'> | null>): Promise<void> {
-    if (!this.sender) return;
+  async notify(userIds: string[], build: (userId: string) => Promise<Omit<PushMessage, 'to'> | null>, foregroundOnly = false): Promise<boolean> {
+    if (!this.sender) return false;
     try {
-      const offline = userIds.filter((id) => !this.isOnline(id));
-      if (!offline.length) return;
+      const offline = userIds.filter((id) => foregroundOnly ? !this.isForeground(id) : !this.isOnline(id));
+      if (!offline.length) return false;
       const tokens = await this.db.query<{ token: string; user_id: string }>(
         `SELECT t.token, t.user_id FROM push_tokens t JOIN users u ON u.id = t.user_id
          WHERE t.user_id = ANY($1::uuid[]) AND u.status <> 'banned'`,
         [offline],
       );
-      if (!tokens.length) return;
+      if (!tokens.length) return false;
       const messages: PushMessage[] = [];
       const cache = new Map<string, Omit<PushMessage, 'to'> | null>();
       for (const t of tokens) {
@@ -106,11 +109,13 @@ export class Push {
         const m = cache.get(t.user_id);
         if (m) messages.push({ ...m, to: t.token });
       }
-      if (!messages.length) return;
+      if (!messages.length) return false;
       const { invalidTokens } = await this.sender.send(messages);
       if (invalidTokens.length) await this.db.query('DELETE FROM push_tokens WHERE token = ANY($1::text[])', [invalidTokens]);
+      return true;
     } catch (err) {
       console.error('Push', err);
+      return false;
     }
   }
 }

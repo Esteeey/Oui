@@ -1,12 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
 import {
   getCategory,
@@ -29,6 +27,7 @@ import { DivisionBadge } from '@/components/social';
 import { AppText, Button, Card, ProgressBar, Stat } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { themeCover } from '@/game/theme-covers';
+import { mediaUri } from '@/net/media';
 import { api, errorMessage, useApi } from '@/net/api';
 import { useThemeStats } from '@/state/progress';
 import { formatCount } from '@/utils/format';
@@ -45,7 +44,7 @@ const Page = {
 } as const;
 
 /** Hauteur du haut sombre (sous la barre d'état), jusque sous les boutons. */
-const HERO_HEIGHT = 470;
+const HERO_HEIGHT = 450;
 const ICON_SIZE = 112;
 
 type Tab = 'feed' | 'quiz' | 'challenges' | 'ranking';
@@ -56,17 +55,15 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'ranking', label: 'Classement' },
 ];
 
-/** Niveau auquel le prochain titre se débloque (le titre actuel s'il n'y en a plus). */
-function nextTitleLevel(level: number): number | null {
-  const thresholds = [1, 5, 10, 25, 50];
-  return thresholds.find((min) => min > level) ?? null;
-}
-
 export default function ThemeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const theme = getTheme(id);
   const stats = useThemeStats(id);
+  const questionCoverage = useApi<{ seenQuestions: number }>(theme ? '/api/me/themes/' + theme.id + '/question-progress' : null);
+  const totalQuestions = theme?.questionCount ?? (theme ? questionsOf(theme.id).length : 0);
+  const seenQuestions = questionCoverage.data?.seenQuestions ?? 0;
+  const questionProgress = totalQuestions > 0 ? Math.min(seenQuestions / totalQuestions, 1) : 0;
   const info = useApi<{ themes: ThemeInfo[] }>('/api/themes');
   const themeInfo = info.data?.themes.find((t) => t.themeId === theme?.id);
   const subscribed = themeInfo?.subscribed ?? false;
@@ -76,8 +73,6 @@ export default function ThemeScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   if (!theme) return <Redirect href="/" />;
   const category = getCategory(theme.categoryId)!;
-  const level = levelFromXp(stats.xp);
-  const nextTitle = nextTitleLevel(level.level);
   const toggleSubscription = () =>
     api(subscribed ? 'DELETE' : 'PUT', `/api/themes/${theme.id}/subscription`).catch(() => {});
   const openLeaderboard = () => router.push({ pathname: '/leaderboard', params: { theme: theme.id } });
@@ -88,11 +83,11 @@ export default function ThemeScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }} showsVerticalScrollIndicator={false}>
         <HeroBackground themeId={theme.id} height={HERO_HEIGHT + insets.top} />
-        <View style={[styles.column, { paddingTop: insets.top + 132 }]}>
+        <View style={[styles.column, { paddingTop: insets.top + 120 }]}>
           <View style={styles.hero}>
             <View style={[styles.icon, { backgroundColor: category.color }]}>
               <LinearGradient colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0)']} style={StyleSheet.absoluteFill} />
-              <AppText style={styles.iconEmoji}>{category.icon}</AppText>
+              {theme.iconUrl ? <Image source={{ uri: mediaUri(theme.iconUrl) ?? theme.iconUrl }} contentFit="cover" style={StyleSheet.absoluteFill} /> : <AppText style={styles.iconEmoji}>{category.icon}</AppText>}
             </View>
             <AppText style={styles.name}>{theme.name}</AppText>
             <AppText style={styles.tagline}>{theme.description}</AppText>
@@ -100,7 +95,7 @@ export default function ThemeScreen() {
             <View style={styles.actions}>
               <Tap accessibilityRole="button" accessibilityLabel="Jouer un duel classé" onPress={() => duel('pvp')} style={styles.playWrap}>
                 <LinearGradient colors={Page.play} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.play}>
-                  <Ionicons name="play" size={24} color="#FFFFFF" />
+                  <Ionicons name="play" size={20} color="#FFFFFF" />
                   <AppText style={styles.playLabel}>Jouer</AppText>
                 </LinearGradient>
               </Tap>
@@ -113,20 +108,22 @@ export default function ThemeScreen() {
               />
             </View>
 
-            <View style={styles.stats}>
-              <StatTile icon={<Ionicons name="ribbon" size={28} color={Page.pink} />} label="Niveau" value={String(level.level)} />
-              <View style={styles.statDivider} />
-              <StatTile
-                icon={<Ionicons name="people" size={28} color={Page.pink} />}
-                label="Abonnés"
-                value={themeInfo ? formatCount(themeInfo.subscribers) : '–'}
-              />
-              <View style={styles.statDivider} />
-              <StatTile
-                icon={<MaterialCommunityIcons name="crown" size={28} color={Page.pink} />}
-                label="Prochain titre"
-                value={nextTitle ? `Niveau ${nextTitle}` : titleForLevel(level.level)}
-              />
+            <View style={styles.questionProgress}>
+              <View style={styles.questionProgressHeading}>
+                <View style={styles.questionProgressLabel}>
+                  <Ionicons name="help-circle-outline" size={20} color={Page.pink} />
+                  <AppText style={styles.questionLabel}>Questions rencontrées</AppText>
+                </View>
+                <AppText style={styles.questionCount}>
+                  {questionCoverage.data ? formatCount(seenQuestions) : '–'} / {formatCount(totalQuestions)}
+                </AppText>
+              </View>
+              <View
+                style={styles.questionTrack}
+                accessible
+                accessibilityLabel={`${seenQuestions} questions distinctes rencontrées sur ${totalQuestions} questions disponibles`}>
+                <View style={[styles.questionFill, { width: (Math.round(questionProgress * 100) + '%') }]} />
+              </View>
             </View>
           </View>
 
@@ -208,43 +205,15 @@ function HeroBackground({ themeId, height }: { themeId: string; height: number }
   const cover = themeCover(themeId);
   return (
     <View pointerEvents="none" style={[styles.heroBg, { height }]}>
-      {cover !== null && (
-        <View style={styles.art}>
-          <Image source={cover} contentFit="cover" style={StyleSheet.absoluteFill} accessibilityIgnoresInvertColors />
-          <LinearGradient
-            colors={['rgba(11,22,48,0.6)', 'rgba(11,22,48,0)']}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 0.7, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
-      )}
-      <View style={styles.dots}>
-        {Array.from({ length: 9 }, (_, i) => (
-          <View key={i} style={styles.dot} />
-        ))}
-      </View>
-      <Svg width="100%" height="100%" viewBox="0 0 400 470" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <SvgGradient id="wave" x1="1" y1="0.2" x2="0" y2="0.9">
-            <Stop offset="0" stopColor="#FF2D8A" stopOpacity="1" />
-            <Stop offset="0.55" stopColor="#D6177A" stopOpacity="0.85" />
-            <Stop offset="1" stopColor="#7A1460" stopOpacity="0.55" />
-          </SvgGradient>
-          <SvgGradient id="fade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={Page.background} stopOpacity="0" />
-            <Stop offset="0.55" stopColor="#FCE3EE" stopOpacity="0.75" />
-            <Stop offset="1" stopColor={Page.background} stopOpacity="1" />
-          </SvgGradient>
-        </Defs>
-        <Path d="M400 150 C 330 250, 190 300, 0 330 L 0 470 L 400 470 Z" fill="url(#wave)" />
-        <Path d="M400 120 C 320 230, 200 280, 60 300" stroke="#FF5FA8" strokeOpacity={0.35} strokeWidth={2} fill="none" />
-        <Path d="M0 330 L 400 330 L 400 470 L 0 470 Z" fill="url(#fade)" />
-      </Svg>
+      {cover !== null && <Image source={typeof cover === 'number' ? cover : { uri: mediaUri(cover) ?? cover }} contentFit="cover" style={StyleSheet.absoluteFill} accessibilityIgnoresInvertColors />}
+      <LinearGradient
+        colors={['rgba(5,10,24,0.18)', 'rgba(5,10,24,0.34)', Page.background]}
+        locations={[0, 0.58, 1]}
+        style={StyleSheet.absoluteFill}
+      />
     </View>
   );
 }
-
 function SoftButton({ icon, label, onPress, grow }: { icon: ReactNode; label: string; onPress: () => void; grow: number }) {
   return (
     <Tap accessibilityRole="button" onPress={onPress} style={[styles.soft, { flex: grow }]}>
@@ -253,22 +222,6 @@ function SoftButton({ icon, label, onPress, grow }: { icon: ReactNode; label: st
         {label}
       </AppText>
     </Tap>
-  );
-}
-
-function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <View style={styles.statTile}>
-      {icon}
-      <View style={{ alignItems: 'center', flexShrink: 1, gap: 2 }}>
-        <AppText style={styles.statLabel} numberOfLines={1}>
-          {label}
-        </AppText>
-        <AppText style={styles.statValue} numberOfLines={1}>
-          {value}
-        </AppText>
-      </View>
-    </View>
   );
 }
 
@@ -351,7 +304,7 @@ function QuizTab({ themeId, categoryColor, onDuel }: { themeId: string; category
       <Button label="Duel classé" color={Page.pink} onPress={() => onDuel('pvp')} />
       <Button label="Duel d'entraînement (bot)" variant="outline" color={Colors.text} onPress={() => onDuel()} />
       <AppText variant="caption" muted style={{ textAlign: 'center' }}>
-        {questionsOf(themeId).length} questions · 7 par duel · 10 s par question
+        {getTheme(themeId)?.questionCount ?? questionsOf(themeId).length} questions · 7 par duel · 10 s par question
       </AppText>
     </>
   );
@@ -404,9 +357,6 @@ function ChallengesTab({ themeId }: { themeId: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Page.background },
   heroBg: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: Page.navy, overflow: 'hidden' },
-  art: { position: 'absolute', top: 18, right: -36, width: 250, height: 250, borderRadius: 125, overflow: 'hidden', opacity: 0.85 },
-  dots: { position: 'absolute', top: 170, left: 22, width: 110, flexDirection: 'row', flexWrap: 'wrap', gap: 30 },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)' },
   column: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   hero: { alignItems: 'center', paddingHorizontal: Spacing.md },
   icon: {
@@ -421,16 +371,16 @@ const styles = StyleSheet.create({
   iconEmoji: { fontSize: 60, lineHeight: 72 },
   name: { marginTop: Spacing.md, fontSize: 32, fontWeight: '800', letterSpacing: -0.6, color: '#FFFFFF', textAlign: 'center' },
   tagline: { marginTop: Spacing.xs, fontSize: 17, color: 'rgba(255,255,255,0.88)', textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: Spacing.sm + 2, marginTop: Spacing.lg, alignSelf: 'stretch' },
+  actions: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.md, alignSelf: 'stretch' },
   playWrap: { flex: 1.1, borderRadius: 26, boxShadow: '0 8px 18px rgba(232, 20, 108, 0.38)' },
-  play: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, height: 56, borderRadius: 26 },
-  playLabel: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
+  play: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, height: 44, borderRadius: 24 },
+  playLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   soft: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    height: 56,
+    height: 44,
     paddingHorizontal: Spacing.sm,
     borderRadius: 26,
     backgroundColor: Page.soft,
@@ -438,21 +388,23 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.9)',
     boxShadow: '0 4px 12px rgba(18, 26, 51, 0.12)',
   },
-  softLabel: { fontSize: 17, fontWeight: '700', color: Colors.text },
-  stats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.md,
+  softLabel: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  questionProgress: {
     alignSelf: 'stretch',
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    gap: Spacing.xs,
     backgroundColor: Page.surface,
     borderRadius: Radius.md,
-    paddingVertical: Spacing.md,
     boxShadow: '0 4px 16px rgba(18, 26, 51, 0.08)',
   },
-  statTile: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 4 },
-  statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: '#ECE8EC' },
-  statLabel: { fontSize: 12.5, color: Colors.text, fontWeight: '500' },
-  statValue: { fontSize: 17, color: '#0F0F14', fontWeight: '800' },
+  questionProgressHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  questionProgressLabel: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  questionLabel: { fontSize: 14, color: Colors.text, fontWeight: '700' },
+  questionCount: { fontSize: 15, color: Colors.text, fontWeight: '800' },
+  questionTrack: { height: 7, borderRadius: Radius.pill, overflow: 'hidden', backgroundColor: '#E8E7EC' },
+  questionFill: { height: '100%', borderRadius: Radius.pill, backgroundColor: Page.pink },
   tabs: {
     flexDirection: 'row',
     marginTop: Spacing.lg,
@@ -460,10 +412,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E6E3E8',
   },
-  tab: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 2, paddingBottom: Spacing.sm + 4 },
+  tab: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 2, paddingBottom: Spacing.sm + 2 },
   tabLabel: { fontSize: 15, fontWeight: '700', color: '#9A97A0' },
   tabLabelActive: { color: '#0F0F14', fontWeight: '800' },
-  underline: { position: 'absolute', bottom: -1, left: 6, right: 6, height: 5, borderRadius: 3, backgroundColor: Page.pink },
+  underline: { position: 'absolute', bottom: -1, left: 6, right: 6, height: 4, borderRadius: 2, backgroundColor: Page.pink },
   body: { gap: Spacing.md, padding: Spacing.md },
   note: { backgroundColor: Page.surface, borderRadius: Radius.md, padding: Spacing.md, boxShadow: '0 2px 12px rgba(18, 26, 51, 0.06)' },
   levelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -486,7 +438,7 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(11, 22, 48, 0.55)',
+    backgroundColor: 'rgba(5, 10, 24, 0.45)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
   },

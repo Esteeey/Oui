@@ -83,6 +83,7 @@ export class Social {
     private readonly limiter: RateLimiter,
     private readonly notifier?: Notifier,
     private readonly media?: Media,
+    private readonly isOnline: (userId: string) => boolean = () => false,
   ) {}
 
   /** Les notifications ne doivent jamais faire échouer l'action qui les déclenche. */
@@ -123,11 +124,14 @@ export class Social {
         show_following: boolean;
         cover_key: string | null;
         country: string | null;
+        city: string | null;
         region: string | null;
         geo_lat: number | null;
+        last_seen_at: Date | null;
       }
     >(
-      `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following, p.country, p.region, p.geo_lat,
+      `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following, p.country, p.city, p.region, p.geo_lat,
+         u.last_seen_at,
          (SELECT storage_key FROM media WHERE id = p.cover_media_id AND removed_by_moderation_at IS NULL) AS cover_key
        FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 AND u.status <> 'banned'`,
       [targetId],
@@ -156,6 +160,26 @@ export class Social {
     // Un joueur qui m'a bloqué m'est invisible.
     if (rel.blocks_me && !isMe) throw new SocialError(404, 'not_found');
     const canSeeContent = isMe || (!rel.blocked_by_me && (!row.is_private || rel.following));
+    // Même règle que la messagerie : présence visible pour soi-même ou entre abonnés mutuels.
+    const presence =
+      isMe || (rel.following && rel.follows_me && !rel.blocked_by_me)
+        ? { online: isMe || this.isOnline(targetId), lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at).getTime() : null }
+        : null;
+    let best: PublicProfile['best'] = null;
+    if (canSeeContent && !rel.blocked_by_me) {
+      const [b] = await this.db.query<{ theme_id: string; rank: number; players: number }>(
+        `WITH mine AS (
+           SELECT theme_id, xp FROM theme_stats WHERE user_id = $1 AND duels > 0 ORDER BY xp DESC, theme_id LIMIT 1)
+         SELECT mine.theme_id,
+           (SELECT count(*)::int + 1 FROM theme_stats t JOIN users u ON u.id = t.user_id
+             WHERE t.theme_id = mine.theme_id AND t.duels > 0 AND t.xp > mine.xp AND u.status <> 'banned') AS rank,
+           (SELECT count(*)::int FROM theme_stats t JOIN users u ON u.id = t.user_id
+             WHERE t.theme_id = mine.theme_id AND t.duels > 0 AND u.status <> 'banned') AS players
+         FROM mine`,
+        [targetId],
+      );
+      if (b) best = { themeId: b.theme_id, rank: b.rank, players: b.players };
+    }
     return {
       ...summary(row),
       bio: canSeeContent ? row.bio : '',
@@ -176,7 +200,10 @@ export class Social {
       canSeeFollowers: isMe || (canSeeContent && row.show_followers),
       canSeeFollowing: isMe || (canSeeContent && row.show_following),
       cover: mediaUrl(row.cover_key),
-      ...(isMe ? { country: row.country, region: row.region, hasLocation: row.geo_lat !== null } : {}),
+      ...(isMe ? { country: row.country, city: row.city, region: row.region, hasLocation: row.geo_lat !== null } : {}),
+      ...(!isMe && canSeeContent && row.city ? { country: row.country, city: row.city } : {}),
+      presence,
+      best,
     };
   }
 
@@ -194,6 +221,7 @@ export class Social {
       showFollowing?: unknown;
       equippedTitle?: unknown;
       country?: unknown;
+      city?: unknown;
       region?: unknown;
       location?: unknown;
     },
@@ -232,6 +260,11 @@ export class Social {
       if (patch.country !== undefined) {
         if (patch.country !== null && !isCountryCode(patch.country)) throw new SocialError(400, 'invalid_country');
         await tx.query('UPDATE profiles SET country = $2 WHERE user_id = $1', [userId, patch.country]);
+      }
+      if (patch.city !== undefined) {
+        const city = patch.city === null ? null : String(patch.city).trim();
+        if (city !== null && (city.length < 1 || city.length > 60)) throw new SocialError(400, 'invalid_city');
+        await tx.query('UPDATE profiles SET city = $2 WHERE user_id = $1', [userId, city]);
       }
       if (patch.region !== undefined) {
         const region = patch.region === null ? null : String(patch.region).trim();

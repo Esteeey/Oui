@@ -1,11 +1,14 @@
 import { router, usePathname } from 'expo-router';
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Image, Modal, Platform, Pressable, Text, Vibration, View } from 'react-native';
 
-import { RULES, type DuelChatMessage, type DuelSnapshot, type Profile, type ServerMessage } from '@qu1z/shared';
+import { getTheme, RULES, registerTheme, type LiveInvitation, type NotificationPrefs, type Theme, type DuelChatMessage, type DuelSnapshot, type Profile, type ServerMessage } from '@qu1z/shared';
 
 import { api, invalidateAll } from '@/net/api';
 import { registerForPush } from '@/net/push';
 import { GameConnection, gameServerUrl, type ConnectionStatus } from '@/net/game-connection';
+import { playSound } from '@/audio/sounds';
+import { Colors, Radius, Spacing } from '@/constants/theme';
 
 export interface DuelRequest {
   themeId: string;
@@ -14,6 +17,7 @@ export interface DuelRequest {
 
 interface GameServerState {
   status: ConnectionStatus;
+  catalogVersion: number;
   playerId: string | null;
   profile: Profile | null;
   /** Dernier état reçu du duel (en cours ou terminé). */
@@ -30,6 +34,8 @@ interface GameServerState {
   lastRequest: DuelRequest | null;
   /** Notifications non lues (mises à jour en temps réel). */
   unreadNotifications: number;
+  liveInvitations: LiveInvitation[];
+  refreshInvitePrefs: () => Promise<void>;
   /** Mini chat de fin de match, par duel. */
   duelChat: Record<string, DuelChatMessage[]>;
   sendDuelChat: (duelId: string, text: string) => void;
@@ -49,6 +55,7 @@ const GameServerContext = createContext<GameServerState | null>(null);
 /** Connexion au serveur de jeu, source de vérité du duel, des scores, du chrono et de l'XP. */
 export function GameServerProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [catalogVersion, setCatalogVersion] = useState(0);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [duel, setDuel] = useState<DuelSnapshot | null>(null);
@@ -59,6 +66,10 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const [signedOut, setSignedOut] = useState(false);
   const [lastRequest, setLastRequest] = useState<DuelRequest | null>(null);
   const [unreadNotifications, setUnread] = useState(0);
+  const [liveInvitations, setLiveInvitations] = useState<LiveInvitation[]>([]);
+  const [invitePrefs, setInvitePrefs] = useState<Pick<NotificationPrefs, 'duelInvites' | 'duelInviteSound' | 'duelInviteVibration'>>({ duelInvites: true, duelInviteSound: true, duelInviteVibration: true });
+  const invitePrefsRef = useRef(invitePrefs);
+  const soundedInvitations = useRef(new Set<string>());
   const [duelChat, setDuelChat] = useState<Record<string, DuelChatMessage[]>>({});
   const connection = useRef<GameConnection | null>(null);
   /**
@@ -80,10 +91,34 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
           // Rattrapage après (re)connexion : compteur et écrans à jour.
           setTimeout(() => {
             api<{ unread: number }>('GET', '/api/notifications').then((r) => setUnread(r.unread)).catch(() => {});
+            api<{ invitations: LiveInvitation[] }>('GET', '/api/live-invitations').then((r) => setLiveInvitations(r.invitations.filter((x) => x.status === 'pending'))).catch(() => {});
+            api<NotificationPrefs>('GET', '/api/me/notification-preferences').then((p) => {
+              const next = { duelInvites: p.duelInvites, duelInviteSound: p.duelInviteSound, duelInviteVibration: p.duelInviteVibration };
+              invitePrefsRef.current = next; setInvitePrefs(next);
+            }).catch(() => {});
+            api<{ themes: Theme[] }>('GET', '/api/theme-catalog').then(({ themes }) => { themes.forEach(registerTheme); setCatalogVersion((v) => v + 1); }).catch(() => {});
             invalidateAll();
             // Appareil enregistré pour les push (téléphone uniquement, une fois la permission accordée).
             void registerForPush();
           }, 0);
+          break;
+        case 'duelInvitation':
+          setLiveInvitations((all) => {
+            if (m.invitation.status !== 'pending') return all.filter((x) => x.id !== m.invitation.id);
+            if (m.invitation.incoming && !soundedInvitations.current.has(m.invitation.id)) {
+              soundedInvitations.current.add(m.invitation.id);
+              void api<NotificationPrefs>('GET', '/api/me/notification-preferences').then((p) => {
+                const next = { duelInvites: p.duelInvites, duelInviteSound: p.duelInviteSound, duelInviteVibration: p.duelInviteVibration };
+                invitePrefsRef.current = next; setInvitePrefs(next);
+                if (next.duelInvites && next.duelInviteSound) playSound('pinPop');
+                if (next.duelInvites && next.duelInviteVibration) {
+                  if (Platform.OS === 'web') { if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(120); }
+                  else Vibration.vibrate(120);
+                }
+              }).catch(() => {});
+            }
+            return [m.invitation, ...all.filter((x) => x.id !== m.invitation.id)].slice(0, 20);
+          });
           break;
         case 'notification':
           if (typeof m.unread === 'number') setUnread(m.unread);
@@ -142,6 +177,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
 
   const value: GameServerState = {
     status,
+    catalogVersion,
     playerId,
     profile,
     duel,
@@ -153,6 +189,12 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     lastRequest,
     unreadNotifications,
     duelChat,
+    liveInvitations,
+    refreshInvitePrefs: async () => {
+      const p = await api<NotificationPrefs>('GET', '/api/me/notification-preferences');
+      const next = { duelInvites: p.duelInvites, duelInviteSound: p.duelInviteSound, duelInviteVibration: p.duelInviteVibration };
+      invitePrefsRef.current = next; setInvitePrefs(next);
+    },
     sendDuelChat: (duelId, text) => {
       send({ type: 'duelChat', duelId, text });
     },
@@ -191,9 +233,48 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   return (
     <GameServerContext value={value}>
       {children}
+      <LiveInvitationModal invitations={liveInvitations} enabled={invitePrefs.duelInvites} clockOffset={clockOffset} onRespond={async (invitation, action) => {
+        await api('POST', `/api/live-invitations/${invitation.id}/${action}`);
+        setLiveInvitations((all) => all.filter((x) => x.id !== invitation.id));
+      }} />
       <DuelNavigator duel={duel} />
     </GameServerContext>
   );
+}
+
+function LiveInvitationModal({ invitations, enabled, clockOffset, onRespond }: { invitations: LiveInvitation[]; enabled: boolean; clockOffset: number; onRespond: (i: LiveInvitation, action: 'accept' | 'decline' | 'cancel') => Promise<void> }) {
+  const pending = invitations.filter((i) => i.status === 'pending' && i.expiresAt > Date.now() + clockOffset);
+  const invitation = pending.filter((i) => !i.incoming).at(-1) ?? (enabled ? pending.filter((i) => i.incoming).at(-1) : undefined);
+  const [seconds, setSeconds] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => { if (!invitation) return; const tick = () => setSeconds(Math.max(0, Math.ceil((invitation.expiresAt - (Date.now() + clockOffset)) / 1000))); tick(); const t = setInterval(tick, 500); return () => clearInterval(t); }, [invitation?.id, invitation?.expiresAt, clockOffset]);
+  const theme = invitation ? getTheme(invitation.themeId) : null;
+  const respond = async (action: 'accept' | 'decline' | 'cancel') => {
+    if (!invitation || busy) return;
+    setBusy(true); setError('');
+    try { await onRespond(invitation, action); } catch { setError('Cette invitation n’est plus disponible.'); }
+    finally { setBusy(false); }
+  };
+  return <Modal transparent visible={!!invitation} animationType="fade" onRequestClose={() => void (invitation?.incoming ? respond('decline') : respond('cancel'))} statusBarTranslucent>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.lg, backgroundColor: 'rgba(8,12,25,0.62)' }}>
+      {invitation && <View style={{ width: '100%', maxWidth: 380, padding: Spacing.lg, gap: Spacing.md, borderRadius: Radius.md, backgroundColor: '#171522', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+        <View style={{ alignItems: 'center', gap: Spacing.sm }}>
+          {invitation.sender.avatar ? <Image source={{ uri: invitation.sender.avatar }} style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 2, borderColor: Colors.accent }} /> : <View style={{ width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accent }}><Text style={{ color: '#fff', fontSize: 28 }}>{invitation.sender.pseudo.slice(0, 1).toUpperCase()}</Text></View>}
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 22, textAlign: 'center' }}>{invitation.incoming ? `${invitation.sender.pseudo} te défie !` : `Invitation envoyée à ${invitation.receiver.pseudo}`}</Text>
+          <Text style={{ color: '#c7c4d0', textAlign: 'center' }}>{invitation.incoming ? `${invitation.sender.title ?? `Niveau ${invitation.sender.level}`} · ${theme?.name ?? 'Duel'}` : `En attente de réponse · ${theme?.name ?? 'Duel'}`}</Text>
+          <Text style={{ color: '#f2a5c9', fontWeight: '600' }}>Expire dans {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</Text>
+        </View>
+        {!!error && <Text style={{ color: '#ff7284', textAlign: 'center' }}>{error}</Text>}
+        <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+          {invitation.incoming ? <>
+            <Pressable disabled={busy} onPress={() => void respond('decline')} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: '#625c70' }}><Text style={{ color: '#eee', fontWeight: '700' }}>REFUSER</Text></Pressable>
+            <Pressable disabled={busy} onPress={() => void respond('accept')} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: Colors.accent, opacity: busy ? 0.6 : 1 }}><Text style={{ color: '#fff', fontWeight: '800' }}>ACCEPTER</Text></Pressable>
+          </> : <Pressable disabled={busy} onPress={() => void respond('cancel')} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: '#625c70' }}><Text style={{ color: '#eee', fontWeight: '700' }}>ANNULER L’INVITATION</Text></Pressable>}
+        </View>
+      </View>}
+    </View>
+  </Modal>;
 }
 
 /**

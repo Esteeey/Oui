@@ -147,7 +147,20 @@ export class Repo {
     };
   }
 
-  /** XP du joueur dans un thème (0 s'il n'y a jamais joué). */
+  /** Nombre de questions distinctes déjà rencontrées par un joueur dans un thème. */
+  async seenQuestionCount(userId: string, themeId: string): Promise<number> {
+    const rows = await this.db.query<{ count: number }>(
+      `SELECT count(DISTINCT question->>'id')::int AS count
+       FROM duel_results AS result_row
+       CROSS JOIN LATERAL jsonb_array_elements(result_row.result->'record'->'questions') AS item(question)
+       WHERE result_row.user_id = $1
+         AND result_row.result->'record'->>'themeId' = $2`,
+      [userId, themeId],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  /** XP du joueur dans un thème (0 s'il n'a jamais joué). */
   async themeXp(userId: string, themeId: string): Promise<number> {
     const rows = await this.db.query<{ xp: number }>('SELECT xp FROM theme_stats WHERE user_id = $1 AND theme_id = $2', [userId, themeId]);
     return Number(rows[0]?.xp ?? 0);

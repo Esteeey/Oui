@@ -225,6 +225,9 @@ export class Notifier {
       friendsOnline: stored.friendsOnline ?? DEFAULT_NOTIFICATION_PREFS.friendsOnline,
       hideMessagePreviews: stored.hideMessagePreviews ?? DEFAULT_NOTIFICATION_PREFS.hideMessagePreviews,
       messagePush: stored.messagePush ?? DEFAULT_NOTIFICATION_PREFS.messagePush,
+      duelInvites: stored.duelInvites ?? DEFAULT_NOTIFICATION_PREFS.duelInvites,
+      duelInviteSound: stored.duelInviteSound ?? DEFAULT_NOTIFICATION_PREFS.duelInviteSound,
+      duelInviteVibration: stored.duelInviteVibration ?? DEFAULT_NOTIFICATION_PREFS.duelInviteVibration,
     };
   }
 
@@ -239,6 +242,9 @@ export class Notifier {
     if (typeof patch.friendsOnline === 'boolean') current.friendsOnline = patch.friendsOnline;
     if (typeof patch.hideMessagePreviews === 'boolean') current.hideMessagePreviews = patch.hideMessagePreviews;
     if (typeof patch.messagePush === 'boolean') current.messagePush = patch.messagePush;
+    if (typeof patch.duelInvites === 'boolean') current.duelInvites = patch.duelInvites;
+    if (typeof patch.duelInviteSound === 'boolean') current.duelInviteSound = patch.duelInviteSound;
+    if (typeof patch.duelInviteVibration === 'boolean') current.duelInviteVibration = patch.duelInviteVibration;
     await this.db.query(
       'INSERT INTO notification_preferences (user_id, prefs) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET prefs = $2',
       [userId, current],

@@ -31,6 +31,7 @@ export class GameConnection {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   private signedOut = false;
+  private foreground = true;
   private cleanups: (() => void)[] = [];
 
   constructor(
@@ -43,13 +44,17 @@ export class GameConnection {
     this.stopped = false;
     this.open();
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') this.reconnectNow();
+      this.foreground = state === 'active';
+      if (this.foreground) this.reconnectNow();
+      this.syncActivity();
     });
     this.cleanups.push(() => sub.remove());
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const online = () => this.reconnectNow();
+      const visibility = () => { this.foreground = document.visibilityState === 'visible'; this.syncActivity(); };
       window.addEventListener('online', online);
-      this.cleanups.push(() => window.removeEventListener('online', online));
+      document.addEventListener('visibilitychange', visibility);
+      this.cleanups.push(() => { window.removeEventListener('online', online); document.removeEventListener('visibilitychange', visibility); });
     }
   }
 
@@ -67,6 +72,8 @@ export class GameConnection {
     this.ws.send(JSON.stringify(message));
     return true;
   }
+
+  private syncActivity(): void { this.send({ type: 'activity', foreground: this.foreground }); }
 
   /** Changement de compte : ferme la connexion actuelle et se reconnecte avec le jeton enregistré. */
   restart(): void {
@@ -97,6 +104,7 @@ export class GameConnection {
     ws.onopen = () => {
       this.backoff = 500;
       ws.send(JSON.stringify({ type: 'hello', ...(token ? { token } : {}) } satisfies ClientMessage));
+      ws.send(JSON.stringify({ type: 'activity', foreground: this.foreground } satisfies ClientMessage));
     };
     ws.onmessage = (event) => {
       let message: ServerMessage;

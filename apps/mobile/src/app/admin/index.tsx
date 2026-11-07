@@ -39,6 +39,7 @@ export default function AdminScreen() {
 
       <View style={{ gap: Spacing.sm }}>
         <SectionHeader title="Jeu" />
+        <Entry icon="albums-outline" label="Thèmes et questions" hint="Créer un thème, ses questions et ses photos" href={'/admin/themes/new' as Href} />
         <Entry icon="musical-notes-outline" label="Sons du jeu" hint="Écouter, remplacer ou rétablir chaque son et musique" href="/admin/sounds" />
       </View>
       <View style={{ gap: Spacing.sm }}>

@@ -19,6 +19,8 @@ import { Media, MemoryStore, type MediaStore } from './media';
 import { Notifier } from './notifier';
 import { Social } from './social';
 import { ThemeCatalog } from './theme-catalog';
+import { LiveInvitations } from './live-invitations';
+import { WebPush } from './web-push';
 
 const HEARTBEAT_MS = 10_000;
 
@@ -34,6 +36,8 @@ export interface GameServer {
   moderation: Moderation;
   accounts: Accounts;
   push: Push;
+  liveInvitations: LiveInvitations;
+  webPush: WebPush;
   http: Server;
   port: number;
   close: () => Promise<void>;
@@ -61,6 +65,8 @@ const ORPHAN_SWEEP_MS = 60 * 60 * 1000;
 
 export async function startServer(port: number, options: ServerOptions): Promise<GameServer> {
   const sockets = new Map<string, Set<WebSocket>>();
+  const foregroundSockets = new Map<string, Set<WebSocket>>();
+  const isForeground = (id: string) => (foregroundSockets.get(id)?.size ?? 0) > 0;
 
   const send = (playerId: string, message: ServerMessage) => {
     const data = JSON.stringify(message);
@@ -76,7 +82,7 @@ export async function startServer(port: number, options: ServerOptions): Promise
   game.notifier = notifier;
   const media = new Media(game.repo.db, mediaStore, game.limiter);
   const gifs = options.gifs === undefined ? gifProviderFromEnv() : options.gifs;
-  const social = new Social(game.repo.db, game.limiter, notifier, media);
+  const social = new Social(game.repo.db, game.limiter, notifier, media, (id) => game.isOnline(id));
   const challenges = new Challenges(game.repo.db, game, notifier);
   const discovery = new Discovery(game.repo.db);
   const messaging = new Messaging(game.repo.db, game.limiter, (id) => game.isOnline(id), send, media, gifs);
@@ -88,7 +94,9 @@ export async function startServer(port: number, options: ServerOptions): Promise
       ws.close();
     }
   };
-  const push = new Push(game.repo.db, options.pushSender ?? null, (id) => game.isOnline(id));
+  const push = new Push(game.repo.db, options.pushSender ?? null, (id) => game.isOnline(id), isForeground);
+  const webPush = new WebPush(game.repo.db, isForeground);
+  const liveInvitations = new LiveInvitations(game.repo.db, game, send, push, webPush);
   notifier.push = push;
   messaging.push = push;
   messaging.notifier = notifier;
@@ -103,12 +111,14 @@ export async function startServer(port: number, options: ServerOptions): Promise
     for (const ws of sockets.get(userId) ?? []) ws.close();
   });
   const accounts = new Accounts(game.repo.db, game.limiter, options.email ?? emailSenderFromEnv(), options.requireVerifiedEmail ?? false);
-  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation, accounts, push, deletion, themeCatalog);
+  const api = createApi(game, social, notifier, challenges, discovery, messaging, media, gifs, groups, moderation, accounts, push, deletion, themeCatalog, liveInvitations, webPush);
   const sweep = setInterval(() => {
     void media.cleanupOrphans().catch((err) => console.error('Nettoyage des médias', err));
     void deletion.purgeExpired().catch((err) => console.error('Purge des comptes supprimés', err));
   }, ORPHAN_SWEEP_MS);
   sweep.unref();
+  const invitationSweep = setInterval(() => void liveInvitations.expire().catch((err) => console.error('Expiration des invitations', err)), 5_000);
+  invitationSweep.unref();
   const http = createServer((req, res) => void api(req, res));
   const wss = new WebSocketServer({ server: http, maxPayload: 8 * 1024 });
 
@@ -149,9 +159,17 @@ export async function startServer(port: number, options: ServerOptions): Promise
         );
         if (set.size === 1) game.setOnline(id, true);
         await game.resync(id);
+        const pending = await liveInvitations.list(id);
+        for (const invitation of pending.invitations.filter((x) => x.status === 'pending')) ws.send(JSON.stringify({ type: 'duelInvitation', invitation } satisfies ServerMessage));
         return;
       }
       if (!playerId) return;
+      if (msg.type === 'activity') {
+        const set = foregroundSockets.get(playerId) ?? new Set<WebSocket>();
+        if (msg.foreground) { set.add(ws); foregroundSockets.set(playerId, set); }
+        else { set.delete(ws); if (!set.size) foregroundSockets.delete(playerId); }
+        return;
+      }
       const str = (v: unknown) => (typeof v === 'string' ? v : '');
       const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
       switch (msg.type) {
@@ -191,6 +209,9 @@ export async function startServer(port: number, options: ServerOptions): Promise
       void chain.then(() => {
         if (!playerId) return;
         const set = sockets.get(playerId);
+        const foreground = foregroundSockets.get(playerId);
+        foreground?.delete(ws);
+        if (foreground && foreground.size === 0) foregroundSockets.delete(playerId);
         set?.delete(ws);
         if (set && set.size === 0) {
           sockets.delete(playerId);
@@ -214,10 +235,13 @@ export async function startServer(port: number, options: ServerOptions): Promise
     moderation,
     accounts,
     push,
+    liveInvitations,
+    webPush,
     http,
     port: typeof address === 'object' && address ? address.port : port,
     close: async () => {
       clearInterval(sweep);
+      clearInterval(invitationSweep);
       game.dispose();
       for (const client of wss.clients) client.terminate();
       await new Promise<void>((resolve) => wss.close(() => resolve()));

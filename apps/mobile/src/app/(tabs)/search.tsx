@@ -37,7 +37,7 @@ export default function SearchScreen() {
   }, [query]);
 
   return (
-    <Screen back title="Recherche">
+    <Screen inTabs title="Recherche">
       <View style={styles.search}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />
         <TextInput

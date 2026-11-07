@@ -104,6 +104,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   invalid_pseudo: 'Pseudo invalide : 3 à 20 caractères, sans espace (lettres, chiffres, _ . -).',
   pseudo_taken: 'Ce pseudo est déjà pris.',
   invalid_country: 'Pays inconnu.',
+  invalid_city: 'Ville invalide (60 caractères maximum).',
   bio_too_long: 'La bio est trop longue.',
   title_locked: 'Ce titre n’est pas encore débloqué.',
   not_subscribed: 'Abonne-toi au thème pour y publier.',

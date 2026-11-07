@@ -69,6 +69,31 @@ describe('profils et pseudo', () => {
     void a;
   });
 
+  it('profil : meilleur thème avec rang mondial ; présence seulement pour soi et entre abonnés mutuels', async () => {
+    const a = await user('Thomas');
+    const b = await user('Paul');
+    const c = await user('Lea');
+    for (const [u, theme, xp] of [
+      [a, 'geo-capitales', 300],
+      [a, 'sports-jo', 50],
+      [b, 'geo-capitales', 900],
+      [c, 'geo-capitales', 100],
+    ] as const) {
+      await db.query('INSERT INTO theme_stats (user_id, theme_id, rating, xp, duels) VALUES ($1, $2, 1000, $3, 3)', [u.id, theme, xp]);
+    }
+    const seen = await ok(profile(c, a));
+    expect(seen.best).toEqual({ themeId: 'geo-capitales', rank: 2, players: 3 });
+    // Pas d'abonnement mutuel : ni en ligne ni dernière activité.
+    expect(seen.presence).toBeNull();
+    expect((await ok(profile(a, a))).presence?.online).toBe(true);
+    await ok(call(a, 'POST', `/api/users/${b.id}/follow`));
+    await ok(call(b, 'POST', `/api/users/${a.id}/follow`));
+    expect((await ok(profile(b, a))).presence?.online).toBe(true);
+    // Profil privé non suivi : pas de meilleur thème.
+    await ok(call(a, 'PATCH', '/api/me/profile', { isPrivate: true }));
+    expect((await ok(profile(c, a))).best).toBeNull();
+  });
+
   it('titre équipé : seulement un titre débloqué', async () => {
     const a = await user('Thomas');
     expect((await call(a, 'PATCH', '/api/me/profile', { equippedTitle: 'Érudit' })).status).toBe(403);

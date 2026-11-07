@@ -1,50 +1,64 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { IconName } from '@/components/social';
-import { Colors, Gradients, Radius } from '@/constants/theme';
+import { Colors, Radius } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 
-/** L'onglet central (Jouer : parties rapides et défis) prend la forme du gros bouton « VS ». */
+const NAV_ACCENT = '#990054';
+
+/** Les cinq destinations principales restent de vraies routes Expo Router. */
 const TABS: { name: string; title: string; icon?: IconName; iconActive?: IconName }[] = [
   { name: 'index', title: 'Accueil', icon: 'home-outline', iconActive: 'home' },
-  { name: 'people', title: 'Personnes', icon: 'people-outline', iconActive: 'people' },
-  { name: 'play', title: 'Jouer' },
   { name: 'explore', title: 'Thèmes', icon: 'grid-outline', iconActive: 'grid' },
-  { name: 'activity', title: 'Activité', icon: 'notifications-outline', iconActive: 'notifications' },
+  { name: 'play', title: 'VS' },
+  { name: 'activity', title: 'Notifications', icon: 'notifications-outline', iconActive: 'notifications' },
+  { name: 'profile', title: 'Profil', icon: 'person-outline', iconActive: 'person' },
 ];
-/** Pages sans bouton dans la barre : le profil s'ouvre par l'avatar du bandeau, les classements depuis Jouer. */
-const HIDDEN = ['profile', 'leaderboard'];
+/** Ces écrans gardent leurs routes et leurs liens, mais n’occupent pas un des cinq boutons principaux. */
+const HIDDEN = ['people', 'leaderboard', 'search'];
+const VS_IMAGE = require('../../../assets/images/vs-nav.png');
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
   const { playerId, unreadNotifications } = useGameServer();
   const requests = useApi<{ requests: unknown[] }>(playerId ? '/api/me/follow-requests' : null);
   const activityBadge = unreadNotifications + (requests.data?.requests.length ?? 0);
+  const bottomGap = Platform.OS === 'web' ? 12 : Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 20) + 8;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false,
-        tabBarActiveTintColor: Colors.accent,
-        tabBarInactiveTintColor: Colors.text,
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: NAV_ACCENT,
+        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: Colors.surface,
-          borderTopWidth: 0,
-          borderTopLeftRadius: Radius.lg,
-          borderTopRightRadius: Radius.lg,
-          // Design plat : ni ombre ni contour.
-          elevation: 0,
-          shadowOpacity: 0,
-          // Le rond VS dépasse au-dessus de la barre.
+          borderWidth: 1,
+          borderColor: '#F0E7ED',
+          borderRadius: Radius.pill,
+          marginHorizontal: 12,
+          marginTop: 8,
+          marginBottom: bottomGap,
+          height: Platform.OS === 'web' ? 76 : 74,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === 'web' ? 7 : 6,
+          elevation: 12,
+          zIndex: 10,
+          shadowColor: '#121A33',
+          shadowOpacity: 0.14,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 7 },
           overflow: 'visible',
-          // Sur le Web, pas de zone de sécurité en bas : on donne une hauteur fixe à la barre.
-          ...(Platform.OS === 'web' ? { height: 72, paddingTop: 10, paddingBottom: 10 } : { paddingTop: 8 }),
         },
+        tabBarItemStyle: { paddingTop: 3 },
+        tabBarLabelStyle: { fontSize: 9, lineHeight: 12, fontWeight: '700', marginTop: 0 },
         sceneStyle: { backgroundColor: Colors.background },
       }}>
       {TABS.map((tab) => (
@@ -53,19 +67,20 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            tabBarAccessibilityLabel: tab.title,
+            tabBarLabel: tab.name === 'play' ? '' : tab.title,
+            tabBarAccessibilityLabel: tab.name === 'play' ? 'Ouvrir un duel' : tab.title,
             tabBarBadge: tab.name === 'activity' && activityBadge ? (activityBadge > 99 ? '99+' : activityBadge) : undefined,
-            tabBarBadgeStyle: { backgroundColor: Colors.accent, color: Colors.onAccent },
+            tabBarBadgeStyle: { backgroundColor: NAV_ACCENT, color: Colors.onAccent },
             tabBarIcon: ({ color, focused }) =>
               tab.icon ? (
-                <Ionicons name={focused ? tab.iconActive! : tab.icon} color={color as string} size={30} />
+                <Ionicons name={focused ? tab.iconActive! : tab.icon} color={color as string} size={22} />
               ) : (
                 <VsButton focused={focused} />
               ),
           }}
         />
       ))}
-      {/* Pas `href: null` : depuis le SDK 58, un onglet caché ainsi redirige ailleurs. On masque seulement le bouton. */}
+      {/* Les écrans restent navigables depuis leurs liens internes, sans ajouter d’onglets. */}
       {HIDDEN.map((name) => (
         <Tabs.Screen key={name} name={name} options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       ))}
@@ -73,30 +88,31 @@ export default function TabsLayout() {
   );
 }
 
-/** « VS » peint au pinceau (traits blancs seuls, sans halo), posé au centre du rond rose. */
-const VS_IMAGE = require('../../../assets/images/vs-nav.png');
-
 function VsButton({ focused }: { focused: boolean }) {
   return (
-    <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.vs, !focused && styles.vsIdle]}>
+    <View pointerEvents="none" style={[styles.vsButton, !focused && styles.vsIdle]}>
       <Image source={VS_IMAGE} style={styles.vsImage} contentFit="contain" accessibilityIgnoresInvertColors />
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Rond rose d'origine (taille et position), en plat : ni ombre ni contour.
-  vs: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    marginTop: -30,
+  vsButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginTop: -16,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    backgroundColor: NAV_ACCENT,
+    borderWidth: 2,
+    borderColor: Colors.surface,
+    elevation: 8,
+    shadowColor: '#121A33',
+    shadowOpacity: 0.2,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
   },
-  // Onglet non sélectionné : un peu atténué (sans contour, la sélection se lit à l'opacité).
-  vsIdle: { opacity: 0.85 },
-  // Le VS, plus petit, centré dans le rond.
-  vsImage: { width: 36, height: 36 },
+  vsIdle: { opacity: 0.94 },
+  vsImage: { width: 32, height: 32 },
 });

@@ -24,7 +24,7 @@ export interface PickedImage {
  */
 export async function pickImage(
   source: 'library' | 'camera',
-  options: { square?: boolean; aspect?: [number, number] } = {},
+  options: { square?: boolean; aspect?: [number, number]; allowsEditing?: boolean } = {},
 ): Promise<PickedImage | null> {
   const aspect = options.aspect ?? (options.square ? ([1, 1] as [number, number]) : undefined);
   const permission =
@@ -33,7 +33,7 @@ export async function pickImage(
   const pickerOptions: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
     quality: 0.85,
-    allowsEditing: !!aspect,
+    allowsEditing: options.allowsEditing ?? !!aspect,
     aspect,
     exif: false,
   };

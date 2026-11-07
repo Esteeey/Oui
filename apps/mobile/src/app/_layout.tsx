@@ -3,6 +3,7 @@ import { useFonts } from 'expo-font';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, type ReactNode } from 'react';
 
 import { Colors } from '@/constants/theme';
@@ -41,8 +42,9 @@ export default function RootLayout() {
 
   if (!ready) return null;
   return (
-    <ThemeProvider value={navigationTheme}>
-      <GameServerProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={navigationTheme}>
+        <GameServerProvider>
           <StatusBar style="light" />
           <BannedGate>
           <Stack
@@ -71,14 +73,14 @@ export default function RootLayout() {
             <Stack.Screen name="moderation/report/[id]" />
             <Stack.Screen name="announcement/[id]" />
             <Stack.Screen name="defi/[id]" />
-            <Stack.Screen name="search" options={{ animation: 'fade' }} />
             <Stack.Screen name="discover" />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="compose" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
           </BannedGate>
-      </GameServerProvider>
-    </ThemeProvider>
+        </GameServerProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

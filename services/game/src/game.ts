@@ -72,6 +72,8 @@ export class Game {
   private readonly duels = new Map<string, Duel>();
   /** Joueur → duel en cours (non terminé). */
   private readonly active = new Map<string, string>();
+  /** Réserve brièvement les deux comptes pendant la préparation d'un duel invité. */
+  private readonly inviteReservations = new Set<string>();
   private readonly online = new Set<string>();
   private readonly queue = new Map<string, { playerId: string; since: number; timer: ReturnType<typeof setTimeout> }>();
   /** Écritures d'un duel, enchaînées pour garder leur ordre. */
@@ -131,6 +133,26 @@ export class Game {
     return this.online.has(playerId);
   }
 
+  hasActiveDuel(playerId: string): boolean { return this.active.has(playerId) || this.inviteReservations.has(playerId); }
+
+  /** Crée le même duel PVP que le matchmaking, avec les deux comptes attachés à une unique session. */
+  async startLiveInviteDuel(senderId: string, receiverId: string, themeId: string): Promise<Duel | null> {
+    if (senderId === receiverId || !this.isOnline(receiverId) || this.hasActiveDuel(senderId) || this.hasActiveDuel(receiverId)) return null;
+    this.inviteReservations.add(senderId); this.inviteReservations.add(receiverId);
+    try {
+      if (this.active.has(senderId) || this.active.has(receiverId)) return null;
+      this.cancelQueue(senderId); this.cancelQueue(receiverId);
+      const sender = await this.human(senderId, themeId);
+      const receiver = await this.human(receiverId, themeId);
+      if (!this.isOnline(receiverId) || this.active.has(senderId) || this.active.has(receiverId)) return null;
+      sender.connected = this.isOnline(senderId);
+      receiver.connected = true;
+      return await this.startDuel(themeId, 'pvp', [sender, receiver]);
+    } finally {
+      this.inviteReservations.delete(senderId); this.inviteReservations.delete(receiverId);
+    }
+  }
+
   /** Présence : appelée par le serveur quand la première connexion s'ouvre ou la dernière se ferme. */
   setOnline(playerId: string, online: boolean): void {
     if (online) {
@@ -168,6 +190,7 @@ export class Game {
   // ---- Matchmaking -------------------------------------------------------------------------
 
   async play(playerId: string, themeId: string, mode: 'bot' | 'pvp'): Promise<void> {
+    if (this.inviteReservations.has(playerId)) return;
     const activeId = this.active.get(playerId);
     if (activeId) return this.pushTo(playerId, this.duels.get(activeId)!);
     if (!getTheme(themeId) || questionsOf(themeId).length < RULES.questionsPerDuel) {
@@ -207,10 +230,15 @@ export class Game {
    * plus tard. Refusé (null) si l'invitant est déjà en duel.
    */
   async startChallengeLeg1(fromId: string, toId: string, themeId: string, challengeId: string): Promise<Duel | null> {
-    if (this.active.has(fromId)) return null;
+    if (this.hasActiveDuel(fromId)) return null;
     this.cancelQueue(fromId);
-    const friend: Participant = { ...(await this.human(toId, themeId)), ghost: 'pending', connected: true };
-    return this.startDuel(themeId, 'pvp', [await this.human(fromId, themeId), friend], { challenge: { id: challengeId, leg: 1 } });
+    this.inviteReservations.add(fromId);
+    try {
+      const friend: Participant = { ...(await this.human(toId, themeId)), ghost: 'pending', connected: true };
+      const sender = await this.human(fromId, themeId);
+      if (this.active.has(fromId)) return null;
+      return await this.startDuel(themeId, 'pvp', [sender, friend], { challenge: { id: challengeId, leg: 1 } });
+    } finally { this.inviteReservations.delete(fromId); }
   }
 
   /** Défi asynchrone, manche 2 : l'ami rejoue les MÊMES questions contre les réponses enregistrées de l'invitant. */
@@ -222,10 +250,12 @@ export class Game {
     questions: DuelQuestion[],
     script: PlayerAnswer[],
   ): Promise<Duel | null> {
-    if (this.active.has(toId)) return null;
+    if (this.hasActiveDuel(toId)) return null;
     this.cancelQueue(toId);
     const challenger: Participant = { ...(await this.human(fromId, themeId)), ghost: 'replay', script, connected: true };
-    return this.startDuel(themeId, 'pvp', [await this.human(toId, themeId), challenger], { questions, challenge: { id: challengeId, leg: 2 } });
+    const player = await this.human(toId, themeId);
+    if (this.active.has(toId) || this.inviteReservations.has(toId)) return null;
+    return this.startDuel(themeId, 'pvp', [player, challenger], { questions, challenge: { id: challengeId, leg: 2 } });
   }
 
   cancelQueue(playerId: string): void {
@@ -253,6 +283,9 @@ export class Game {
   }
 
   private async startBotDuel(playerId: string, themeId: string): Promise<void> {
+    if (this.hasActiveDuel(playerId)) return;
+    this.inviteReservations.add(playerId);
+    try {
     const bot: Participant = {
       playerId: 'bot',
       name: BOT_NAME,
@@ -263,7 +296,10 @@ export class Game {
       connected: true,
       forfeited: false,
     };
-    await this.startDuel(themeId, 'bot', [await this.human(playerId, themeId), bot]);
+    const player = await this.human(playerId, themeId);
+    if (this.active.has(playerId)) return;
+    await this.startDuel(themeId, 'bot', [player, bot]);
+    } finally { this.inviteReservations.delete(playerId); }
   }
 
   private async startDuel(

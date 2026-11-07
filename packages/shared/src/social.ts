@@ -29,6 +29,20 @@ export interface UserSummary {
   avatar: string | null;
 }
 
+export type LiveInvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled' | 'unavailable';
+export interface LiveInvitation {
+  id: string;
+  sender: UserSummary;
+  receiver: UserSummary;
+  themeId: string;
+  status: LiveInvitationStatus;
+  createdAt: number;
+  expiresAt: number;
+  respondedAt: number | null;
+  matchId: string | null;
+  incoming: boolean;
+}
+
 /** Joueur d'une section de la page Personnes, avec la raison pour laquelle il est proposé. */
 export interface PeopleEntry {
   user: UserSummary;
@@ -78,12 +92,18 @@ export interface PublicProfile extends UserSummary {
   canSeeFollowing: boolean;
   /** Photo de couverture (bandeau 3:1 au-dessus de la photo de profil), sinon dégradé. */
   cover: string | null;
-  /** Pays choisi (code ISO), renvoyé seulement au joueur lui-même. */
+  /** Pays choisi manuellement et affiché sur le profil. */
   country?: string | null;
-  /** Région choisie, renvoyée seulement au joueur lui-même. */
+  /** Ville choisie manuellement et affichée sur le profil. */
+  city?: string | null;
+  /** Région utilisée pour le classement, renvoyée seulement au joueur lui-même. */
   region?: string | null;
   /** Position approximative enregistrée (classement « À proximité »), seulement pour le joueur lui-même. */
   hasLocation?: boolean;
+  /** En ligne et dernière activité : pour soi-même, ou si chacun suit l'autre (jamais en cas de blocage). */
+  presence?: { online: boolean; lastSeenAt: number | null } | null;
+  /** Meilleur thème (le plus d'XP) et rang mondial dans ce thème, si le contenu est visible. */
+  best?: { themeId: string; rank: number; players: number } | null;
 }
 
 export type PostTarget = { kind: 'profile' } | { kind: 'theme'; themeId: string };
