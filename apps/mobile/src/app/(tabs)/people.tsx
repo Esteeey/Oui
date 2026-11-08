@@ -12,6 +12,7 @@ import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { Tap } from '@/components/tap';
+import { ThemeIcon } from '@/components/theme-icon';
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
@@ -104,9 +105,10 @@ export default function PeopleScreen() {
             accessibilityRole="button"
             onPress={() => router.push({ pathname: '/theme/[id]', params: { id: t.themeId } })}
             style={[styles.link, { borderLeftWidth: 5, borderLeftColor: category.color }]}>
-            <AppText variant="label">
-              {category.icon} {theme.name}
-            </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 }}>
+              <ThemeIcon themeId={theme.id} size={32} />
+              <AppText variant="label" numberOfLines={1} style={{ flex: 1 }}>{theme.name}</AppText>
+            </View>
             <AppText muted>{t.subscribers} abonné{t.subscribers > 1 ? 's' : ''}</AppText>
           </Tap>
         );

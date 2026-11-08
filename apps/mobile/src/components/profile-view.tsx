@@ -13,6 +13,7 @@ import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
 import type { Badge } from '@/game/badges';
 import { mediaUri } from '@/net/media';
 import { Tap } from '@/components/tap';
+import { ThemeIcon } from '@/components/theme-icon';
 
 export interface ShowcaseTheme {
   themeId: string;
@@ -166,7 +167,7 @@ export function Showcase({ title, themes }: { title: string; themes: ShowcaseThe
             key={t.themeId}
             onPress={() => router.push({ pathname: '/theme/[id]', params: { id: t.themeId } })}
             style={[styles.theme, { borderLeftColor: category.color }]}>
-            <AppText style={{ fontSize: 26 }}>{category.icon}</AppText>
+            <ThemeIcon themeId={t.themeId} size={38} />
             <View style={{ flex: 1, gap: 4 }}>
               <AppText variant="label">{theme.name}</AppText>
               <ProgressBar progress={level.progress} color={category.color} height={6} />

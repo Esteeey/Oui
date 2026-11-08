@@ -132,6 +132,9 @@ export interface CommentView {
   text: string;
   createdAt: number;
   mentions: { id: string; pseudo: string }[];
+  likes: number;
+  likedByMe: boolean;
+  media: MediaView | null;
 }
 
 export interface ActivityView {

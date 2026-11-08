@@ -66,20 +66,22 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  compact,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
+  compact?: boolean;
 }) {
   return (
-    <View style={styles.segmented}>
+    <View style={[styles.segmented, compact && styles.segmentedCompact]}>
       {options.map((o) => (
         <Tap
           key={o.value}
           accessibilityRole="button"
           onPress={() => onChange(o.value)}
-          style={[styles.segment, o.value === value && { backgroundColor: Colors.accent }]}>
-          <AppText variant="label" color={o.value === value ? Colors.onAccent : Colors.textMuted}>
+          style={[styles.segment, compact && styles.segmentCompact, o.value === value && { backgroundColor: Colors.accent }]}>
+          <AppText variant="label" color={o.value === value ? Colors.onAccent : Colors.textMuted} style={compact ? { fontSize: 12 } : undefined}>
             {o.label}
           </AppText>
         </Tap>
@@ -158,6 +160,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   segment: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: Radius.pill },
+  segmentedCompact: { padding: 2 },
+  segmentCompact: { paddingVertical: 6, paddingHorizontal: 4 },
   iconButton: { padding: 4 },
   badge: {
     position: 'absolute',

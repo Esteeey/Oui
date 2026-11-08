@@ -322,8 +322,11 @@ export function createApi(
     ['GET', /^\/api\/posts\/([^/]+)\/comments$/, async ({ userId, params }) => ({ comments: await social.comments(userId, uuid(params[0])) })],
     ['POST', /^\/api\/posts\/([^/]+)\/comments$/, async ({ userId, params, body }) => {
       const b = await body();
-      return social.addComment(userId, uuid(params[0]), b.text, b.parentId ? uuid(b.parentId) : undefined);
+      return social.addComment(userId, uuid(params[0]), b.text, b.parentId ? uuid(b.parentId) : undefined, b.mediaId ? uuid(b.mediaId) : undefined);
     }],
+    ['GET', /^\/api\/posts\/([^/]+)\/likers$/, async ({ userId, params }) => ({ likers: await social.recentLikers(userId, uuid(params[0])) })],
+    ['PUT', /^\/api\/comments\/([^/]+)\/like$/, async ({ userId, params }) => social.setCommentLike(userId, uuid(params[0]), true)],
+    ['DELETE', /^\/api\/comments\/([^/]+)\/like$/, async ({ userId, params }) => social.setCommentLike(userId, uuid(params[0]), false)],
 
     // Recherche globale, mentions, Découvrir
     ['GET', /^\/api\/search$/, async ({ userId, query }) => {

@@ -446,3 +446,23 @@ describe('classements réels', () => {
     expect((await board('&scope=nearby')).rows).toEqual([]);
   });
 });
+
+describe('page d’une publication', () => {
+  it('compte les j’aime des commentaires et liste les dernières personnes ayant aimé', async () => {
+    const auteur = await user('AuteurCom');
+    const lecteur = await user('LecteurCom');
+    const post = (await call<PostView>(auteur, 'POST', '/api/posts', { target: 'profile', text: 'Bonjour' })).body;
+    const comment = (await call<CommentView>(lecteur, 'POST', `/api/posts/${post.id}/comments`, { text: 'Salut' })).body;
+    expect(comment).toMatchObject({ likes: 0, likedByMe: false, media: null });
+
+    expect((await call(auteur, 'PUT', `/api/comments/${comment.id}/like`)).body).toEqual({ likes: 1, likedByMe: true });
+    expect((await call(auteur, 'PUT', `/api/comments/${comment.id}/like`)).body).toEqual({ likes: 1, likedByMe: true });
+    const seen = await call<{ comments: CommentView[] }>(auteur, 'GET', `/api/posts/${post.id}/comments`);
+    expect(seen.body.comments[0]).toMatchObject({ likes: 1, likedByMe: true });
+    expect((await call(auteur, 'DELETE', `/api/comments/${comment.id}/like`)).body).toEqual({ likes: 0, likedByMe: false });
+
+    await call(lecteur, 'PUT', `/api/posts/${post.id}/like`);
+    const likers = await call<{ likers: UserSummary[] }>(auteur, 'GET', `/api/posts/${post.id}/likers`);
+    expect(likers.body.likers.map((u) => u.id)).toEqual([lecteur.id]);
+  });
+});

@@ -5,7 +5,9 @@ import { StyleSheet, View } from 'react-native';
 
 import { THEMES, countryName, getCategory, getTheme, type DuelRecord, type EarnedMedal, type PostView, type PublicProfile, type ThemeStats } from '@qu1z/shared';
 
-import { CoverButton, PlayedThemes, ProfileLayout, ProfileOverview, totalsOf } from '@/components/player-profile';
+import { AppNavBar } from '@/components/app-nav-bar';
+import { MoreMenu } from '@/components/more-menu';
+import { CoverButton, PlayedThemes, ProfileAction, ProfileLayout, ProfileOverview, totalsOf } from '@/components/player-profile';
 import { PostCard } from '@/components/post-card';
 import { BadgesGrid } from '@/components/profile-view';
 import { ReportSheet } from '@/components/report-sheet';
@@ -16,6 +18,7 @@ import { api, errorMessage, useApi } from '@/net/api';
 import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
 import { Tap } from '@/components/tap';
+import { ThemeIcon } from '@/components/theme-icon';
 
 const OUTCOME = {
   win: { label: 'Victoire', color: Colors.correct },
@@ -96,48 +99,40 @@ export default function PlayerScreen() {
         best={p.best}
         duels={hidden ? 0 : totalsOf(themeStats).duels}
         profile={p}
+        stats={hidden ? undefined : themeStats}
+        themesTitle="Ses thèmes"
         topRight={
-          <>
-            <CoverButton icon="chatbubble-outline" label="Message" onPress={() => router.push({ pathname: '/messages/new', params: { userId: id } })} />
-            <CoverButton icon="flag-outline" label="Signaler" onPress={() => setReporting(true)} />
-            <CoverButton
-              icon={rel.blockedByMe ? 'lock-open-outline' : 'ban-outline'}
-              label={rel.blockedByMe ? 'Débloquer' : 'Bloquer'}
-              onPress={() => (rel.blockedByMe ? act('DELETE', `/api/blocks/${id}`) : setConfirmBlock(true))}
-            />
-          </>
+          <MoreMenu
+            trigger={(open) => <CoverButton icon="ellipsis-horizontal" label="Plus d’options" onPress={open} />}
+            items={[
+              { label: 'Signaler', icon: 'flag-outline', onPress: () => setReporting(true) },
+              rel.blockedByMe
+                ? { label: 'Débloquer', icon: 'lock-open-outline', onPress: () => act('DELETE', `/api/blocks/${id}`) }
+                : { label: 'Bloquer', icon: 'ban-outline', destructive: true, onPress: () => setConfirmBlock(true) },
+            ]}
+          />
         }
         actions={
           rel.blockedByMe ? undefined : (
             <>
-              <Button
+              <ProfileAction primary label="Jouer" icon="game-controller-outline" color={Colors.accent} disabled={!canChallenge} onPress={() => setChoosing((c) => !c)} />
+              <ProfileAction
                 label={followLabel}
-                variant={rel.following || rel.requested ? 'outline' : 'solid'}
-                color={rel.following || rel.requested ? Colors.textMuted : Colors.accent}
+                icon={rel.following || rel.requested ? 'person-outline' : 'person-add-outline'}
+                color={rel.following || rel.requested ? Colors.textMuted : Colors.violetInk}
                 onPress={onFollow}
-                style={{ flex: 1 }}
               />
-              <Button
-                label="Jouer"
-                color={Colors.accent}
-                disabled={!canChallenge}
-                onPress={() => setChoosing((c) => !c)}
-                style={{ flex: 1 }}
-              />
+              <ProfileAction accessibilityLabel="Message" icon="paper-plane-outline" color={Colors.violetInk} onPress={() => router.push({ pathname: '/messages/new', params: { userId: id } })} />
             </>
           )
         }
+        tag={rel.followsMe && !rel.blockedByMe ? 'Te suit' : undefined}
         notices={
-          (rel.followsMe && !rel.blockedByMe) || error || sent || choosing || confirmBlock ? (
+          error || sent || liveSent || choosing || confirmBlock ? (
             <>
-              {rel.followsMe && !rel.blockedByMe && (
-                <AppText variant="caption" muted style={{ textAlign: 'center' }}>
-                  Te suit
-                </AppText>
-              )}
-              {error && <AppText color={Colors.wrong}>{error}</AppText>}
-              {sent && <AppText color={Colors.correct}>{sent}</AppText>}
-              {liveSent && <AppText color={Colors.correct}>{liveSent}</AppText>}
+              {error && <Card><AppText color={Colors.wrong}>{error}</AppText></Card>}
+              {sent && <Card><AppText color={Colors.correct}>{sent}</AppText></Card>}
+              {liveSent && <Card><AppText color={Colors.correct}>{liveSent}</AppText></Card>}
               {choosing && (
                 <Card>
                   <AppText variant="label">Choisis un thème · Duel en direct ou défi asynchrone</AppText>
@@ -158,7 +153,7 @@ export default function PlayerScreen() {
                           }
                         }}
                         style={[styles.option, { borderColor: category.color, flex: 1 }]}>
-                        <AppText>{category.icon}</AppText>
+                        <ThemeIcon themeId={t.id} size={30} />
                         <AppText variant="label" style={{ flex: 1 }}>
                           {t.name}
                         </AppText>
@@ -215,7 +210,7 @@ export default function PlayerScreen() {
                 locked
               ) : (
                 <>
-                  <ProfileOverview xp={p.xp} stats={themeStats} history={theirHistory} onSeeThemes={() => setTab('themes')} />
+                  <ProfileOverview xp={p.xp} stats={themeStats} history={theirHistory} />
                   <AppText variant="heading">Mur de {p.pseudo}</AppText>
                   {(wall.data?.posts ?? []).map((post) => (
                     <PostCard key={post.id} post={post} showTheme={false} />
@@ -276,6 +271,7 @@ export default function PlayerScreen() {
           },
         ]}
       />
+      <AppNavBar />
     </>
   );
 }

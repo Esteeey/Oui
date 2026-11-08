@@ -1,54 +1,38 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
 import type { IconName } from '@/components/social';
-import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
 
-/** Hauteur de la partie du bandeau recouverte par la feuille de contenu arrondie. */
-export const HEADER_OVERLAP = Radius.lg;
-
-/** Bandeau bleu nuit traversé d'une vague rose, en haut de chaque écran (hors jeu). */
+/** En-tête clair commun aux écrans classiques : posé sur le fond pastel, sans bandeau coloré. */
 export function GradientHeader({
   title,
   left,
   right,
   flat,
+  alignLeft,
 }: {
   title?: ReactNode;
   left?: ReactNode;
   right?: ReactNode;
-  /** Sans feuille arrondie par-dessus (le contenu commence juste sous le bandeau). */
+  /** Variante plus serrée (conversations). */
   flat?: boolean;
+  /** Titre aligné à gauche (onglets principaux) au lieu d'être centré. */
+  alignLeft?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   return (
-    <View style={{ paddingTop: insets.top + (flat ? Spacing.sm : Spacing.md), paddingBottom: flat ? Spacing.sm : HEADER_OVERLAP + Spacing.md }}>
-      <LinearGradient colors={Gradients.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <Svg style={StyleSheet.absoluteFill} viewBox="0 0 400 160" preserveAspectRatio="none">
-        <Defs>
-          <SvgGradient id="glow" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor="#FF3B83" stopOpacity="0" />
-            <Stop offset="0.6" stopColor="#FF3B83" stopOpacity="0.55" />
-            <Stop offset="1" stopColor="#FF5A9A" stopOpacity="0.9" />
-          </SvgGradient>
-          <SvgGradient id="wave" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor="#E5155F" stopOpacity="0.2" />
-            <Stop offset="1" stopColor="#FF2E7E" stopOpacity="1" />
-          </SvgGradient>
-        </Defs>
-        <Path d="M40 160 C 170 150, 280 90, 400 -20 L400 160 Z" fill="url(#glow)" />
-        <Path d="M140 160 C 240 140, 320 90, 400 10 L400 160 Z" fill="url(#wave)" />
-      </Svg>
-      <View style={styles.row}>
-        <View style={styles.side}>{left}</View>
-        <View style={styles.title}>
+    <View style={{ paddingTop: insets.top + (flat || alignLeft ? Spacing.xs : Spacing.sm), paddingBottom: flat ? Spacing.xs : Spacing.sm }}>
+      <View style={[styles.row, alignLeft && styles.rowLeft]}>
+        <View style={[styles.side, alignLeft && styles.sideTight]}>{left}</View>
+        <View style={[styles.title, alignLeft && styles.titleLeft]}>
           {typeof title === 'string' ? (
-            <Text style={styles.titleText} numberOfLines={1}>
+            <Text style={[styles.titleText, alignLeft && styles.titleTextLeft, alignLeft && width < 360 && styles.titleTextSmall]} numberOfLines={1}>
               {title}
             </Text>
           ) : (
@@ -61,17 +45,26 @@ export function GradientHeader({
   );
 }
 
-/** Logo Qu1z : carré rose arrondi et « Q » blanc. */
-export function Logo({ size = 44 }: { size?: number }) {
+/** Logo QuizX : bulle rose couronnée et « Q » blanc. */
+export function Logo({ size = 39 }: { size?: number }) {
   return (
-    <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.logo, { width: size, height: size, borderRadius: size * 0.27 }]}>
-      <Text style={[styles.logoText, { fontSize: size * 0.62 }]}>Q</Text>
-    </LinearGradient>
+    <Svg width={size} height={(size * 47) / 40} viewBox="0 0 40 47" accessibilityLabel="QuizX">
+      <Defs>
+        <SvgGradient id="logoPink" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#F0247E" />
+          <Stop offset="1" stopColor="#D6056A" />
+        </SvgGradient>
+      </Defs>
+      <Path d="M20 8 a19 18.5 0 1 1 -9.6 34.4 L4 46 L6.2 38.2 A19 18.5 0 0 1 20 8 Z" fill="url(#logoPink)" />
+      <Path d="M12 11 L9.5 2.5 L15.5 6.5 L20 0.5 L24.5 6.5 L30.5 2.5 L28 11 Z" fill={Colors.goldBright} stroke="#E09A00" strokeWidth={0.6} strokeLinejoin="round" />
+      <Circle cx={20} cy={26} r={8.5} stroke={Colors.onAccent} strokeWidth={4.5} fill="none" />
+      <Path d="M23.5 30 L30 37" stroke={Colors.onAccent} strokeWidth={4.5} strokeLinecap="round" />
+    </Svg>
   );
 }
 
-/** Icône blanche du bandeau, avec une pastille de compteur facultative. */
-export function HeaderButton({ icon, label, onPress, badge }: { icon: IconName; label: string; onPress: () => void; badge?: number }) {
+/** Icône de l'en-tête, avec une pastille de compteur ou un simple point rose facultatifs. */
+export function HeaderButton({ icon, label, onPress, badge, dot }: { icon: IconName; label: string; onPress: () => void; badge?: number; dot?: boolean }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -79,7 +72,8 @@ export function HeaderButton({ icon, label, onPress, badge }: { icon: IconName; 
       hitSlop={8}
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && { opacity: 0.6 }]}>
-      <Ionicons name={icon} size={26} color={Colors.onAccent} />
+      <Ionicons name={icon} size={26} color={Colors.ink} />
+      {dot && <View style={styles.dot} />}
       {!!badge && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
@@ -89,7 +83,7 @@ export function HeaderButton({ icon, label, onPress, badge }: { icon: IconName; 
   );
 }
 
-/** Retour (ou fermeture d'une fenêtre modale) dans le bandeau. */
+/** Retour (ou fermeture d'une fenêtre modale) dans l'en-tête. */
 export function HeaderBack({ close }: { close?: boolean }) {
   return (
     <Pressable
@@ -98,20 +92,24 @@ export function HeaderBack({ close }: { close?: boolean }) {
       hitSlop={8}
       onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
       style={({ pressed }) => [styles.back, pressed && { opacity: 0.6 }]}>
-      <Ionicons name={close ? 'close' : 'chevron-back'} size={24} color={Colors.onAccent} />
+      <Ionicons name={close ? 'close' : 'chevron-back'} size={24} color={Colors.text} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, minHeight: 56, gap: Spacing.sm },
-  side: { minWidth: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, minHeight: 48, gap: Spacing.sm },
+  rowLeft: { paddingLeft: 19, gap: 18 },
+  side: { minWidth: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  sideTight: { minWidth: 0 },
   right: { justifyContent: 'flex-end' },
   title: { flex: 1, alignItems: 'center' },
-  titleText: { color: Colors.onAccent, fontSize: 24, fontWeight: '900', letterSpacing: -0.4 },
-  logo: { alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(229, 21, 95, 0.35)' },
-  logoText: { color: Colors.onAccent, fontWeight: '900', marginTop: -2 },
+  titleLeft: { alignItems: 'flex-start' },
+  titleText: { color: Colors.text, fontSize: 20, fontFamily: Fonts.extraBold },
+  titleTextLeft: { color: Colors.ink, fontSize: 20 },
+  titleTextSmall: { fontSize: 16 },
   button: { padding: 4 },
+  dot: { position: 'absolute', top: 2, right: 3, width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.accent },
   badge: {
     position: 'absolute',
     top: -2,
@@ -121,18 +119,20 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     backgroundColor: Colors.accent,
     borderWidth: 2,
-    borderColor: Colors.navy,
+    borderColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  badgeText: { color: Colors.onAccent, fontSize: 10, fontWeight: '800' },
+  badgeText: { color: Colors.onAccent, fontSize: 10, fontFamily: Fonts.bold, lineHeight: 12 },
   back: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
   },
 });

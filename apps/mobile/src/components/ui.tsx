@@ -1,6 +1,4 @@
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router, usePathname } from 'expo-router';
 import type { ReactNode } from 'react';
 import {
   Pressable,
@@ -14,15 +12,20 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GradientHeader, HEADER_OVERLAP, HeaderBack, Logo } from '@/components/header';
-import { Colors, Gradients, Fonts, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
+import { GradientHeader, HeaderBack, Logo } from '@/components/header';
+import { Colors, Fonts, MaxContentWidth, NavBarHeight, Radius, Shadow, Spacing, fontForWeight } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
-import { useGameServer } from '@/state/game-server';
-import { avatarColor } from '@/utils/avatar';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'score';
+
+/** Traduit la graisse demandée en famille Poppins, sauf si le style impose déjà sa police. */
+function withAppFont(style: TextStyle): TextStyle {
+  if (style.fontFamily) return style;
+  const { fontWeight, ...rest } = style;
+  return { ...rest, fontFamily: fontForWeight(fontWeight) };
+}
 
 export function AppText({
   variant = 'body',
@@ -31,22 +34,18 @@ export function AppText({
   style,
   ...props
 }: TextProps & { variant?: Variant; muted?: boolean; color?: string }) {
-  return (
-    <Text
-      {...props}
-      style={[
-        textStyles[variant],
-        muted && { color: Colors.textMuted },
-        color ? { color } : null,
-        style,
-      ]}
-    />
-  );
+  const resolved = StyleSheet.flatten([textStyles[variant], muted && { color: Colors.textMuted }, color ? { color } : null, style]) as TextStyle;
+  return <Text {...props} style={withAppFont(resolved)} />;
+}
+
+/** Marge basse à laisser sous un contenu pour qu'il ne passe pas derrière la barre de navigation. */
+export function useNavBarSpace(): number {
+  return NavBarHeight + Math.max(useSafeAreaInsets().bottom, 14) + Spacing.sm;
 }
 
 /**
- * Écran standard : bandeau dégradé en haut (titre, retour, actions), puis une feuille claire arrondie
- * qui recouvre le bas du bandeau. Les onglets affichent le logo à gauche, les autres écrans un retour.
+ * Écran standard : fond très clair, en-tête clair (titre, retour, actions), puis le contenu.
+ * Les onglets affichent le logo à gauche, les autres écrans un retour.
  */
 export function Screen({
   children,
@@ -69,31 +68,20 @@ export function Screen({
   headerLeft?: ReactNode;
   headerRight?: ReactNode;
 }) {
+  const navSpace = useNavBarSpace();
   const content = <View style={[styles.content, style]}>{children}</View>;
   const left = headerLeft ?? (back ? <HeaderBack close={back === 'close'} /> : inTabs ? <Logo /> : null);
+  const bottom = inTabs ? { paddingBottom: navSpace } : null;
   return (
     <View style={styles.screen}>
-      <GradientHeader
-        title={title}
-        left={left}
-        right={
-          inTabs ? (
-            <>
-              {headerRight}
-              <ProfileButton />
-            </>
-          ) : (
-            headerRight
-          )
-        }
-      />
+      <GradientHeader title={title} left={left} right={headerRight} alignLeft={inTabs} />
       <SafeAreaView style={styles.sheet} edges={inTabs ? [] : ['bottom']}>
         {scroll ? (
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={[styles.scroll, bottom]} showsVerticalScrollIndicator={false}>
             {content}
           </ScrollView>
         ) : (
-          <View style={styles.scroll}>{content}</View>
+          <View style={[styles.scroll, bottom]}>{content}</View>
         )}
       </SafeAreaView>
     </View>
@@ -113,10 +101,11 @@ export function Button({
   disabled,
   style,
   small,
+  compact,
 }: {
   label: string;
   onPress?: () => void;
-  /** Sans couleur, un bouton plein prend le dégradé rose de l'accent. */
+  /** Sans couleur, un bouton plein prend le rose de l'accent. */
   color?: string;
   textColor?: string;
   variant?: 'solid' | 'outline';
@@ -124,6 +113,8 @@ export function Button({
   style?: StyleProp<ViewStyle>;
   /** Version compacte (hauteur 38, texte 14). */
   small?: boolean;
+  /** Variante intermédiaire pour les actions de profil (hauteur 48). */
+  compact?: boolean;
 }) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
@@ -140,14 +131,12 @@ export function Button({
         style={[
           styles.button,
           small && styles.buttonSmall,
+          compact && styles.buttonCompact,
           solid ? { backgroundColor: color ?? Colors.accent } : { borderColor: color ?? Colors.accent, borderWidth: 2 },
           disabled && { opacity: 0.4 },
           animated,
         ]}>
-        {solid && !color && (
-          <LinearGradient colors={Gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-        )}
-        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} style={small ? { fontSize: 14 } : undefined}>
+        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} style={small ? { fontSize: 13 } : compact ? { fontSize: 14 } : undefined}>
           {label}
         </AppText>
       </Animated.View>
@@ -174,36 +163,22 @@ export function ProgressBar({
   );
 }
 
-/** Photo de profil, ou initiale sur fond coloré quand le joueur n'en a pas. */
-/** Photo du joueur dans le bandeau des onglets : ouvre son profil (sauf sur le profil lui-même). */
-function ProfileButton() {
-  const { playerId, profile } = useGameServer();
-  const pathname = usePathname();
-  if (pathname === '/profile') return null;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Mon profil"
-      hitSlop={8}
-      onPress={() => router.push('/profile')}
-      style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
-      <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} uri={profile?.avatar} size={36} borderColor="rgba(255, 255, 255, 0.9)" />
-    </Pressable>
-  );
-}
-
+/** Photo de profil cerclée de rose, ou initiale sur fond coloré quand le joueur n'en a pas. */
 export function Avatar({
   name,
   color,
   size = 56,
   uri,
-  borderColor = Colors.surface,
+  borderColor = Colors.avatarRing,
+  ring = true,
 }: {
   name: string;
   color: string;
   size?: number;
   uri?: string | null;
   borderColor?: string;
+  /** Contour rose ; absent dans le fil d'actualité. */
+  ring?: boolean;
 }) {
   const source = mediaUri(uri);
   return (
@@ -215,7 +190,7 @@ export function Avatar({
         backgroundColor: color,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: size >= 40 ? 3 : 2,
+        borderWidth: !ring ? 0 : size >= 100 ? 4 : size >= 72 ? 3 : 2,
         borderColor,
         overflow: 'hidden',
       }}>
@@ -242,32 +217,26 @@ export function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const textStyles = StyleSheet.create<Record<Variant, TextStyle>>({
-  display: { color: Colors.text, fontSize: 40, fontWeight: '900', letterSpacing: -1 },
-  title: { color: Colors.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
-  heading: { color: Colors.text, fontSize: 20, fontWeight: '800' },
-  body: { color: Colors.text, fontSize: 16, lineHeight: 22 },
-  label: { color: Colors.text, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
-  caption: { color: Colors.text, fontSize: 13, fontWeight: '600' },
+  display: { color: Colors.text, fontSize: 38, fontWeight: '800', letterSpacing: -0.5 },
+  title: { color: Colors.text, fontSize: 26, fontWeight: '800' },
+  heading: { color: Colors.text, fontSize: 18, fontWeight: '700' },
+  body: { color: Colors.text, fontSize: 15, lineHeight: 22 },
+  label: { color: Colors.text, fontSize: 15, fontWeight: '600' },
+  caption: { color: Colors.text, fontSize: 12 },
   score: { color: Colors.text, fontSize: 34, fontFamily: Fonts.score, fontVariant: ['tabular-nums'] },
 });
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.navy },
-  sheet: {
-    flex: 1,
-    marginTop: -HEADER_OVERLAP,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
-    backgroundColor: Colors.background,
-    overflow: 'hidden',
-  },
+  screen: { flex: 1, backgroundColor: Colors.background },
+  sheet: { flex: 1 },
   scroll: { flexGrow: 1, alignItems: 'center' },
   content: {
     flex: 1,
     width: '100%',
     maxWidth: MaxContentWidth,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     gap: Spacing.md,
   },
   card: {
@@ -275,17 +244,20 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.md,
     gap: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     ...Shadow,
   },
   button: {
-    minHeight: 54,
-    borderRadius: Radius.pill,
+    minHeight: 50,
+    borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.lg,
     overflow: 'hidden',
   },
-  buttonSmall: { minHeight: 38, paddingHorizontal: Spacing.md },
+  buttonSmall: { minHeight: 38, paddingHorizontal: Spacing.md, borderRadius: Radius.xs },
+  buttonCompact: { minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radius.xs },
   track: { width: '100%', backgroundColor: Colors.surfaceRaised, overflow: 'hidden' },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
 });

@@ -14,6 +14,7 @@ import { api, apiBase } from '@/net/api';
  * servi par le serveur de jeu, prend la place du son d'origine.
  */
 const SFX = {
+  playMenu: require('../../assets/sounds/qz_menu_ouvrir.wav'),
   launch: require('../../assets/sounds/qz_lancement.wav'),
   pinPop: require('../../assets/sounds/qz_pop.wav'),
   versus: require('../../assets/sounds/s10_vs.wav'),

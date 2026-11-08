@@ -1,122 +1,166 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { CATEGORIES, THEMES, getCategory, levelFromXp, themesOf } from '@qu1z/shared';
+import { CATEGORIES, THEMES, getTheme, levelFromXp, themesOf, type Category } from '@qu1z/shared';
 
-import { SectionHeader } from '@/components/social';
 import { HeaderButton } from '@/components/header';
-import { AppText, Screen } from '@/components/ui';
+import { AppText, Avatar, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
-import { subscribersLabel, useThemeInfos } from '@/state/themes';
+import { avatarColor } from '@/utils/avatar';
+import { ThemeIcon } from '@/components/theme-icon';
 import { Tap } from '@/components/tap';
 
 function normalize(text: string): string {
-  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function chooseThree<T extends { category: Category }>(groups: T[], previousIds: string[] = []): T[] {
+  const shuffled = [...groups];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  let selected = shuffled.slice(0, 3);
+  if (shuffled.length > 3 && selected.length === 3 && selected.every((group) => previousIds.includes(group.category.id))) {
+    selected = shuffled.slice(1, 4);
+  }
+  return selected;
 }
 
 export default function ExploreScreen() {
-  const { stats } = useProgress();
+  const { stats, history } = useProgress();
   const [query, setQuery] = useState('');
   const q = normalize(query.trim());
-  const results = q
-    ? THEMES.filter((t) => normalize(`${t.name} ${getCategory(t.categoryId)?.name}`).includes(q))
-    : [];
-  const played = THEMES.filter((t) => stats[t.id]).sort((a, b) => stats[b.id].xp - stats[a.id].xp);
+  const allGroups = useMemo(() => CATEGORIES
+    .map((category) => ({ category, themes: themesOf(category.id).filter((theme) => !q || normalize(`${theme.name} ${category.name}`).includes(q)) }))
+    .filter((group) => group.themes.length > 0), [q]);
+  const [visibleCategoryIds, setVisibleCategoryIds] = useState<string[]>(() => chooseThree(allGroups).map((group) => group.category.id));
+  const firstFocus = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    setVisibleCategoryIds((previous) => chooseThree(allGroups, previous).map((group) => group.category.id));
+  }, [allGroups]));
+  const selectedGroups = allGroups.filter((group) => visibleCategoryIds.includes(group.category.id));
+  const groups = selectedGroups.length || !allGroups.length ? selectedGroups : allGroups.slice(0, 3);
+  const recentDuels = history.slice(0, 5);
 
   return (
     <Screen inTabs title="Thèmes" headerRight={<HeaderButton icon="search" label="Rechercher" onPress={() => router.push('/search')} />}>
-
       <View style={styles.search}>
-        <Ionicons name="search" size={18} color={Colors.textMuted} />
+        <Ionicons name="search" size={19} color={Colors.textMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Chercher un thème…"
+          placeholder="Rechercher un thème…"
           placeholderTextColor={Colors.textMuted}
+          accessibilityLabel="Rechercher un thème"
+          returnKeyType="search"
           style={styles.input}
         />
+        {!!query && <Tap accessibilityRole="button" accessibilityLabel="Effacer la recherche" onPress={() => setQuery('')}><Ionicons name="close-circle" size={19} color={Colors.textMuted} /></Tap>}
       </View>
 
-      {q ? (
-        <>
-          {results.map((t) => <ThemeRow key={t.id} themeId={t.id} level={levelFromXp(stats[t.id]?.xp ?? 0).level} />)}
-          {results.length === 0 && <AppText muted>Aucun thème trouvé pour « {query} ».</AppText>}
-        </>
-      ) : (
-        <>
-          {played.length > 0 && (
-            <>
-              <SectionHeader title="Tes thèmes" />
-              {played.map((t) => (
-                <ThemeRow key={t.id} themeId={t.id} level={levelFromXp(stats[t.id].xp).level} />
-              ))}
-            </>
-          )}
-
-          <SectionHeader title="Catégories" />
-          <View style={styles.grid}>
-            {CATEGORIES.map((category, i) => {
-              const count = themesOf(category.id).length;
-              const available = count > 0;
-              return (
-                <Animated.View key={category.id} entering={FadeInDown.delay(i * 30).springify()} style={styles.cell}>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={!available}
-                    onPress={() => router.push({ pathname: '/category/[id]', params: { id: category.id } })}
-                    style={({ pressed }) => [
-                      styles.tile,
-                      { borderColor: available ? category.color : Colors.border },
-                      !available && { opacity: 0.45 },
-                      pressed && { transform: [{ scale: 0.97 }] },
-                    ]}>
-                    <AppText style={styles.icon}>{category.icon}</AppText>
-                    <AppText variant="label" numberOfLines={2}>
-                      {category.name}
-                    </AppText>
-                    <AppText variant="caption" color={available ? category.color : Colors.textMuted}>
-                      {available ? `${count} thème${count > 1 ? 's' : ''}` : 'Bientôt'}
-                    </AppText>
-                  </Pressable>
-                </Animated.View>
-              );
-            })}
-          </View>
-        </>
+      {groups.length ? groups.map(({ category, themes }, index) => (
+        <CategoryStrip key={category.id} category={category} themeIds={themes.map((theme) => theme.id)} index={index} stats={stats} />
+      )) : (
+        <AppText muted style={styles.noResults}>Aucun thème trouvé pour « {query} ».</AppText>
       )}
+
+      {!q && recentDuels.length > 0 && <DuelHistory duels={recentDuels} />}
     </Screen>
   );
 }
 
-function ThemeRow({ themeId, level }: { themeId: string; level: number }) {
-  const theme = THEMES.find((t) => t.id === themeId)!;
-  const category = getCategory(theme.categoryId)!;
-  const infos = useThemeInfos();
+function CategoryStrip({ category, themeIds, index, stats }: { category: Category; themeIds: string[]; index: number; stats: ReturnType<typeof useProgress>['stats'] }) {
+  return (
+    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 35).duration(220)} style={styles.categorySection}>
+      <View style={styles.sectionHeading}>
+        <AppText variant="heading" style={styles.categoryTitle}>{category.name}</AppText>
+        <Tap
+          accessibilityRole="button"
+          accessibilityLabel={`Voir tous les thèmes de ${category.name}`}
+          onPress={() => router.push({ pathname: '/category/[id]', params: { id: category.id } })}
+          style={styles.seeAll}>
+          <AppText style={styles.seeAllText}>Tout voir</AppText>
+        </Tap>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeStrip}>
+        {themeIds.slice(0, 5).map((id) => <ThemeTile key={id} themeId={id} color={category.color} xp={stats[id]?.xp ?? 0} />)}
+      </ScrollView>
+      <View style={styles.divider} />
+    </Animated.View>
+  );
+}
+
+function ThemeTile({ themeId, color, xp }: { themeId: string; color: string; xp: number }) {
+  const theme = THEMES.find((item) => item.id === themeId)!;
+  const level = levelFromXp(xp).level;
   return (
     <Tap
       accessibilityRole="button"
-      onPress={() => router.push({ pathname: '/theme/[id]', params: { id: theme.id } })}
-      style={[styles.row, { borderLeftColor: category.color }]}>
-      <AppText style={{ fontSize: 24 }}>{category.icon}</AppText>
-      <View style={{ flex: 1 }}>
-        <AppText variant="label">{theme.name}</AppText>
-        <AppText variant="caption" muted>
-          {[category.name, subscribersLabel(infos.get(theme.id))].filter(Boolean).join(' · ')}
-        </AppText>
+      accessibilityLabel={`${theme.name}, niveau ${level}`}
+      onPress={() => router.push({ pathname: '/theme/[id]', params: { id: themeId } })}
+      style={styles.themeTile}>
+      <View style={[styles.themeArtwork, { backgroundColor: color }]}>
+        <ThemeIcon themeId={themeId} size={48} />
       </View>
-      <AppText variant="caption" color={category.color}>
-        Niv. {level}
-      </AppText>
+      <AppText numberOfLines={2} style={styles.themeName}>{theme.name}</AppText>
     </Tap>
+  );
+}
+
+function DuelHistory({ duels }: { duels: ReturnType<typeof useProgress>['history'] }) {
+  return (
+    <View style={styles.historyCard}>
+      <View style={styles.sectionHeading}>
+        <View style={styles.historyTitle}>
+          <Ionicons name="trophy" size={21} color={Colors.navy} />
+          <AppText variant="heading" style={styles.categoryTitle}>Historique de duel</AppText>
+        </View>
+        <Tap accessibilityRole="button" accessibilityLabel="Voir les duels sur mon profil" onPress={() => router.push('/profile')} style={styles.seeAll}>
+          <AppText style={styles.seeAllText}>Tout voir</AppText>
+        </Tap>
+      </View>
+      <View style={styles.historyDivider} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.duelStrip}>
+        {duels.map((duel) => <DuelHistoryItem key={duel.id} duel={duel} />)}
+      </ScrollView>
+    </View>
+  );
+}
+
+function DuelHistoryItem({ duel }: { duel: ReturnType<typeof useProgress>['history'][number] }) {
+  const theme = getTheme(duel.themeId);
+  const ringColor = duel.outcome === 'win' ? Colors.correct : duel.outcome === 'loss' ? Colors.wrong : Colors.gold;
+  const id = duel.opponentId ?? duel.opponentName;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${duel.opponentName}, duel de ${theme?.name ?? 'quiz'}`}
+      disabled={!duel.opponentId}
+      onPress={() => duel.opponentId && router.push({ pathname: '/player/[id]', params: { id: duel.opponentId } })}
+      style={({ pressed }) => [styles.duelItem, pressed && { opacity: 0.7 }]}>
+      <View style={[styles.avatarRing, { borderColor: ringColor }]}>
+        <Avatar name={duel.opponentName} color={avatarColor(id)} size={42} />
+      </View>
+      <View style={styles.duelNameRow}>
+        {theme && <ThemeIcon themeId={theme.id} size={16} />}
+        <AppText numberOfLines={1} style={styles.duelName}>{duel.opponentName}</AppText>
+      </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   search: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
@@ -125,27 +169,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     ...Shadow,
   },
-  input: { flex: 1, color: Colors.text, fontSize: 16, paddingVertical: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -Spacing.xs },
-  cell: { width: '50%', padding: Spacing.xs },
-  tile: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    borderTopWidth: 5,
-    padding: Spacing.md,
-    gap: 6,
-    minHeight: 128,
-    ...Shadow,
-  },
-  icon: { fontSize: 30 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    borderLeftWidth: 6,
-    padding: Spacing.md,
-    ...Shadow,
-  },
+  input: { flex: 1, color: Colors.text, fontSize: 14, paddingVertical: 6 },
+  noResults: { paddingVertical: Spacing.lg, textAlign: 'center' },
+  categorySection: { marginTop: 4 },
+  sectionHeading: { minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  categoryTitle: { fontSize: 16, fontWeight: '800' },
+  seeAll: { borderWidth: 1, borderColor: Colors.accent, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
+  seeAllText: { color: Colors.accent, fontSize: 12, fontWeight: '700' },
+  themeStrip: { gap: 6, paddingTop: 2, paddingBottom: 1 },
+  themeTile: { width: 54, alignItems: 'center', gap: 2 },
+  themeArtwork: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, ...Shadow },
+  themeName: { minHeight: 24, width: '100%', color: Colors.text, fontSize: 9, lineHeight: 11, fontWeight: '600', textAlign: 'center' },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginTop: 3 },
+  historyCard: { marginTop: 6, padding: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, ...Shadow },
+  historyTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  historyDivider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginTop: Spacing.xs },
+  duelStrip: { gap: Spacing.md, paddingHorizontal: Spacing.xs, paddingTop: 6, paddingBottom: Spacing.xs },
+  duelItem: { width: 66, alignItems: 'center', gap: 4 },
+  avatarRing: { width: 48, height: 48, borderWidth: 2.5, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  duelNameRow: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
+  duelName: { flexShrink: 1, fontSize: 10, fontWeight: '600' },
 });

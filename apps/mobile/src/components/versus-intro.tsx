@@ -17,12 +17,14 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { ClipPath, Defs, Ellipse, G, Image as SvgImage, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
-import { getCategory, getTheme, type DuelSnapshot, type ParticipantView } from '@qu1z/shared';
+import { getCategory, getTheme, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
 
 import { Avatar } from '@/components/ui';
 import { Colors } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
 import { Tap } from '@/components/tap';
+import { ThemeIcon } from '@/components/theme-icon';
+import { useApi } from '@/net/api';
 
 type P = [number, number];
 
@@ -67,6 +69,10 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
   const size = Math.round(Math.min(176, height * 0.2));
   const myCover = mediaUri(duel.me.cover);
   const theirCover = mediaUri(duel.opponent.cover);
+  const myProfile = useApi<PublicProfile>(`/api/users/${duel.me.id}`);
+  const theirProfile = useApi<PublicProfile>(duel.opponent.isBot ? null : `/api/users/${duel.opponent.id}`);
+  const myThemeRank = myProfile.data?.best?.themeId === duel.themeId && myProfile.data.best.rank <= 3 ? myProfile.data.best.rank : null;
+  const theirThemeRank = theirProfile.data?.best?.themeId === duel.themeId && theirProfile.data.best.rank <= 3 ? theirProfile.data.best.rank : null;
   // L'image a une large marge pour l'ombre noire : les lettres occupent environ un quart de la largeur de l'écran.
   const vsWidth = Math.min(305, width * 0.48);
 
@@ -136,7 +142,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
             <ColdLandscape />
           )}
           <View style={[styles.half, styles.topHalf]}>
-            <Player player={duel.me} size={size} color={Colors.player} />
+            <Player player={duel.me} size={size} color={Colors.player} bannerRank={myThemeRank} themeName={theme?.name} />
           </View>
         </Animated.View>
 
@@ -173,11 +179,12 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
             </G>
           </Svg>
           <View style={[styles.half, styles.bottomHalf]}>
-            <Player player={duel.opponent} size={size} color={duel.opponent.color ?? Colors.opponent} />
+            <Player player={duel.opponent} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} />
           </View>
           <Animated.View entering={FadeIn.delay(CLASH_MS + 300)} style={[styles.theme, { paddingBottom: insets.bottom + 24 }]}>
+            {theme && <ThemeIcon themeId={theme.id} size={26} />}
             <Text style={styles.themeText} numberOfLines={1}>
-              {category ? `${category.icon} ${category.name} · ` : ''}
+              {category ? `${category.name} · ` : ''}
               {theme?.name}
             </Text>
           </Animated.View>
@@ -221,7 +228,7 @@ function ColdLandscape() {
   );
 }
 
-function Player({ player, size, color }: { player: ParticipantView; size: number; color: string }) {
+function Player({ player, size, color, bannerRank, themeName }: { player: ParticipantView; size: number; color: string; bannerRank: number | null; themeName?: string }) {
   return (
     <>
       <View style={styles.photo}>
@@ -230,6 +237,12 @@ function Player({ player, size, color }: { player: ParticipantView; size: number
       <Text style={styles.name} numberOfLines={1}>
         {player.name}
       </Text>
+      {bannerRank && themeName ? (
+        <View style={styles.rankBanner} accessible accessibilityLabel={`${bannerRank === 1 ? '1er' : `${bannerRank}e`} en ${themeName}`}>
+          <Ionicons name="trophy" size={13} color="#FFD34D" />
+          <Text style={styles.rankBannerText} numberOfLines={1}>{bannerRank === 1 ? '1er' : `${bannerRank}e`} en {themeName}</Text>
+        </View>
+      ) : null}
       {player.isBot && <Text style={styles.bot}>Réponses simulées (bot)</Text>}
     </>
   );
@@ -252,8 +265,10 @@ const styles = StyleSheet.create({
   photo: { borderRadius: 999, boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' },
   name: { color: '#FFFFFF', fontSize: 34, fontWeight: '900', letterSpacing: -0.5, maxWidth: 320, ...shadow },
   bot: { color: 'rgba(255, 255, 255, 0.8)', fontSize: 13, fontWeight: '600', ...shadow },
+  rankBanner: { maxWidth: '92%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 1, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(255,211,77,0.78)', backgroundColor: 'rgba(20,17,28,0.76)' },
+  rankBannerText: { color: '#FFE28A', fontSize: 12, lineHeight: 15, fontWeight: '800', textAlign: 'center', flexShrink: 1 },
   vsBox: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   flash: { backgroundColor: '#FFFFFF' },
-  theme: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 24 },
+  theme: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 24 },
   themeText: { color: 'rgba(255, 255, 255, 0.9)', fontSize: 15, fontWeight: '800', ...shadow },
 });

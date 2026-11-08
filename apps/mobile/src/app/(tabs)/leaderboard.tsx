@@ -21,10 +21,10 @@ export default function LeaderboardScreen() {
 
   return (
     <Screen inTabs back title="Classements" headerRight={<HeaderButton icon="search" label="Rechercher" onPress={() => router.push('/search')} />}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: Spacing.sm, alignItems: 'flex-start' }}>
-        <Chip label="Général" active={themeId === 'global'} onPress={() => setThemeId('global')} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 6, alignItems: 'flex-start' }}>
+        <Chip label="Général" active={themeId === 'global'} onPress={() => setThemeId('global')} style={{ paddingHorizontal: 12, paddingVertical: 6 }} />
         {THEMES.map((t) => (
-          <Chip key={t.id} label={t.name} color={getCategory(t.categoryId)?.color} active={themeId === t.id} onPress={() => setThemeId(t.id)} />
+          <Chip key={t.id} label={t.name} color={getCategory(t.categoryId)?.color} active={themeId === t.id} onPress={() => setThemeId(t.id)} style={{ paddingHorizontal: 12, paddingVertical: 6 }} />
         ))}
       </ScrollView>
       <LeaderboardPanel themeId={themeId === 'global' ? undefined : themeId} />

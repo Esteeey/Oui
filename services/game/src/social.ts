@@ -646,9 +646,27 @@ export class Social {
 
   async comments(viewer: string, postId: string): Promise<CommentView[]> {
     await this.post(viewer, postId);
-    const rows = await this.db.query<SummaryRow & { comment_id: string; parent_comment_id: string | null; text: string; created_at: Date }>(
-      `SELECT c.id AS comment_id, c.parent_comment_id, c.text, c.created_at, ${SUMMARY_COLUMNS}
+    const rows = await this.db.query<
+      SummaryRow & {
+        comment_id: string;
+        parent_comment_id: string | null;
+        text: string;
+        created_at: Date;
+        likes: number;
+        liked: boolean;
+        media_id: string | null;
+        media_key: string | null;
+        media_width: number | null;
+        media_height: number | null;
+        media_animated: boolean | null;
+      }
+    >(
+      `SELECT c.id AS comment_id, c.parent_comment_id, c.text, c.created_at, ${SUMMARY_COLUMNS},
+         md.id AS media_id, md.storage_key AS media_key, md.width AS media_width, md.height AS media_height, md.animated AS media_animated,
+         (SELECT count(*)::int FROM comment_likes l WHERE l.comment_id = c.id) AS likes,
+         EXISTS (SELECT 1 FROM comment_likes l WHERE l.comment_id = c.id AND l.user_id = $1) AS liked
        FROM comments c JOIN users u ON u.id = c.author_id JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN media md ON md.id = c.media_id AND md.removed_by_moderation_at IS NULL
        WHERE c.post_id = $2 AND c.removed_at IS NULL AND u.status <> 'banned' AND ${notBlocked('c.author_id')}
        ORDER BY c.created_at, c.id`,
       [viewer, postId],
@@ -662,13 +680,45 @@ export class Social {
       text: r.text,
       createdAt: new Date(r.created_at).getTime(),
       mentions: mentions.get(r.comment_id) ?? [],
+      likes: r.likes,
+      likedByMe: r.liked,
+      media: r.media_id
+        ? mediaView({ id: r.media_id, storage_key: r.media_key!, width: r.media_width!, height: r.media_height!, animated: !!r.media_animated })
+        : null,
     }));
   }
 
-  async addComment(viewer: string, postId: string, rawText: unknown, parentId?: string): Promise<CommentView> {
+  /** J'aime sur un commentaire : mêmes règles de visibilité que la publication, sans notification. */
+  async setCommentLike(viewer: string, commentId: string, liked: boolean): Promise<{ likes: number; likedByMe: boolean }> {
+    const [comment] = await this.db.query<{ post_id: string; author_id: string }>('SELECT post_id, author_id FROM comments WHERE id = $1 AND removed_at IS NULL', [commentId]);
+    if (!comment) throw new SocialError(404, 'not_found');
+    await this.post(viewer, comment.post_id);
+    if (await this.isBlockedEitherWay(viewer, comment.author_id)) throw new SocialError(403, 'blocked');
+    this.limit('like', viewer);
+    if (liked) await this.db.query('INSERT INTO comment_likes (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [commentId, viewer]);
+    else await this.db.query('DELETE FROM comment_likes WHERE comment_id = $1 AND user_id = $2', [commentId, viewer]);
+    const [row] = await this.db.query<{ likes: number }>('SELECT count(*)::int AS likes FROM comment_likes WHERE comment_id = $1', [commentId]);
+    return { likes: row.likes, likedByMe: liked };
+  }
+
+  /** Dernières personnes ayant aimé une publication (avatars de la page de détail). */
+  async recentLikers(viewer: string, postId: string): Promise<UserSummary[]> {
+    await this.post(viewer, postId);
+    const rows = await this.db.query<SummaryRow>(
+      `SELECT ${SUMMARY_COLUMNS}
+       FROM post_likes l JOIN users u ON u.id = l.user_id JOIN profiles p ON p.user_id = u.id
+       WHERE l.post_id = $2 AND u.status <> 'banned' AND ${notBlocked('l.user_id')}
+       ORDER BY l.created_at DESC LIMIT 5`,
+      [viewer, postId],
+    );
+    return rows.map(summary);
+  }
+
+  async addComment(viewer: string, postId: string, rawText: unknown, parentId?: string, mediaId?: string): Promise<CommentView> {
     const post = await this.post(viewer, postId);
     const text = String(rawText ?? '').trim();
-    if (!text || text.length > MAX_COMMENT_LENGTH) throw new SocialError(400, 'invalid_text');
+    if ((!text && !mediaId) || text.length > MAX_COMMENT_LENGTH) throw new SocialError(400, 'invalid_text');
+    if (mediaId && !this.media) throw new SocialError(503, 'media_unavailable');
     if (await this.isBlockedEitherWay(viewer, post.author.id)) throw new SocialError(403, 'blocked');
     this.limit('comment', viewer);
     const id = randomUUID();
@@ -686,12 +736,14 @@ export class Social {
         // Les réponses restent sur un seul niveau : on répond au fil du commentaire d'origine.
         parentId = parent.parent_comment_id ?? parentId;
       }
-      await tx.query('INSERT INTO comments (id, post_id, author_id, parent_comment_id, text) VALUES ($1, $2, $3, $4, $5)', [
+      const media = mediaId ? await this.media!.attach(tx, viewer, mediaId, 'post') : null;
+      await tx.query('INSERT INTO comments (id, post_id, author_id, parent_comment_id, text, media_id) VALUES ($1, $2, $3, $4, $5, $6)', [
         id,
         postId,
         viewer,
         parentId ?? null,
         text,
+        media?.id ?? null,
       ]);
       mentioned = await this.resolveMentions(viewer, text, tx);
       await this.saveMentions(tx, 'comment', id, viewer, mentioned);

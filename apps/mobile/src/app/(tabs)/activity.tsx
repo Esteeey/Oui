@@ -100,7 +100,12 @@ export default function ActivityScreen() {
     <Screen
       inTabs
       title="Activité"
-      headerRight={<HeaderButton icon="settings-outline" label="Réglages des notifications" onPress={() => router.push('/settings/notifications')} />}>
+      headerRight={
+        <>
+          <HeaderButton icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/messages')} />
+          <HeaderButton icon="settings-outline" label="Réglages des notifications" onPress={() => router.push('/settings/notifications')} />
+        </>
+      }>
       <View style={styles.header}>
         {(list.data?.unread ?? 0) > 0 && (
           <Tap accessibilityRole="button" onPress={() => act('POST', '/api/notifications/read-all')} style={{ padding: Spacing.xs }}>

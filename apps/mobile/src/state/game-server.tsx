@@ -18,6 +18,7 @@ export interface DuelRequest {
 interface GameServerState {
   status: ConnectionStatus;
   catalogVersion: number;
+  refreshThemeCatalog: () => Promise<void>;
   playerId: string | null;
   profile: Profile | null;
   /** Dernier état reçu du duel (en cours ou terminé). */
@@ -79,6 +80,12 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
    */
   const pendingAnswer = useRef<{ duelId: string; index: number; choice: number; responseMs: number } | null>(null);
 
+  const refreshThemeCatalog = async () => {
+    const { themes } = await api<{ themes: Theme[] }>('GET', '/api/theme-catalog');
+    themes.forEach(registerTheme);
+    setCatalogVersion((version) => version + 1);
+  };
+
   useEffect(() => {
     const handle = (m: ServerMessage) => {
       switch (m.type) {
@@ -96,7 +103,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
               const next = { duelInvites: p.duelInvites, duelInviteSound: p.duelInviteSound, duelInviteVibration: p.duelInviteVibration };
               invitePrefsRef.current = next; setInvitePrefs(next);
             }).catch(() => {});
-            api<{ themes: Theme[] }>('GET', '/api/theme-catalog').then(({ themes }) => { themes.forEach(registerTheme); setCatalogVersion((v) => v + 1); }).catch(() => {});
+            refreshThemeCatalog().catch(() => {});
             invalidateAll();
             // Appareil enregistré pour les push (téléphone uniquement, une fois la permission accordée).
             void registerForPush();
@@ -182,6 +189,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const value: GameServerState = {
     status,
     catalogVersion,
+    refreshThemeCatalog,
     playerId,
     profile,
     duel,

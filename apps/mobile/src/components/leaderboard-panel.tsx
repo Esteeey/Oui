@@ -57,8 +57,9 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
   };
 
   return (
-    <View style={{ gap: Spacing.sm }}>
+    <View style={{ gap: 5 }}>
       <Segmented
+        compact
         value={period}
         onChange={setPeriod}
         options={[
@@ -68,16 +69,16 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
         ]}
       />
       {period === 'week' && board.data?.week && (
-        <AppText variant="caption" muted>
+        <AppText variant="caption" muted style={{ fontSize: 11, lineHeight: 15 }}>
           XP gagnée cette semaine. Remise à zéro lundi à 00:00 UTC{weekLeft ? `, dans ${weekLeft}` : ''}.
         </AppText>
       )}
       {period === 'season' && board.data?.season && (
-        <AppText variant="caption" muted>
+        <AppText variant="caption" muted style={{ fontSize: 11, lineHeight: 15 }}>
           Saison {board.data.season.name} : XP gagnée ce mois-ci. Le podium final reçoit une médaille.
         </AppText>
       )}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: Spacing.sm }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 5 }}>
         {(
           [
             ['following', 'Amis'],
@@ -87,7 +88,7 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
             ['world', 'Monde'],
           ] as [LeaderboardScope, string][]
         ).map(([value, label]) => (
-          <Chip key={value} label={label} active={scope === value} onPress={() => setScope(value)} />
+          <Chip key={value} label={label} active={scope === value} onPress={() => setScope(value)} style={styles.compactChip} />
         ))}
       </ScrollView>
       {missing === 'location' ? (
@@ -132,7 +133,7 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
           {/* Ma position, même au-delà du haut du classement. */}
           {myRow && !rows.some((r) => r.isMe) && (
             <>
-              <AppText muted style={{ textAlign: 'center' }}>
+              <AppText muted style={{ textAlign: 'center', fontSize: 12, lineHeight: 16 }}>
                 ⋯
               </AppText>
               <RankRow row={myRow} period={period} />
@@ -158,9 +159,9 @@ function RankRow({ row, period }: { row: LeaderboardRow; period: LeaderboardPeri
       <AppText variant="heading" style={styles.rank} color={row.rank <= 3 ? Colors.gold : Colors.textMuted} numberOfLines={1} adjustsFontSizeToFit>
         {row.rank}
       </AppText>
-      <Avatar name={row.user.pseudo} color={avatarColor(row.user.id)} uri={row.user.avatar} size={40} />
-      <View style={{ flex: 1, gap: 4 }}>
-        <AppText variant="label" numberOfLines={1}>
+      <Avatar name={row.user.pseudo} color={avatarColor(row.user.id)} uri={row.user.avatar} size={32} />
+      <View style={{ flex: 1, gap: 1 }}>
+        <AppText variant="label" numberOfLines={1} style={{ fontSize: 14, lineHeight: 18 }}>
           {row.user.pseudo}
           {row.isMe ? ' (toi)' : ''}
         </AppText>
@@ -178,14 +179,16 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm + 4,
+    gap: 7,
     backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    padding: Spacing.sm + 4,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
     ...Shadow,
   },
   me: { borderColor: Colors.accent, borderWidth: 2 },
-  rank: { width: 40, textAlign: 'center' },
+  rank: { width: 26, textAlign: 'center', fontSize: 16, lineHeight: 20 },
+  compactChip: { paddingHorizontal: 11, paddingVertical: 6 },
   notice: {
     flexDirection: 'row',
     alignItems: 'center',

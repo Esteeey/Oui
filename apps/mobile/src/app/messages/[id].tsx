@@ -170,10 +170,10 @@ export default function ConversationScreen() {
             style={styles.who}>
             <GroupAvatar id={id} name={group.name} uri={group.avatar} size={38} />
             <View style={{ flex: 1 }}>
-              <AppText variant="label" color={Colors.onAccent} numberOfLines={1}>
+              <AppText variant="label" numberOfLines={1}>
                 {group.name}
               </AppText>
-              <AppText variant="caption" color="rgba(255,255,255,0.75)">
+              <AppText variant="caption" muted>
                 {group.memberCount} membre{group.memberCount > 1 ? 's' : ''} · infos du groupe
               </AppText>
             </View>
@@ -186,13 +186,13 @@ export default function ConversationScreen() {
             style={styles.who}>
             <Avatar name={other.pseudo} color={avatarColor(other.id)} uri={other.avatar} size={38} />
             <View>
-              <AppText variant="label" color={Colors.onAccent}>
+              <AppText variant="label">
                 {other.pseudo}
               </AppText>
               {presenceText(c?.presence ?? null) && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   {c?.presence?.online && <View style={styles.dot} />}
-                  <AppText variant="caption" color={c?.presence?.online ? '#7CF0A6' : 'rgba(255,255,255,0.75)'}>
+                  <AppText variant="caption" color={c?.presence?.online ? Colors.correct : Colors.textMuted}>
                     {presenceText(c?.presence ?? null)}
                   </AppText>
                 </View>

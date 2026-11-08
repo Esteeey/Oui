@@ -6,7 +6,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { THEMES, getCategory, getTheme, type ChallengeView } from '@qu1z/shared';
 
 import { ChallengeRow } from '@/components/challenge-card';
+import { DailyQuestsCard } from '@/components/daily-quests';
 import { PlayBanner } from '@/components/play-banner';
+import { PlayMenuDialog } from '@/components/play-menu-dialog';
 import { UserRow } from '@/components/player-row';
 import { SectionHeader, type IconName } from '@/components/social';
 import { AppText, Avatar, Button, Screen } from '@/components/ui';
@@ -25,6 +27,7 @@ export default function PlayScreen() {
   const incoming = (challenges.data?.challenges ?? []).filter((c) => c.incoming);
   const outgoing = (challenges.data?.challenges ?? []).filter((c) => !c.incoming);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
 
   const quickTheme = history[0]?.themeId ?? THEMES[0].id;
   const recentThemes = [...new Set(history.map((d) => d.themeId))].filter((id) => getTheme(id)).slice(0, 4);
@@ -55,6 +58,8 @@ export default function PlayScreen() {
         <QuickAction icon="grid-outline" label="Choisir un thème" hint="Toutes les catégories" onPress={() => router.push('/explore')} />
         <QuickAction icon="trophy-outline" label="Classements" hint="Monde et abonnements" onPress={() => router.push('/leaderboard')} />
       </View>
+
+      <DailyQuestsCard />
 
       {message && <AppText color={message.ok ? Colors.correct : Colors.wrong}>{message.text}</AppText>}
 
@@ -87,7 +92,7 @@ export default function PlayScreen() {
                 style={styles.rowMain}>
                 <Avatar name={d.opponentName} color={avatarColor(d.opponentId!)} size={44} />
                 <View style={{ flex: 1 }}>
-                  <AppText variant="label" numberOfLines={1}>
+                  <AppText variant="label" style={{ fontSize: 13, lineHeight: 18 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                     {d.opponentName}
                   </AppText>
                   <AppText variant="caption" muted numberOfLines={1}>
@@ -121,7 +126,7 @@ export default function PlayScreen() {
                     {theme.name}
                   </AppText>
                 </Tap>
-                <Button label="Jouer" onPress={() => duel(id, 'pvp')} />
+                <Button label="Jouer" onPress={() => setSelectedThemeId(id)} />
               </View>
             );
           })}
@@ -136,6 +141,13 @@ export default function PlayScreen() {
         <AppText variant="label">Choisir parmi les joueurs que je suis</AppText>
         <AppText muted>›</AppText>
       </Tap>
+      <PlayMenuDialog
+        themeId={selectedThemeId ?? quickTheme}
+        themeName={getTheme(selectedThemeId ?? quickTheme)?.name ?? 'Thème'}
+        visible={!!selectedThemeId}
+        onClose={() => setSelectedThemeId(null)}
+        onPlay={(mode) => duel(selectedThemeId ?? quickTheme, mode)}
+      />
     </Screen>
   );
 }
@@ -147,7 +159,7 @@ function QuickAction({ icon, label, hint, onPress }: { icon: IconName; label: st
         <Ionicons name={icon} size={22} color={Colors.accent} />
       </View>
       <View style={{ flex: 1 }}>
-        <AppText variant="label" numberOfLines={1}>
+        <AppText variant="label" style={{ fontSize: 13, lineHeight: 18 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
           {label}
         </AppText>
         <AppText variant="caption" muted numberOfLines={1}>

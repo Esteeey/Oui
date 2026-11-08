@@ -7,6 +7,7 @@ import { AppText, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
 import { subscribersLabel, useThemeInfos } from '@/state/themes';
+import { ThemeIcon } from '@/components/theme-icon';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,6 +31,7 @@ export default function CategoryScreen() {
             accessibilityRole="button"
             onPress={() => router.push({ pathname: '/theme/[id]', params: { id: theme.id } })}
             style={({ pressed }) => [styles.row, { borderLeftColor: category.color }, pressed && { opacity: 0.8 }]}>
+            <ThemeIcon themeId={theme.id} size={48} />
             <View style={{ flex: 1, gap: 4 }}>
               <AppText variant="heading">{theme.name}</AppText>
               <AppText variant="caption" muted>
