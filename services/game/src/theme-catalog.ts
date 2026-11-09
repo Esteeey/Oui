@@ -57,7 +57,7 @@ export class ThemeCatalog {
       const q = raw as Record<string, unknown>, text = String(q.text ?? '').trim();
       const choices = Array.isArray(q.choices) ? q.choices.map((choice) => String(choice).trim()) : [];
       const difficulty = Number(q.difficulty ?? 1);
-      if (!text || text.length > 240 || choices.length !== 4 || choices.some((choice) => !choice || choice.length > 120) ||
+      if (!text || text.length > RULES.maxQuestionLength || choices.length !== 4 || choices.some((choice) => !choice || choice.length > 120) ||
         new Set(choices.map((choice) => choice.toLocaleLowerCase())).size !== 4 || ![1, 2, 3].includes(difficulty)) throw new SocialError(400, 'invalid_questions');
       return { text, choices: choices as QuestionInput['choices'], difficulty };
     });

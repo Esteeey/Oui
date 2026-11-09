@@ -13,6 +13,8 @@
 export const RULES = {
   questionsPerDuel: 7,
   choicesPerQuestion: 4,
+  /** Longueur maximale d'un énoncé : au-delà, la question n'est pas servie en duel et ne peut pas être créée. */
+  maxQuestionLength: 140,
   /** Chrono, une fois les propositions affichées et le délai `choicesLeadMs` passé. */
   answerTimeMs: 10_000,
   /** Délai entre l'apparition des 4 réponses et le début du chrono. */

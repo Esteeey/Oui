@@ -66,7 +66,7 @@ export default function ThemeScreen() {
   const theme = getTheme(id);
   const stats = useThemeStats(id);
   const questionCoverage = useApi<{ seenQuestions: number }>(theme ? '/api/me/themes/' + theme.id + '/question-progress' : null);
-  const totalQuestions = theme?.questionCount ?? (theme ? questionsOf(theme.id).length : 0);
+  const totalQuestions = theme ? questionsOf(theme.id).length || (theme.questionCount ?? 0) : 0;
   const seenQuestions = questionCoverage.data?.seenQuestions ?? 0;
   const questionProgress = totalQuestions > 0 ? Math.min(seenQuestions / totalQuestions, 1) : 0;
   const info = useApi<{ themes: ThemeInfo[] }>('/api/themes');
@@ -426,7 +426,7 @@ function QuizTab({ themeId, categoryColor, onDuel, onOpenPlay }: { themeId: stri
       <Button label="Jouer" color={Page.pink} onPress={onOpenPlay} />
       <Button label="Duel d'entraînement (bot)" variant="outline" color={Colors.text} onPress={() => onDuel()} />
       <AppText variant="caption" muted style={{ textAlign: 'center' }}>
-        {getTheme(themeId)?.questionCount ?? questionsOf(themeId).length} questions · 7 par duel · 10 s par question
+        {questionsOf(themeId).length || getTheme(themeId)?.questionCount} questions · 7 par duel · 10 s par question
       </AppText>
     </>
   );

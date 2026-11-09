@@ -249,7 +249,7 @@ export default function AdminNewThemeScreen() {
             </Tap>
           </View>
           <Field label={`Question ${current + 1}`}>
-            <TextInput value={question.text} onChangeText={(text) => setQuestion(current, { text })} multiline placeholder="Écris la question" placeholderTextColor={Colors.textMuted} accessibilityLabel={`Question ${current + 1}`} style={[adminStyles.input, adminStyles.multiline, { minHeight: 76 }]} />
+            <TextInput value={question.text} onChangeText={(text) => setQuestion(current, { text })} maxLength={RULES.maxQuestionLength} multiline placeholder="Écris la question" placeholderTextColor={Colors.textMuted} accessibilityLabel={`Question ${current + 1}`} style={[adminStyles.input, adminStyles.multiline, { minHeight: 76 }]} />
           </Field>
           <Field label="Bonne réponse" color={Colors.correct}>
             {choiceInput(0, 'La bonne réponse', true)}

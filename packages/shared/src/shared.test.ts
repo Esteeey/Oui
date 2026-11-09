@@ -125,6 +125,13 @@ describe('contenu', () => {
       expect(new Set(q.choices).size).toBe(4);
     }
   });
+  it('aucun énoncé trop long n’est servi en duel', () => {
+    for (const theme of THEMES) {
+      const pool = questionsOf(theme.id);
+      expect(pool.length).toBeGreaterThanOrEqual(RULES.questionsPerDuel);
+      for (const q of pool) expect(q.text.length).toBeLessThanOrEqual(RULES.maxQuestionLength);
+    }
+  });
 });
 
 describe('progression', () => {

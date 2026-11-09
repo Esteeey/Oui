@@ -1,4 +1,5 @@
 import type { Difficulty, Question } from './types';
+import { RULES } from './rules';
 import { EXTRA_QUESTIONS } from './extra-questions';
 import { GENERATED_QUESTIONS } from './generated-questions';
 
@@ -206,5 +207,8 @@ export function registerThemeQuestions(themeId: string, questions: Question[]): 
 }
 
 export function questionsOf(themeId: string): Question[] {
-  return QUESTIONS.filter((q) => q.themeId === themeId);
+  const all = QUESTIONS.filter((q) => q.themeId === themeId);
+  const short = all.filter((q) => q.text.length <= RULES.maxQuestionLength);
+  // Un ancien thème personnalisé aux énoncés longs reste jouable : l'écran de duel sait les afficher.
+  return short.length >= RULES.questionsPerDuel ? short : all;
 }

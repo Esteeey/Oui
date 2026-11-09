@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -454,23 +455,22 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
         )}
 
         <View style={styles.stage} onLayout={(e) => setStageTop(e.nativeEvent.layout.y)}>
-          <View style={styles.questionZone}>
+          {/* Se réduit puis défile si l'énoncé ne tient pas : il ne peut jamais passer sous les réponses. */}
+          <ScrollView style={styles.questionZone} contentContainerStyle={styles.questionContent} showsVerticalScrollIndicator={false} bounces={false}>
             {!card.showing && questionImageSource(q?.image) !== null && (
               <Image source={questionImageSource(q?.image)!} contentFit="contain" transition={300} style={styles.image} accessibilityLabel="Illustration de la question" />
             )}
             {!card.showing && (
-            <Animated.View
-              key={`q-${duel.index}`}
-              entering={card.after ? FadeInDown.delay(CARD.question - CARD.hide).duration(320).withInitialValues({ transform: [{ translateY: 12 }] }) : FadeInDown.springify()}>
-              {duel.index === RULES.questionsPerDuel - 1 && (
-                <AppText variant="caption" color={D.correct} style={{ textAlign: 'center', marginBottom: Spacing.sm }}>
-                  DERNIÈRE QUESTION · POINTS ×{RULES.lastQuestionMultiplier}
-                </AppText>
-              )}
-              <AppText style={styles.question}>{q?.text}</AppText>
-            </Animated.View>
+              <QuestionReveal key={`q-${duel.index}`} delay={card.after ? CARD.question - CARD.hide : 0}>
+                {duel.index === RULES.questionsPerDuel - 1 && (
+                  <AppText variant="caption" color={D.correct} style={{ textAlign: 'center', marginBottom: Spacing.sm }}>
+                    DERNIÈRE QUESTION · POINTS ×{RULES.lastQuestionMultiplier}
+                  </AppText>
+                )}
+                <AppText style={[styles.question, questionSize(q?.text ?? '')]}>{q?.text}</AppText>
+              </QuestionReveal>
             )}
-          </View>
+          </ScrollView>
 
           <View style={styles.choices}>
             {duel.phase === 'reading' ? (
@@ -529,6 +529,28 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
       {quitDialog}
     </SafeAreaView>
   );
+}
+
+/** Plus l'énoncé est long, plus le texte est petit, pour qu'il tienne à l'écran sans défiler. */
+function questionSize(text: string) {
+  if (text.length <= 70) return { fontSize: 28, lineHeight: 34 };
+  if (text.length <= 100) return { fontSize: 24, lineHeight: 30 };
+  if (text.length <= RULES.maxQuestionLength) return { fontSize: 21, lineHeight: 27 };
+  return { fontSize: 18, lineHeight: 23 };
+}
+
+/**
+ * Apparition de l'énoncé. Animée à la main : sur le web, `entering` sort l'élément du flux de la page
+ * (position absolue) et les réponses venaient alors se placer par-dessus le texte.
+ */
+function QuestionReveal({ delay, children }: { delay: number; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const progress = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (!reduced) progress.set(withDelay(delay, withTiming(1, { duration: 320, easing: Easing.out(Easing.cubic) })));
+  }, [delay, reduced, progress]);
+  const style = useAnimatedStyle(() => ({ opacity: progress.get(), transform: [{ translateY: (1 - progress.get()) * 12 }] }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 function PlayerHead({ player, side, later = false }: { player: ParticipantView; side: 'left' | 'right'; later?: boolean }) {
@@ -742,7 +764,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
   },
-  stage: { gap: Spacing.md },
+  stage: { flexShrink: 1, minHeight: 0, gap: Spacing.md },
   fade: { ...StyleSheet.absoluteFill, backgroundColor: D.bg, pointerEvents: 'none' },
   // Proportions relevées sur la référence : icône ≈ 14 % de la largeur, titre ≈ 11 %, bloc centré
   // dans la zone sous le haut de l'écran, un peu au-dessus du milieu.
@@ -755,7 +777,8 @@ const styles = StyleSheet.create({
   cardRound: { alignItems: 'center', marginTop: 26, maxWidth: '100%' },
   roundText: { fontFamily: Fonts.score, fontSize: 44, lineHeight: 52, letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center' },
   roundHint: { fontSize: 14, lineHeight: 18, marginTop: 4 },
-  questionZone: { minHeight: 150, justifyContent: 'center', gap: Spacing.sm },
+  questionZone: { flexGrow: 0, flexShrink: 1, minHeight: 88 },
+  questionContent: { minHeight: 150, justifyContent: 'center', gap: Spacing.sm },
   image: { width: '100%', height: 130, borderRadius: Radius.sm },
   question: { color: D.text, fontSize: 28, lineHeight: 34, fontWeight: '800', textAlign: 'center' },
   choices: { gap: 16 },
