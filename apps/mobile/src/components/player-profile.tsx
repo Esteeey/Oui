@@ -19,7 +19,7 @@ import {
   type ThemeStats,
 } from '@qu1z/shared';
 
-import { BestRibbon, RankBadge } from '@/components/rank';
+import { RankBadge } from '@/components/rank';
 import { DivisionBadge, type IconName } from '@/components/social';
 import { AppText, Avatar, Card, ProgressBar, useNavBarSpace } from '@/components/ui';
 import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
@@ -59,7 +59,6 @@ export function ProfileLayout({
   country,
   city,
   presence,
-  best,
   duels,
   profile,
   actions,
@@ -103,7 +102,6 @@ export function ProfileLayout({
   const coverUri = mediaUri(cover);
   const locationLabel = [city, countryName(country)].filter(Boolean).join(', ');
   const level = levelFromXp(xp);
-  const bestTheme = best ? getTheme(best.themeId) : undefined;
   const active = tabs.find((t) => t.value === tab) ?? tabs[0];
   const presenceLabel = presence?.online ? 'En ligne' : presence?.lastSeenAt ? `Actif ${timeAgo(presence.lastSeenAt)}` : null;
   const totals = stats ? totalsOf(stats) : null;
@@ -159,12 +157,6 @@ export function ProfileLayout({
               </AppText>
             ) : null}
           </View>
-          {best && bestTheme && (
-            <View style={{ marginTop: 7 }}>
-              <BestRibbon themeName={bestTheme.name} onPress={() => router.push({ pathname: '/theme/[id]', params: { id: best.themeId } })} />
-            </View>
-          )}
-
           <View style={styles.counts}>
             <Count label={duels > 1 ? 'Parties jouées' : 'Partie jouée'} value={duels} color="#F9A8D9" />
             <View style={styles.countDivider} />

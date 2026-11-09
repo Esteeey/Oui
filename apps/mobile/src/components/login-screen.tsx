@@ -66,7 +66,9 @@ export function LoginScreen() {
         <SafeAreaView style={styles.flex}>
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.brand}>
-              <Logo size={76} />
+              <View style={styles.logoTile}>
+                <Logo size={68} />
+              </View>
               <AppText variant="display" color={Colors.onAccent} style={styles.brandName}>
                 Qu1z
               </AppText>
@@ -182,6 +184,8 @@ function Field({ icon, right, ...props }: TextInputProps & { icon: keyof typeof 
 }
 
 const styles = StyleSheet.create({
+  // Tuile blanche : le violet du logo disparaîtrait sur le dégradé de fond.
+  logoTile: { width: 96, height: 96, borderRadius: 24, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
   screen: { flex: 1, backgroundColor: Colors.navy },
   flex: { flex: 1 },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: Spacing.md, gap: Spacing.lg, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },

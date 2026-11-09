@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
 import type { IconName } from '@/components/social';
-import { Colors, Fonts, NavBarHeight } from '@/constants/theme';
+import { Colors, Fonts, NavBarHeight, NavBarLift } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 
@@ -23,6 +23,8 @@ const ITEMS: { key: Exclude<NavTab, 'versus'>; href: Href; label: string; icon: 
 const VS_SIZE = 51;
 /** Hauteur de la vague, entre son sommet (au centre) et les bords de l'écran. */
 const WAVE_HEIGHT = 28;
+const WAVE_CURVE =
+  'M0 60 C 45 28, 110 12, 180 12 C 250 12, 280 33, 335 33 C 375 33, 390 2, 426 2 C 462 2, 477 33, 517 33 C 572 33, 602 12, 672 12 C 742 12, 807 28, 852 60';
 /** Espace minimal sous les onglets quand le téléphone n'a pas de zone de sécurité. */
 const MIN_BOTTOM = 14;
 const PASTEL = ['#FCE4F5', '#F2E8FC', '#DEF0FD', '#D3EFFE'] as const;
@@ -69,7 +71,7 @@ export function AppNavBar() {
   const active = activeTab(pathname);
   const { width } = useWindowDimensions();
   const height = useNavBarHeight();
-  const bottom = Math.max(insets.bottom, MIN_BOTTOM);
+  const bottom = Math.max(insets.bottom, MIN_BOTTOM) + NavBarLift;
 
   if (keyboard) return null;
 
@@ -112,12 +114,9 @@ export function AppNavBar() {
               ))}
             </SvgGradient>
           </Defs>
-          <Path
-            d="M0 60 C 45 28, 110 12, 180 12 C 250 12, 280 33, 335 33 C 375 33, 390 2, 426 2 C 462 2, 477 33, 517 33 C 572 33, 602 12, 672 12 C 742 12, 807 28, 852 60 L852 61 L0 61 Z"
-            fill="url(#navPastel)"
-            stroke={Colors.surface}
-            strokeWidth={3}
-          />
+          <Path d={`${WAVE_CURVE} L852 61 L0 61 Z`} fill="url(#navPastel)" />
+          {/* Contour blanc sur la vague seulement : refermé, il dessinerait un trait en travers de la barre. */}
+          <Path d={WAVE_CURVE} fill="none" stroke={Colors.surface} strokeWidth={3} />
         </Svg>
       </View>
       <View pointerEvents="box-none" style={[styles.items, { bottom }]}>

@@ -69,9 +69,13 @@ export const Radius = {
   pill: 999,
 } as const;
 
+/** Couleurs du logo : à changer ici seulement, elles s'appliquent partout. */
+export const LogoColors = { top: Colors.accent, bottom: Colors.secondary } as const;
+
 export const MaxContentWidth = 560;
 /** Hauteur de la barre de navigation, hors zone de sécurité du téléphone. */
-export const NavBarHeight = 66;
+export const NavBarLift = 6;
+export const NavBarHeight = 66 + NavBarLift;
 
 /** Police embarquée des scores (Inter Black, licence OFL) et Poppins pour le reste de l'interface. */
 export const Fonts = {

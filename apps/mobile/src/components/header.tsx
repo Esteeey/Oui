@@ -3,10 +3,10 @@ import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 import type { IconName } from '@/components/social';
-import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { Colors, Fonts, LogoColors, Spacing } from '@/constants/theme';
 
 /** En-tête clair commun aux écrans classiques : posé sur le fond pastel, sans bandeau coloré. */
 export function GradientHeader({
@@ -45,20 +45,12 @@ export function GradientHeader({
   );
 }
 
-/** Logo QuizX : bulle rose couronnée et « Q » blanc. */
+/** Logo QuizX « Le Courant » : un X en deux moitiés, traversé par un éclair couché. */
 export function Logo({ size = 39 }: { size?: number }) {
   return (
-    <Svg width={size} height={(size * 47) / 40} viewBox="0 0 40 47" accessibilityLabel="QuizX">
-      <Defs>
-        <SvgGradient id="logoPink" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#F0247E" />
-          <Stop offset="1" stopColor="#D6056A" />
-        </SvgGradient>
-      </Defs>
-      <Path d="M20 8 a19 18.5 0 1 1 -9.6 34.4 L4 46 L6.2 38.2 A19 18.5 0 0 1 20 8 Z" fill="url(#logoPink)" />
-      <Path d="M12 11 L9.5 2.5 L15.5 6.5 L20 0.5 L24.5 6.5 L30.5 2.5 L28 11 Z" fill={Colors.goldBright} stroke="#E09A00" strokeWidth={0.6} strokeLinejoin="round" />
-      <Circle cx={20} cy={26} r={8.5} stroke={Colors.onAccent} strokeWidth={4.5} fill="none" />
-      <Path d="M23.5 30 L30 37" stroke={Colors.onAccent} strokeWidth={4.5} strokeLinecap="round" />
+    <Svg width={size} height={(size * 184) / 222} viewBox="17 36 222 184" accessibilityLabel="QuizX">
+      <Path d="M17 36 L95 36 L128 78.17 L161 36 L239 36 L175.2 117.52 L140.5 126.82 L169.06 98.27 L89 128 Z" fill={LogoColors.top} />
+      <Path d="M239 220 L161 220 L128 177.83 L95 220 L17 220 L80.8 138.48 L115.5 129.18 L86.94 157.73 L167 128 Z" fill={LogoColors.bottom} />
     </Svg>
   );
 }
