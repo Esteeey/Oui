@@ -1,14 +1,13 @@
 import { router, usePathname } from 'expo-router';
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Image, Modal, Platform, Pressable, Text, Vibration, View } from 'react-native';
+import { Platform, Vibration } from 'react-native';
 
-import { getTheme, RULES, registerTheme, type LiveInvitation, type NotificationPrefs, type Theme, type DuelChatMessage, type DuelSnapshot, type Profile, type ServerMessage } from '@qu1z/shared';
+import { RULES, registerTheme, type LiveInvitation, type NotificationPrefs, type Theme, type DuelChatMessage, type DuelSnapshot, type Profile, type ServerMessage } from '@qu1z/shared';
 
 import { api, invalidateAll } from '@/net/api';
 import { registerForPush } from '@/net/push';
 import { GameConnection, gameServerUrl, type ConnectionStatus } from '@/net/game-connection';
 import { playSound } from '@/audio/sounds';
-import { Colors, Radius, Spacing } from '@/constants/theme';
 
 export interface DuelRequest {
   themeId: string;
@@ -36,6 +35,10 @@ interface GameServerState {
   /** Notifications non lues (mises à jour en temps réel). */
   unreadNotifications: number;
   liveInvitations: LiveInvitation[];
+  /** Le joueur accepte de recevoir des invitations en direct. */
+  invitesEnabled: boolean;
+  respondInvitation: (invitation: LiveInvitation, action: 'accept' | 'decline' | 'cancel') => Promise<void>;
+  dismissInvitation: (id: string) => void;
   refreshInvitePrefs: () => Promise<void>;
   /** Mini chat de fin de match, par duel. */
   duelChat: Record<string, DuelChatMessage[]>;
@@ -186,6 +189,26 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
 
   const send = (message: Parameters<GameConnection['send']>[0]) => connection.current?.send(message) ?? false;
 
+  const dismissInvitation = (id: string) => setLiveInvitations((all) => all.filter((x) => x.id !== id));
+  const respondInvitation = async (invitation: LiveInvitation, action: 'accept' | 'decline' | 'cancel') => {
+    try {
+      await api('POST', `/api/live-invitations/${invitation.id}/${action}`);
+      setLiveInvitations((all) => all.filter((x) => x.id !== invitation.id));
+    } catch (error) {
+      // Le serveur peut avoir traité la réponse même si la requête a perdu sa
+      // réponse HTTP. Recharger l'état évite de laisser un panneau obsolète.
+      const latest = await api<{ invitations: LiveInvitation[] }>('GET', '/api/live-invitations').catch(() => null);
+      if (latest) {
+        setLiveInvitations((all) => {
+          const current = all.filter((x) => x.id !== invitation.id);
+          return [...latest.invitations.filter((x) => x.status === 'pending' && !current.some((y) => y.id === x.id)), ...current];
+        });
+        if (!latest.invitations.some((x) => x.id === invitation.id && x.status === 'pending')) return;
+      }
+      throw error;
+    }
+  };
+
   const value: GameServerState = {
     status,
     catalogVersion,
@@ -202,6 +225,9 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     unreadNotifications,
     duelChat,
     liveInvitations,
+    invitesEnabled: invitePrefs.duelInvites,
+    respondInvitation,
+    dismissInvitation,
     refreshInvitePrefs: async () => {
       const p = await api<NotificationPrefs>('GET', '/api/me/notification-preferences');
       const next = { duelInvites: p.duelInvites, duelInviteSound: p.duelInviteSound, duelInviteVibration: p.duelInviteVibration };
@@ -245,65 +271,15 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   return (
     <GameServerContext value={value}>
       {children}
-      <LiveInvitationModal invitations={liveInvitations} enabled={invitePrefs.duelInvites} clockOffset={clockOffset}
-        onDismiss={(id) => setLiveInvitations((all) => all.filter((x) => x.id !== id))}
-        onRespond={async (invitation, action) => {
-          try {
-            await api('POST', `/api/live-invitations/${invitation.id}/${action}`);
-            setLiveInvitations((all) => all.filter((x) => x.id !== invitation.id));
-          } catch (error) {
-            // Le serveur peut avoir traité la réponse même si la requête a perdu sa
-            // réponse HTTP. Recharger l'état évite de laisser un panneau obsolète.
-            const latest = await api<{ invitations: LiveInvitation[] }>('GET', '/api/live-invitations').catch(() => null);
-            if (latest) {
-              setLiveInvitations((all) => {
-                const current = all.filter((x) => x.id !== invitation.id);
-                return [...latest.invitations.filter((x) => x.status === 'pending' && !current.some((y) => y.id === x.id)), ...current];
-              });
-              if (!latest.invitations.some((x) => x.id === invitation.id && x.status === 'pending')) return;
-            }
-            throw error;
-          }
-        }} />
       <DuelNavigator duel={duel} />
     </GameServerContext>
   );
 }
 
-function LiveInvitationModal({ invitations, enabled, clockOffset, onRespond, onDismiss }: { invitations: LiveInvitation[]; enabled: boolean; clockOffset: number; onRespond: (i: LiveInvitation, action: 'accept' | 'decline' | 'cancel') => Promise<void>; onDismiss: (id: string) => void }) {
+/** Invitation à afficher : celle qu'on a envoyée d'abord, sinon la dernière reçue. */
+export function currentInvitation(invitations: LiveInvitation[], enabled: boolean, clockOffset: number): LiveInvitation | undefined {
   const pending = invitations.filter((i) => i.status === 'pending' && i.expiresAt > Date.now() + clockOffset);
-  const invitation = pending.filter((i) => !i.incoming).at(-1) ?? (enabled ? pending.filter((i) => i.incoming).at(-1) : undefined);
-  const [seconds, setSeconds] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  useEffect(() => { if (!invitation) return; const tick = () => setSeconds(Math.max(0, Math.ceil((invitation.expiresAt - (Date.now() + clockOffset)) / 1000))); tick(); const t = setInterval(tick, 500); return () => clearInterval(t); }, [invitation?.id, invitation?.expiresAt, clockOffset]);
-  const theme = invitation ? getTheme(invitation.themeId) : null;
-  const respond = async (action: 'accept' | 'decline' | 'cancel') => {
-    if (!invitation || busy) return;
-    setBusy(true); setError('');
-    try { await onRespond(invitation, action); } catch { setError('Cette invitation n’est plus disponible.'); }
-    finally { setBusy(false); }
-  };
-  return <Modal transparent visible={!!invitation} animationType="fade" onRequestClose={() => invitation && onDismiss(invitation.id)} statusBarTranslucent>
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.lg, backgroundColor: 'rgba(8,12,25,0.62)' }}>
-      {invitation && <View style={{ width: '100%', maxWidth: 380, padding: Spacing.lg, gap: Spacing.md, borderRadius: Radius.md, backgroundColor: '#171522', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Fermer l’invitation" onPress={() => onDismiss(invitation.id)} hitSlop={10} style={{ position: 'absolute', zIndex: 1, top: 8, right: 10, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#c7c4d0', fontSize: 26, lineHeight: 30 }}>×</Text></Pressable>
-        <View style={{ alignItems: 'center', gap: Spacing.sm }}>
-          {invitation.sender.avatar ? <Image source={{ uri: invitation.sender.avatar }} style={{ width: 76, height: 76, borderRadius: 38, borderWidth: 2, borderColor: Colors.accent }} /> : <View style={{ width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accent }}><Text style={{ color: '#fff', fontSize: 28 }}>{invitation.sender.pseudo.slice(0, 1).toUpperCase()}</Text></View>}
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 22, textAlign: 'center' }}>{invitation.incoming ? `${invitation.sender.pseudo} te défie !` : `Invitation envoyée à ${invitation.receiver.pseudo}`}</Text>
-          <Text style={{ color: '#c7c4d0', textAlign: 'center' }}>{invitation.incoming ? `${invitation.sender.title ?? `Niveau ${invitation.sender.level}`} · ${theme?.name ?? 'Duel'}` : `En attente de réponse · ${theme?.name ?? 'Duel'}`}</Text>
-          <Text style={{ color: '#f2a5c9', fontWeight: '600' }}>Expire dans {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</Text>
-        </View>
-        {!!error && <Text style={{ color: '#ff7284', textAlign: 'center' }}>{error}</Text>}
-        <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-          {invitation.incoming ? <>
-            <Pressable disabled={busy} onPress={() => void respond('decline')} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: '#625c70' }}><Text style={{ color: '#eee', fontWeight: '700' }}>REFUSER</Text></Pressable>
-            <Pressable disabled={busy} onPress={() => void respond('accept')} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: Colors.accent, opacity: busy ? 0.6 : 1 }}><Text style={{ color: '#fff', fontWeight: '800' }}>ACCEPTER</Text></Pressable>
-          </> : <Pressable disabled={busy} onPress={() => void respond('cancel')} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: '#625c70' }}><Text style={{ color: '#eee', fontWeight: '700' }}>ANNULER L’INVITATION</Text></Pressable>}
-        </View>
-      </View>}
-    </View>
-  </Modal>;
+  return pending.filter((i) => !i.incoming).at(-1) ?? (enabled ? pending.filter((i) => i.incoming).at(-1) : undefined);
 }
 
 /**

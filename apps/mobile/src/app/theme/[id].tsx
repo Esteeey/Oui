@@ -13,8 +13,7 @@ import {
   getTheme,
   levelFromXp,
   questionsOf,
-  titleForLevel,
-  unlockedTitles,
+  themeTitleForLevel,
   type ChallengeView,
   type PostView,
   type ThemeInfo,
@@ -400,14 +399,13 @@ function QuizTab({ themeId, categoryColor, onDuel, onOpenPlay }: { themeId: stri
   const level = levelFromXp(stats.xp);
   const precision = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0;
   const avgTime = stats.correct ? (stats.totalCorrectResponseMs / stats.correct / 1000).toFixed(1) : '–';
-  const titles = unlockedTitles(level.level);
   return (
     <>
       <Card>
         <View style={styles.levelRow}>
           <AppText variant="heading">Niveau {level.level}</AppText>
           <AppText variant="label" color={categoryColor}>
-            {titles[0] ?? titleForLevel(level.level)}
+            {themeTitleForLevel(themeId, level.level)}
           </AppText>
         </View>
         <ProgressBar progress={level.progress} color={Page.pink} />

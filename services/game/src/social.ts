@@ -14,8 +14,12 @@ import {
   weekOf,
   NEARBY_KM,
   LOCATION_PRECISION_DEG,
-  unlockedTitles,
+  themeTitleForLevel,
+  themeTitleTier,
+  unlockedDecors,
+  unlockedThemeTitles,
   type ActivityView,
+  type DecorId,
   type CommentView,
   type DuelResult,
   type FeedItem,
@@ -32,6 +36,7 @@ import {
 import type { Database, Queryable } from './db/database';
 import type { Notifier } from './notifier';
 import type { RateLimiter } from './rate-limit';
+import { Banners } from './banners';
 import { mediaUrl, mediaView, type Media } from './media';
 
 /** Erreur métier renvoyée telle quelle par l'API (code HTTP + code lisible). */
@@ -78,13 +83,17 @@ function canSee(author: string, viewer = '$1'): string {
 
 /** Service social : profils, abonnements, thèmes, publications, commentaires, likes, mentions, classements. */
 export class Social {
+  private readonly banners: Banners;
+
   constructor(
     private readonly db: Database,
     private readonly limiter: RateLimiter,
     private readonly notifier?: Notifier,
     private readonly media?: Media,
     private readonly isOnline: (userId: string) => boolean = () => false,
-  ) {}
+  ) {
+    this.banners = new Banners(db);
+  }
 
   /** Les notifications ne doivent jamais faire échouer l'action qui les déclenche. */
   private notify(userId: string, input: Parameters<Notifier['notify']>[1]): Promise<void> {
@@ -128,10 +137,12 @@ export class Social {
         region: string | null;
         geo_lat: number | null;
         last_seen_at: Date | null;
+        equipped_decor: DecorId | null;
+        equipped_banner: string | null;
       }
     >(
       `SELECT ${SUMMARY_COLUMNS}, p.bio, p.is_private, p.show_followers, p.show_following, p.country, p.city, p.region, p.geo_lat,
-         u.last_seen_at,
+         u.last_seen_at, p.equipped_decor, p.equipped_banner,
          (SELECT storage_key FROM media WHERE id = p.cover_media_id AND removed_by_moderation_at IS NULL) AS cover_key
        FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = $1 AND u.status <> 'banned'`,
       [targetId],
@@ -180,6 +191,9 @@ export class Social {
       );
       if (b) best = { themeId: b.theme_id, rank: b.rank, players: b.players };
     }
+    const visible = canSeeContent && !rel.blocked_by_me;
+    const themeXp = await this.themeXp(targetId);
+    const decors = this.decorsFor(row.xp, themeXp);
     return {
       ...summary(row),
       bio: canSeeContent ? row.bio : '',
@@ -204,11 +218,42 @@ export class Social {
       ...(!isMe && canSeeContent && row.city ? { country: row.country, city: row.city } : {}),
       presence,
       best,
+      autoTitle: visible ? this.bestTitle(themeXp) : null,
+      decor: row.equipped_decor && decors.includes(row.equipped_decor) ? row.equipped_decor : decors[decors.length - 1],
+      banners: visible ? await this.banners.of(targetId, themeXp, row.equipped_banner) : [],
     };
   }
 
-  titles(xp: number): string[] {
-    return unlockedTitles(levelFromXp(xp).level);
+  /** XP des thèmes réellement joués. */
+  private async themeXp(userId: string, q: Queryable = this.db): Promise<Map<string, number>> {
+    const rows = await q.query<{ theme_id: string; xp: number }>('SELECT theme_id, xp FROM theme_stats WHERE user_id = $1 AND duels > 0', [userId]);
+    return new Map(rows.map((r) => [r.theme_id, r.xp]));
+  }
+
+  /** Thèmes joués, du titre le plus prestigieux au moins prestigieux (à palier égal, le plus d'XP). */
+  private themesByPrestige(themeXp: Map<string, number>): [string, number][] {
+    const tier = (xp: number) => themeTitleTier(levelFromXp(xp).level);
+    return [...themeXp].sort(([, a], [, b]) => tier(b) - tier(a) || b - a);
+  }
+
+  private bestTitle(themeXp: Map<string, number>): string | null {
+    const [best] = this.themesByPrestige(themeXp);
+    return best ? themeTitleForLevel(best[0], levelFromXp(best[1]).level) : null;
+  }
+
+  private decorsFor(xp: number, themeXp: Map<string, number>): DecorId[] {
+    const bestThemeLevel = Math.max(0, ...[...themeXp.values()].map((v) => levelFromXp(v).level));
+    return unlockedDecors(levelFromXp(xp).level, bestThemeLevel);
+  }
+
+  private titlesFor(themeXp: Map<string, number>): string[] {
+    return [...new Set(this.themesByPrestige(themeXp).flatMap(([themeId, xp]) => unlockedThemeTitles(themeId, levelFromXp(xp).level)))];
+  }
+
+  /** Titres (les plus prestigieux d'abord) et décors que le joueur peut équiper. */
+  async cosmetics(userId: string, xp: number): Promise<{ titles: string[]; decors: DecorId[] }> {
+    const themeXp = await this.themeXp(userId);
+    return { titles: this.titlesFor(themeXp), decors: this.decorsFor(xp, themeXp) };
   }
 
   async updateProfile(
@@ -220,12 +265,19 @@ export class Social {
       showFollowers?: unknown;
       showFollowing?: unknown;
       equippedTitle?: unknown;
+      equippedDecor?: unknown;
+      equippedBanner?: unknown;
       country?: unknown;
       city?: unknown;
       region?: unknown;
       location?: unknown;
     },
   ): Promise<PublicProfile> {
+    // Vérifié avant la transaction : le calcul des banderoles interroge la base directement.
+    if (patch.equippedBanner !== undefined && patch.equippedBanner !== null) {
+      const owned = await this.banners.of(userId, new Map(), null);
+      if (!owned.some((b) => b.key === String(patch.equippedBanner))) throw new SocialError(403, 'banner_locked');
+    }
     await this.db.transaction(async (tx) => {
       if (patch.pseudo !== undefined) {
         const pseudo = String(patch.pseudo).trim();
@@ -286,9 +338,17 @@ export class Social {
       }
       if (patch.equippedTitle !== undefined) {
         const title = patch.equippedTitle === null ? null : String(patch.equippedTitle);
-        const [{ xp }] = await tx.query<{ xp: number }>('SELECT xp FROM users WHERE id = $1', [userId]);
-        if (title !== null && !this.titles(xp).includes(title)) throw new SocialError(403, 'title_locked');
+        if (title !== null && !this.titlesFor(await this.themeXp(userId, tx)).includes(title)) throw new SocialError(403, 'title_locked');
         await tx.query('UPDATE profiles SET equipped_title = $2 WHERE user_id = $1', [userId, title]);
+      }
+      if (patch.equippedDecor !== undefined) {
+        const decor = patch.equippedDecor === null ? null : String(patch.equippedDecor);
+        const [{ xp }] = await tx.query<{ xp: number }>('SELECT xp FROM users WHERE id = $1', [userId]);
+        if (decor !== null && !(this.decorsFor(xp, await this.themeXp(userId, tx)) as string[]).includes(decor)) throw new SocialError(403, 'decor_locked');
+        await tx.query('UPDATE profiles SET equipped_decor = $2 WHERE user_id = $1', [userId, decor]);
+      }
+      if (patch.equippedBanner !== undefined) {
+        await tx.query('UPDATE profiles SET equipped_banner = $2 WHERE user_id = $1', [userId, patch.equippedBanner === null ? null : String(patch.equippedBanner)]);
       }
     });
     return this.profile(userId, userId);

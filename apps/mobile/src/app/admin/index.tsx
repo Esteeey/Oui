@@ -41,6 +41,7 @@ export default function AdminScreen() {
         <SectionHeader title="Jeu" />
         <Entry icon="albums-outline" label="Thèmes et questions" hint="Créer un thème, ses questions et ses photos" href={'/admin/themes/new' as Href} />
         <Entry icon="musical-notes-outline" label="Sons du jeu" hint="Écouter, remplacer ou rétablir chaque son et musique" href="/admin/sounds" />
+        <Entry icon="sparkles-outline" label="Animations" hint="Régler durées, intensités et couleurs de l’invitation en duel" href={'/admin/animations' as Href} />
       </View>
       <View style={{ gap: Spacing.sm }}>
         <SectionHeader title="Communauté" />

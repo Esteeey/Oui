@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { CATEGORIES, RULES, registerTheme, type Theme } from '@qu1z/shared';
+import { CATEGORIES, RULES, THEME_TITLE_LEVELS, registerTheme, type Theme } from '@qu1z/shared';
 
 import { AppText, Button, Card, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
@@ -17,6 +17,7 @@ const blankQuestion = (): DraftQuestion => ({ text: '', choices: ['', '', '', ''
 export default function AdminNewThemeScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [titles, setTitles] = useState(['', '', '', '', '']);
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
   const [questions, setQuestions] = useState<DraftQuestion[]>(Array.from({ length: RULES.questionsPerDuel }, blankQuestion));
   const [icon, setIcon] = useState<PickedImage | null>(null);
@@ -58,10 +59,14 @@ export default function AdminNewThemeScreen() {
     if (questions.some((q) => new Set(q.choices.map((choice) => choice.trim().toLocaleLowerCase())).size !== 4)) {
       return setMessage({ ok: false, text: 'Les quatre réponses d’une question doivent être différentes.' });
     }
+    const titleCount = titles.filter((title) => title.trim()).length;
+    if (titleCount !== 0 && (titleCount !== 5 || new Set(titles.map((title) => title.trim())).size !== 5)) {
+      return setMessage({ ok: false, text: 'Écris les 5 titres, tous différents, ou laisse-les tous vides.' });
+    }
     setBusy(true);
     try {
       const created = await api<{ id: string }>('POST', '/api/admin/themes', {
-        name, description, categoryId,
+        name, description, categoryId, titles,
         questions: questions.map((q) => ({ ...q, choices: q.choices.map((choice) => choice.trim()) })),
       });
       await uploadAsset(created.id, 'icon', icon);
@@ -72,6 +77,7 @@ export default function AdminNewThemeScreen() {
       setMessage({ ok: true, text: 'Thème créé. Il est maintenant disponible dans le jeu.' });
       setName('');
       setDescription('');
+      setTitles(['', '', '', '', '']);
       setQuestions(Array.from({ length: RULES.questionsPerDuel }, blankQuestion));
       setIcon(null);
       setCover(null);
@@ -90,6 +96,13 @@ export default function AdminNewThemeScreen() {
         <TextInput value={name} onChangeText={setName} maxLength={60} placeholder="Ex. Mythologie grecque" style={styles.input} />
         <AppText variant="label">Description</AppText>
         <TextInput value={description} onChangeText={setDescription} maxLength={180} placeholder="Présente le thème en une phrase" style={styles.input} />
+        <AppText variant="label">Titres du thème (facultatif)</AppText>
+        <AppText variant="caption" muted>Les 5 ou aucun. Sans titres, le thème utilise la liste générique (Débutant, Amateur…).</AppText>
+        {THEME_TITLE_LEVELS.map((level, index) => (
+          <TextInput key={level} value={titles[index]} maxLength={24} accessibilityLabel={'Titre du niveau ' + level}
+            onChangeText={(value) => setTitles((all) => all.map((title, i) => i === index ? value : title))}
+            placeholder={'Titre au niveau ' + level + (level === 100 ? ' (le plus prestigieux)' : '')} style={styles.input} />
+        ))}
         <AppText variant="label">Catégorie</AppText>
         <View style={styles.categories}>
           {CATEGORIES.map((category) => (

@@ -14,6 +14,7 @@ import { LoginScreen } from '@/components/login-screen';
 import { GameServerProvider, useGameServer } from '@/state/game-server';
 import { appBlurTarget } from '@/state/app-blur-target';
 import { OverlayPortalProvider } from '@/components/overlay-portal';
+import { DuelInviteHost } from '@/components/duel-invite-overlay';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -90,6 +91,7 @@ export default function RootLayout() {
                 </Stack>
               </BannedGate>
             </BlurTargetView>
+            <DuelInviteHost />
           </OverlayPortalProvider>
         </GameServerProvider>
       </ThemeProvider>

@@ -6,7 +6,7 @@ import type { MediaStore } from './media';
 import { SocialError } from './social';
 
 type QuestionInput = { text: string; choices: [string, string, string, string]; difficulty: number };
-type Row = { id: string; category_id: CategoryId; name: string; description: string; questions: QuestionInput[]; icon_key: string | null; cover_key: string | null; published: boolean };
+type Row = { id: string; category_id: CategoryId; name: string; description: string; questions: QuestionInput[]; icon_key: string | null; cover_key: string | null; published: boolean; titles: Theme['titles'] };
 type AssetKind = 'icon' | 'cover';
 const slug = (id: string) => 'custom-' + id;
 const imageKey = (kind: AssetKind) => 'theme' + (kind === 'icon' ? 'icons' : 'covers') + '/' + randomUUID().replaceAll('-', '') + '.webp';
@@ -20,7 +20,7 @@ export class ThemeCatalog {
   private theme(row: Row): Theme {
     return { id: slug(row.id), categoryId: row.category_id, name: row.name, description: row.description,
       iconUrl: row.icon_key ? this.store.url(row.icon_key) : null, coverUrl: row.cover_key ? this.store.url(row.cover_key) : null,
-      questionCount: row.questions.length };
+      questionCount: row.questions.length, titles: row.titles };
   }
   private questions(row: Row): Question[] {
     return row.questions.map((question, index) => ({ id: slug(row.id) + '-' + String(index + 1).padStart(3, '0'),
@@ -61,9 +61,12 @@ export class ThemeCatalog {
         new Set(choices.map((choice) => choice.toLocaleLowerCase())).size !== 4 || ![1, 2, 3].includes(difficulty)) throw new SocialError(400, 'invalid_questions');
       return { text, choices: choices as QuestionInput['choices'], difficulty };
     });
+    // Les 5 titres sont facultatifs : sans eux, le thème utilise la liste générique.
+    const titles = Array.isArray(input.titles) ? input.titles.map((title) => String(title).trim()) : [];
+    if (titles.some(Boolean) && (titles.length !== 5 || titles.some((title) => !title || title.length > 24) || new Set(titles).size !== 5)) throw new SocialError(400, 'invalid_titles');
     const id = randomUUID();
-    await this.db.query('INSERT INTO custom_themes (id, category_id, name, description, questions, created_by) VALUES ($1, $2, $3, $4, $5, $6)',
-      [id, categoryId, name, description, JSON.stringify(questions), admin]);
+    await this.db.query('INSERT INTO custom_themes (id, category_id, name, description, questions, created_by, titles) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [id, categoryId, name, description, JSON.stringify(questions), admin, titles.some(Boolean) ? JSON.stringify(titles) : null]);
     return { id: slug(id) };
   }
   async setAsset(admin: string, themeId: string, kind: AssetKind, data: Buffer): Promise<void> {

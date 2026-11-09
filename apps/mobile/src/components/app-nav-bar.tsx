@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, usePathname, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
@@ -11,6 +12,7 @@ import type { IconName } from '@/components/social';
 import { Colors, Fonts, NavBarHeight, NavBarLift } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
+import { navLift } from '@/state/nav-lift';
 
 type NavTab = 'home' | 'themes' | 'versus' | 'activity' | 'profile';
 
@@ -73,6 +75,7 @@ export function AppNavBar() {
   const { width } = useWindowDimensions();
   const height = useNavBarHeight();
   const bottom = Math.max(insets.bottom, MIN_BOTTOM) + NavBarLift;
+  const liftStyle = useAnimatedStyle(() => ({ transform: [{ translateY: navLift.value }] }));
 
   if (keyboard) return null;
 
@@ -104,7 +107,7 @@ export function AppNavBar() {
   };
 
   return (
-    <View pointerEvents="box-none" style={[styles.bar, { height }]}>
+    <Animated.View pointerEvents="box-none" style={[styles.bar, { height }, liftStyle]}>
       <LinearGradient pointerEvents="none" colors={PASTEL} locations={PASTEL_STOPS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.body, { top: WAVE_HEIGHT - 1 }]} />
       <View pointerEvents="none" style={styles.wave}>
         <Svg width="100%" height={WAVE_HEIGHT} viewBox="0 0 852 61" preserveAspectRatio="none">
@@ -137,7 +140,7 @@ export function AppNavBar() {
           <Logo size={34} color={Colors.onAccent} />
         </LinearGradient>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 

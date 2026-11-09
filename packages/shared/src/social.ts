@@ -1,3 +1,4 @@
+import type { DecorId, ProfileBanner } from './cosmetics';
 import type { MediaView, StickerId } from './media';
 
 /** Données sociales échangées entre le serveur et l'application (API HTTP). */
@@ -104,6 +105,12 @@ export interface PublicProfile extends UserSummary {
   presence?: { online: boolean; lastSeenAt: number | null } | null;
   /** Meilleur thème (le plus d'XP) et rang mondial dans ce thème, si le contenu est visible. */
   best?: { themeId: string; rank: number; players: number } | null;
+  /** Titre le plus prestigieux gagné, affiché quand aucun titre n'est équipé. */
+  autoTitle?: string | null;
+  /** Décor du titre : celui équipé, sinon le plus rare débloqué. */
+  decor?: DecorId;
+  /** Banderoles « Meilleur en… » si le contenu est visible ; la première est celle affichée. */
+  banners?: ProfileBanner[];
 }
 
 export type PostTarget = { kind: 'profile' } | { kind: 'theme'; themeId: string };

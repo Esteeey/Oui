@@ -21,6 +21,7 @@ import { Medals } from './medals';
 import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
 import { GameSounds } from './sounds';
+import { AnimationSettings } from './animation-settings';
 import { ThemeCatalog } from './theme-catalog';
 
 const MAX_BODY = 16 * 1024;
@@ -125,10 +126,11 @@ export function createApi(
 ) {
   const medals = new Medals(game.repo.db);
   const sounds = new GameSounds(game.repo.db);
+  const animations = new AnimationSettings(game.repo.db);
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
-      return { profile: await game.profile(userId), role: user.role, status: user.status, titles: social.titles(user.xp) };
+      return { profile: await game.profile(userId), role: user.role, status: user.status, ...(await social.cosmetics(userId, user.xp)) };
     }],
 
     ['GET', /^\/api\/me\/themes\/([^/]+)\/question-progress$/, async ({ userId, params }) => ({
@@ -456,6 +458,11 @@ export function createApi(
     ['PUT', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params, query, raw }) =>
       sounds.set(userId, params[0], await raw(SOUND_MAX_BYTES), query.get('name'))],
     ['DELETE', /^\/api\/admin\/sounds\/([^/]+)$/, async ({ userId, params }) => sounds.reset(userId, params[0])],
+
+    // Animations : réglées par un administrateur, lues par tous les joueurs.
+    ['GET', /^\/api\/animations$/, async () => animations.read()],
+    ['PUT', /^\/api\/admin\/animations\/([^/]+)$/, async ({ userId, params, body }) => animations.update(userId, params[0], await body())],
+    ['DELETE', /^\/api\/admin\/animations\/([^/]+)$/, async ({ userId, params }) => animations.reset(userId, params[0])],
 
     // Annonces officielles : publiées uniquement par un administrateur.
     ['POST', /^\/api\/admin\/announcements$/, async ({ userId, body }) => {

@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { EarnedMedal, LeaderboardRow } from '@qu1z/shared';
+import { seasonOf, type EarnedMedal, type LeaderboardRow, type PublicProfile } from '@qu1z/shared';
 
+import { Banners } from '../src/banners';
 import { openDatabase, type Database } from '../src/db/database';
 import { Repo } from '../src/repo';
 import { startServer, type GameServer } from '../src/server';
@@ -88,6 +89,53 @@ async function playedDuel(
 }
 
 const medalsOf = (viewer: U, target: U) => call<{ medals: EarnedMedal[] }>(viewer, 'GET', `/api/users/${target.id}/medals`);
+
+describe('banderoles mensuelles', () => {
+  const LAST_MONTH = "date_trunc('month', now()) - interval '2 days'";
+  const banners = async (viewer: U, target: U) => (await ok(call<PublicProfile>(viewer, 'GET', `/api/users/${target.id}`))).banners ?? [];
+
+  /** Le joueur fait 20 duels ; 9 autres joueurs jouent un duel, pour atteindre les 10 joueurs classés. */
+  async function fillTheme(me: U, themeId: string, at: string) {
+    for (let i = 0; i < 20; i++) await playedDuel(me.id, { themeId, at, xp: 30 });
+    for (let i = 0; i < 9; i++) await playedDuel((await user(`Rival${themeId.slice(4, 8)}${at.length}${i}`)).id, { themeId, at, xp: 5 });
+  }
+
+  it('n°1 du mois : banderole en cours, puis gardée avec son mois une fois celui-ci terminé', async () => {
+    const me = await user('Champion');
+    const month = seasonOf(seasonOf(Date.now()).startsAt - 2 * 86_400_000);
+    await fillTheme(me, 'geo-capitales', LAST_MONTH);
+    await fillTheme(me, 'geo-drapeaux', 'now()');
+    // La création des joueurs a déjà déclenché la clôture du mois, avant ces duels antidatés.
+    await new Banners(db).closeFinishedMonths();
+
+    const first = await banners(me, me);
+    expect(first).toEqual([
+      { key: 'current:geo-drapeaux', themeId: 'geo-drapeaux', themeName: 'Drapeaux du monde', season: null },
+      { key: `${month.id}:geo-capitales`, themeId: 'geo-capitales', themeName: 'Capitales du monde', season: month.name },
+    ]);
+    // Une banderole gagnée se choisit ; celles d'un autre ne sont pas équipables.
+    expect((await call(me, 'PATCH', '/api/me/profile', { equippedBanner: 'current:sports-jo' })).status).toBe(403);
+    await ok(call(me, 'PATCH', '/api/me/profile', { equippedBanner: first[1].key }));
+    expect((await banners(me, me))[0].key).toBe(first[1].key);
+  });
+
+  it('pas de banderole sans 20 duels et 10 joueurs classés', async () => {
+    const me = await user('Solo');
+    for (let i = 0; i < 19; i++) await playedDuel(me.id, { themeId: 'geo-capitales', xp: 30 });
+    expect(await banners(me, me)).toEqual([]);
+    await playedDuel(me.id, { themeId: 'geo-capitales', xp: 30 });
+    expect(await banners(me, me)).toEqual([]); // 20 duels, mais seul dans le thème
+  });
+
+  it('le mois en cours passe au nouveau n°1', async () => {
+    const me = await user('Ancien');
+    const next = await user('Nouveau');
+    await fillTheme(me, 'geo-capitales', 'now()');
+    for (let i = 0; i < 20; i++) await playedDuel(next.id, { themeId: 'geo-capitales', xp: 50 });
+    expect(await banners(me, me)).toEqual([]);
+    expect((await banners(next, next)).map((b) => b.key)).toEqual(['current:geo-capitales']);
+  });
+});
 
 describe('médailles', () => {
   it('gagnées d’après l’historique, datées du duel qui les débloque', async () => {

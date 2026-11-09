@@ -96,9 +96,23 @@ describe('profils et pseudo', () => {
 
   it('titre équipé : seulement un titre débloqué', async () => {
     const a = await user('Thomas');
-    expect((await call(a, 'PATCH', '/api/me/profile', { equippedTitle: 'Érudit' })).status).toBe(403);
-    const p = await ok(call<PublicProfile>(a, 'PATCH', '/api/me/profile', { equippedTitle: 'Débutant' }));
-    expect(p.title).toBe('Débutant');
+    await db.query('INSERT INTO theme_stats (user_id, theme_id, rating, xp, duels) VALUES ($1, $2, 1000, 50, 3)', [a.id, 'geo-capitales']);
+    // Niveau 1 en Capitales : le premier titre du thème, et aucun titre d'un autre palier ou d'un autre thème.
+    expect((await call(a, 'PATCH', '/api/me/profile', { equippedTitle: 'Maître du Monde' })).status).toBe(403);
+    expect((await call(a, 'PATCH', '/api/me/profile', { equippedTitle: 'Noob' })).status).toBe(403);
+    expect((await ok(profile(a, a))).autoTitle).toBe('Touriste');
+    const p = await ok(call<PublicProfile>(a, 'PATCH', '/api/me/profile', { equippedTitle: 'Touriste' }));
+    expect(p.title).toBe('Touriste');
+  });
+
+  it('décor : le plus rare débloqué par défaut, seulement un décor débloqué', async () => {
+    const a = await user('Thomas');
+    await db.query('UPDATE users SET xp = 1200 WHERE id = $1', [a.id]);
+    const before = await ok(profile(a, a));
+    expect(before.level).toBe(6);
+    expect(before.decor).toBe('jaune');
+    expect((await call(a, 'PATCH', '/api/me/profile', { equippedDecor: 'diamant' })).status).toBe(403);
+    expect((await ok(call<PublicProfile>(a, 'PATCH', '/api/me/profile', { equippedDecor: 'gris' }))).decor).toBe('gris');
   });
 });
 

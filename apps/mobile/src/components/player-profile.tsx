@@ -19,8 +19,9 @@ import {
   type ThemeStats,
 } from '@qu1z/shared';
 
-import { RankBadge } from '@/components/rank';
+import { BannerCarousel } from '@/components/rank';
 import { DivisionBadge, type IconName } from '@/components/social';
+import { TitleDecor } from '@/components/title-decor';
 import { AppText, Avatar, Card, ProgressBar, useNavBarSpace } from '@/components/ui';
 import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
@@ -128,7 +129,7 @@ export function ProfileLayout({
             <AppText style={styles.name} numberOfLines={1}>
               {name}
             </AppText>
-            <RankBadge label={title ?? titleForLevel(level.level)} />
+            <TitleDecor decor={profile?.decor ?? 'gris'} label={title ?? profile?.autoTitle ?? titleForLevel(level.level)} />
             {(locationLabel || presenceLabel) && (
               <View style={styles.metaRow}>
                 {country ? <AppText style={styles.flag}>{countryFlag(country)}</AppText> : null}
@@ -156,6 +157,7 @@ export function ProfileLayout({
                 {tag}
               </AppText>
             ) : null}
+            <BannerCarousel banners={profile?.banners ?? []} onOpen={(id) => router.push({ pathname: '/theme/[id]', params: { id } })} />
           </View>
           <View style={styles.counts}>
             <Count label={duels > 1 ? 'Parties jouées' : 'Partie jouée'} value={duels} color="#F9A8D9" />

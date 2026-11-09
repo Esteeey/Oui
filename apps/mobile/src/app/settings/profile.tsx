@@ -4,9 +4,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
 
-import { COUNTRIES, MAX_BIO_LENGTH, NEARBY_KM, REGIONS_FR, countryFlag, countryName, type PublicProfile } from '@qu1z/shared';
+import { COUNTRIES, DECORS, MAX_BIO_LENGTH, NEARBY_KM, REGIONS_FR, countryFlag, countryName, type DecorId, type PublicProfile } from '@qu1z/shared';
 
 import { Chip, SectionHeader } from '@/components/social';
+import { TitleDecor } from '@/components/title-decor';
 import { PhotoCropDialog } from '@/components/photo-crop-dialog';
 import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
 import { Colors, Gradients, Radius, Spacing } from '@/constants/theme';
@@ -21,7 +22,7 @@ import { Tap } from '@/components/tap';
 export default function ProfileSettingsScreen() {
   const { playerId } = useGameServer();
   const me = useApi<PublicProfile>(playerId ? `/api/users/${playerId}` : null);
-  const account = useApi<{ titles: string[]; role: string }>('/api/me');
+  const account = useApi<{ titles: string[]; decors: DecorId[]; role: string }>('/api/me');
   const [pseudo, setPseudo] = useState('');
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
@@ -167,8 +168,56 @@ export default function ProfileSettingsScreen() {
         ))}
       </View>
       <AppText variant="caption" muted>
-        De nouveaux titres se débloquent en montant de niveau.
+        Chaque thème a ses 5 titres, débloqués aux niveaux 1, 10, 25, 50 et 100 de ce thème.
       </AppText>
+
+      <SectionHeader title="Décor du titre" />
+      <Card style={{ gap: Spacing.sm, alignItems: 'center' }}>
+        {DECORS.map((d) => {
+          const unlocked = account.data?.decors?.includes(d.id) ?? false;
+          const active = p?.decor === d.id;
+          return (
+            <Tap
+              key={d.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Décor ${d.name}`}
+              accessibilityState={{ selected: active, disabled: !unlocked }}
+              disabled={!unlocked}
+              onPress={() => save({ equippedDecor: d.id }).then(() => me.refresh())}
+              style={[styles.decor, active && styles.decorActive]}>
+              <View style={!unlocked && styles.decorLocked}>
+                <TitleDecor decor={d.id} width={270} label={p?.title ?? p?.autoTitle ?? 'Ton titre'} />
+              </View>
+              {!unlocked && (
+                <AppText variant="caption" color={Colors.onAccent}>
+                  {d.unlock.kind === 'account' ? `Compte niveau ${d.unlock.level}` : `Niveau ${d.unlock.level} dans un thème`}
+                </AppText>
+              )}
+            </Tap>
+          );
+        })}
+      </Card>
+
+      {!!p?.banners?.length && (
+        <>
+          <SectionHeader title="Banderole affichée" />
+          <View style={styles.chips}>
+            {p.banners.map((b, i) => (
+              <Chip
+                style={styles.profileChip}
+                key={b.key}
+                label={b.season ? `${b.themeName} · ${b.season}` : b.themeName}
+                color={Colors.gold}
+                active={i === 0}
+                onPress={() => save({ equippedBanner: b.key }).then(() => me.refresh())}
+              />
+            ))}
+          </View>
+          <AppText variant="caption" muted>
+            Les autres banderoles se voient en swipant sur celle de ton profil.
+          </AppText>
+        </>
+      )}
 
       <SectionHeader title="Pays" />
       <Card style={{ gap: Spacing.sm }}>
@@ -385,6 +434,9 @@ const styles = StyleSheet.create({
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   profileChip: { paddingHorizontal: 12, paddingVertical: 6 },
+  decor: { alignItems: 'center', gap: 2, padding: 6, borderRadius: Radius.sm, borderWidth: 2, borderColor: 'transparent', backgroundColor: Colors.navy },
+  decorActive: { borderColor: Colors.accent },
+  decorLocked: { opacity: 0.35 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   link: {
     flexDirection: 'row',

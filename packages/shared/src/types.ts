@@ -33,6 +33,8 @@ export interface Theme {
   iconUrl?: string | null;
   coverUrl?: string | null;
   questionCount?: number;
+  /** Les 5 titres du thème, saisis dans l'admin pour un thème créé après coup. */
+  titles?: readonly [string, string, string, string, string] | null;
 }
 
 export type Difficulty = 1 | 2 | 3;
