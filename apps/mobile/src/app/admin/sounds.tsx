@@ -3,13 +3,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { GAME_SOUNDS, SOUND_FORMATS_LABEL, SOUND_MAX_BYTES, type GameSoundId, type SoundOverride } from '@qu1z/shared';
 
 import { defaultSoundSource, refreshSoundOverrides } from '@/audio/sounds';
-import { SectionHeader } from '@/components/social';
-import { AppText, Card, Screen } from '@/components/ui';
+import { AdminScreen, Dock, Hint, Pill, Segmented, Sheet, SheetAction, adminStyles, type Notice } from '@/components/admin-ui';
+import { AppText, Card } from '@/components/ui';
 import { Tap } from '@/components/tap';
 import { Colors, Spacing } from '@/constants/theme';
 import { api, apiBase, ApiError, errorMessage, invalidateAll, TOKEN_KEY, useApi } from '@/net/api';
@@ -27,172 +27,214 @@ const soundError = (e: unknown) => (e instanceof ApiError && SOUND_ERRORS[e.code
 
 const size = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} Ko` : `${(bytes / 1024 / 1024).toFixed(1)} Mo`);
 
+type Sound = (typeof GAME_SOUNDS)[number];
+type Tab = 'effect' | 'music' | 'custom';
+
 /** Un seul lecteur d'écoute pour tout l'écran. */
 let preview: AudioPlayer | null = null;
+let onPreviewEnd: (() => void) | null = null;
 
 /** Sons du jeu (administrateurs) : écouter, remplacer par un fichier, ou rétablir le son d'origine. */
 export default function AdminSoundsScreen() {
   const me = useApi<{ role: string }>('/api/me');
   const admin = me.data?.role === 'admin';
   const list = useApi<{ sounds: SoundOverride[] }>(admin ? '/api/admin/sounds' : null);
+  const [tab, setTab] = useState<Tab>('effect');
+  const [search, setSearch] = useState('');
+  const [playing, setPlaying] = useState<Sound | null>(null);
+  const [options, setOptions] = useState<Sound | null>(null);
   const [busy, setBusy] = useState<GameSoundId | null>(null);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    onPreviewEnd = () => setPlaying(null);
+    return () => {
+      onPreviewEnd = null;
       try {
         preview?.pause();
       } catch {}
-    },
-    [],
-  );
+    };
+  }, []);
 
   if (me.data && !admin) {
     return (
-      <Screen back title="Sons du jeu">
+      <AdminScreen title="Sons du jeu">
         <AppText muted>Accès réservé aux administrateurs.</AppText>
-      </Screen>
+      </AdminScreen>
     );
   }
 
   const byId = new Map((list.data?.sounds ?? []).map((s) => [s.id, s]));
 
-  const listen = (id: GameSoundId) => {
-    const o = byId.get(id);
-    const source = o ? { uri: `${apiBase()}${o.url}` } : defaultSoundSource(id);
-    try {
-      if (preview) preview.replace(source);
-      else preview = createAudioPlayer(source);
-      preview.seekTo(0).catch(() => {});
-      preview.play();
-    } catch {
-      setMessage({ ok: false, text: 'Lecture impossible sur cet appareil.' });
-    }
-  };
-
   const stop = () => {
     try {
       preview?.pause();
     } catch {}
+    setPlaying(null);
+  };
+
+  const listen = (sound: Sound) => {
+    const o = byId.get(sound.id);
+    const source = o ? { uri: `${apiBase()}${o.url}` } : defaultSoundSource(sound.id);
+    try {
+      if (preview) preview.replace(source);
+      else {
+        preview = createAudioPlayer(source);
+        preview.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) onPreviewEnd?.();
+        });
+      }
+      preview.seekTo(0).catch(() => {});
+      preview.play();
+      setPlaying(sound);
+    } catch {
+      setNotice({ ok: false, text: 'Lecture impossible sur cet appareil.' });
+    }
   };
 
   const done = async (text: string) => {
-    setMessage({ ok: true, text });
+    setNotice({ ok: true, text });
     invalidateAll();
     list.refresh();
     await refreshSoundOverrides(true);
   };
 
-  const replace = async (id: GameSoundId, label: string) => {
-    setMessage(null);
+  const replace = async (sound: Sound) => {
+    setOptions(null);
+    setNotice(null);
     const picked = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true, multiple: false });
     if (picked.canceled || !picked.assets[0]) return;
     const file = picked.assets[0];
-    if (file.size && file.size > SOUND_MAX_BYTES) return setMessage({ ok: false, text: SOUND_ERRORS.too_large });
-    setBusy(id);
+    if (file.size && file.size > SOUND_MAX_BYTES) return setNotice({ ok: false, text: SOUND_ERRORS.too_large });
+    setBusy(sound.id);
     try {
       const token = await AsyncStorage.getItem(TOKEN_KEY);
       if (!token) throw new ApiError(401, 'not_connected');
       const body = file.file ?? (await (await fetch(file.uri)).blob());
-      const res = await fetch(`${apiBase()}/api/admin/sounds/${id}?name=${encodeURIComponent(file.name)}`, {
+      const res = await fetch(`${apiBase()}/api/admin/sounds/${sound.id}?name=${encodeURIComponent(file.name)}`, {
         method: 'PUT',
         headers: { authorization: `Bearer ${token}`, 'content-type': file.mimeType ?? 'application/octet-stream' },
         body,
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new ApiError(res.status, data.error ?? 'error');
-      await done(`« ${label} » remplacé par ${file.name}. Les joueurs l’entendront à leur prochaine partie.`);
+      await done(`« ${sound.label} » remplacé par ${file.name}. Les joueurs l’entendront à leur prochaine partie.`);
     } catch (e) {
-      setMessage({ ok: false, text: soundError(e) });
+      setNotice({ ok: false, text: soundError(e) });
     } finally {
       setBusy(null);
     }
   };
 
-  const reset = async (id: GameSoundId, label: string) => {
-    setMessage(null);
-    setBusy(id);
+  const reset = async (sound: Sound) => {
+    setOptions(null);
+    setNotice(null);
+    setBusy(sound.id);
     try {
-      await api('DELETE', `/api/admin/sounds/${id}`);
-      await done(`« ${label} » : son d’origine rétabli.`);
+      await api('DELETE', `/api/admin/sounds/${sound.id}`);
+      await done(`« ${sound.label} » : son d’origine rétabli.`);
     } catch (e) {
-      setMessage({ ok: false, text: soundError(e) });
+      setNotice({ ok: false, text: soundError(e) });
     } finally {
       setBusy(null);
     }
   };
 
-  const section = (kind: 'effect' | 'music', title: string) => (
-    <View style={styles.section}>
-      <SectionHeader title={title} />
-      <View style={styles.grid}>
-        {GAME_SOUNDS.filter((s) => s.kind === kind).map((s) => {
-        const o = byId.get(s.id);
-        return (
-          <Card key={s.id} style={styles.soundCard}>
-            <View style={styles.cardHeading}>
-              <View style={[styles.soundIcon, o && styles.soundIconActive]}>
-                <Ionicons name={kind === 'music' ? 'musical-notes' : 'volume-high'} size={17} color={o ? Colors.accent : Colors.textMuted} />
-              </View>
-              <AppText style={styles.soundTitle} numberOfLines={2}>{s.label}</AppText>
-            </View>
-            <AppText variant="caption" muted numberOfLines={2} style={styles.description}>{s.when}</AppText>
-            <AppText variant="caption" color={o ? Colors.accent : Colors.textMuted} numberOfLines={2} style={styles.status}>
-              {o ? `Personnalisé · ${o.fileName ?? 'fichier'} · ${size(o.bytes)} · ${timeAgo(o.updatedAt)}` : 'Son d’origine'}
-            </AppText>
-            <View style={styles.actions}>
-              <Tap accessibilityRole="button" accessibilityLabel={`Écouter ${s.label}`} onPress={() => listen(s.id)} style={styles.iconButton}>
-                <Ionicons name="play" size={17} color={Colors.text} />
-              </Tap>
-              <Tap accessibilityRole="button" accessibilityLabel={`Remplacer ${s.label}`} disabled={busy !== null} onPress={() => replace(s.id, s.label)} style={[styles.iconButton, styles.editButton, busy === s.id && styles.busyButton]}>
-                <Ionicons name={busy === s.id ? 'ellipsis-horizontal' : 'create-outline'} size={19} color={busy === s.id ? Colors.textMuted : Colors.onAccent} />
-              </Tap>
-              {o && (
-                <Tap accessibilityRole="button" accessibilityLabel={`Rétablir le son d’origine de ${s.label}`} disabled={busy !== null} onPress={() => reset(s.id, s.label)} style={[styles.iconButton, styles.resetButton]}>
-                  <Ionicons name="refresh-outline" size={18} color={Colors.wrong} />
-                </Tap>
-              )}
-            </View>
-          </Card>
-        );
-        })}
-      </View>
-    </View>
-  );
+  const count = (kind: 'effect' | 'music') => GAME_SOUNDS.filter((s) => s.kind === kind).length;
+  const query = search.trim().toLocaleLowerCase();
+  const shown = GAME_SOUNDS.filter((s) => (tab === 'custom' ? byId.has(s.id) : s.kind === tab)).filter((s) => !query || s.label.toLocaleLowerCase().includes(query) || s.when.toLocaleLowerCase().includes(query));
+  const selected = options ? byId.get(options.id) : undefined;
 
   return (
-    <Screen back title="Sons du jeu">
-      <AppText muted>
-        Remplace un son par un fichier {SOUND_FORMATS_LABEL} ({MAX_MB} Mo maximum). Le changement vaut pour tous les joueurs, à leur prochaine
-        partie. N’envoie que des sons que tu as le droit d’utiliser.
-      </AppText>
-      <Tap accessibilityRole="button" onPress={stop} style={styles.stopButton}>
-        <Ionicons name="stop" size={15} color={Colors.text} />
-        <AppText style={styles.stopLabel}>Arrêter l’écoute</AppText>
-      </Tap>
-      {message && <AppText color={message.ok ? Colors.correct : Colors.wrong}>{message.text}</AppText>}
+    <AdminScreen
+      title="Sons du jeu"
+      notice={notice}
+      scrollKey={tab}
+      dock={
+        playing && (
+          <Dock dark>
+            <View style={adminStyles.grow}>
+              <AppText color={Colors.onAccent} style={adminStyles.strong} numberOfLines={1}>
+                {playing.label}
+              </AppText>
+              <Hint color="#CFC7E4">Écoute en cours</Hint>
+            </View>
+            <Tap accessibilityRole="button" accessibilityLabel="Arrêter l’écoute" onPress={stop} style={styles.playerStop}>
+              <Ionicons name="stop" size={20} color={Colors.onAccent} />
+            </Tap>
+          </Dock>
+        )
+      }
+      sheet={
+        options && (
+          <Sheet title={options.label} onClose={() => setOptions(null)}>
+            <Hint color={selected ? Colors.accentInk : undefined}>{selected ? `Personnalisé · ${selected.fileName ?? 'fichier'} · ${size(selected.bytes)} · ${timeAgo(selected.updatedAt)}` : 'Son d’origine'}</Hint>
+            <Hint>{options.when}</Hint>
+            <SheetAction
+              icon="play"
+              label="Écouter"
+              onPress={() => {
+                listen(options);
+                setOptions(null);
+              }}
+            />
+            <SheetAction icon="cloud-upload-outline" label="Remplacer par un fichier" disabled={busy !== null} onPress={() => void replace(options)} />
+            {selected && <SheetAction icon="refresh-outline" label="Rétablir le son d’origine" danger disabled={busy !== null} onPress={() => void reset(options)} />}
+            <Hint>
+              Fichier {SOUND_FORMATS_LABEL}, {MAX_MB} Mo maximum. Le changement vaut pour tous les joueurs, à leur prochaine partie. N’envoie que des sons que tu as le droit d’utiliser.
+            </Hint>
+          </Sheet>
+        )
+      }>
+      <View style={styles.search}>
+        <Ionicons name="search" size={18} color={Colors.textSoft} />
+        <TextInput value={search} onChangeText={setSearch} placeholder="Chercher un son" placeholderTextColor={Colors.textMuted} accessibilityLabel="Chercher un son" autoCorrect={false} style={styles.searchInput} />
+      </View>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'effect', label: 'Effets', count: count('effect') },
+          { value: 'music', label: 'Musiques', count: count('music') },
+          { value: 'custom', label: 'Modifiés', count: byId.size },
+        ]}
+      />
       {list.error && <AppText color={Colors.wrong}>{errorMessage(list.error)}</AppText>}
-      {section('effect', 'Effets du duel')}
-      {section('music', 'Musiques')}
-    </Screen>
+      <Card style={styles.list}>
+        {shown.length === 0 && <Hint style={styles.empty}>{tab === 'custom' && !query ? 'Aucun son modifié.' : 'Aucun son trouvé.'}</Hint>}
+        {shown.map((s, index) => {
+          const custom = byId.get(s.id);
+          const isPlaying = playing?.id === s.id;
+          return (
+            <View key={s.id} style={[styles.row, index > 0 && styles.line]}>
+              <Tap accessibilityRole="button" accessibilityLabel={`${isPlaying ? 'Arrêter' : 'Écouter'} ${s.label}`} onPress={() => (isPlaying ? stop() : listen(s))} style={[styles.play, isPlaying && styles.playOn]}>
+                <Ionicons name={isPlaying ? 'stop' : 'play'} size={19} color={isPlaying ? Colors.onAccent : Colors.ink} />
+              </Tap>
+              <View style={styles.text}>
+                <AppText style={adminStyles.strong}>{s.label}</AppText>
+                {custom ? <Pill label="Personnalisé" color={Colors.accentInk} background="#FCE6F1" /> : <Hint>{s.when}</Hint>}
+              </View>
+              <Tap accessibilityRole="button" accessibilityLabel={`Options de ${s.label}`} disabled={busy !== null} onPress={() => setOptions(s)} style={styles.more}>
+                <Ionicons name={busy === s.id ? 'hourglass-outline' : 'ellipsis-horizontal'} size={21} color={Colors.textMuted} />
+              </Tap>
+            </View>
+          );
+        })}
+      </Card>
+    </AdminScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: Spacing.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: Spacing.sm },
-  soundCard: { width: '48%', padding: Spacing.sm, gap: 7 },
-  cardHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34 },
-  soundIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surfaceRaised },
-  soundIconActive: { backgroundColor: '#FCE6F1' },
-  soundTitle: { flex: 1, fontSize: 14, lineHeight: 18 },
-  description: { minHeight: 32, fontSize: 11, lineHeight: 15 },
-  status: { minHeight: 32, fontSize: 11, lineHeight: 15 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  iconButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
-  editButton: { backgroundColor: Colors.accent },
-  resetButton: { backgroundColor: '#FCE6F1' },
-  busyButton: { opacity: 0.55 },
-  stopButton: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 32, paddingHorizontal: 11, borderRadius: 16, backgroundColor: Colors.surfaceRaised },
-  stopLabel: { fontSize: 12, fontWeight: '700' },
+  search: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, minHeight: 48, paddingHorizontal: 12, borderRadius: 13, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  searchInput: { flex: 1, minWidth: 0, color: Colors.text, fontSize: 15, paddingVertical: 8 },
+  list: { gap: 0, paddingVertical: 4, paddingHorizontal: 12 },
+  empty: { paddingVertical: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  line: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
+  play: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surfaceRaised },
+  playOn: { backgroundColor: Colors.accent },
+  text: { flex: 1, minWidth: 0, gap: 2 },
+  more: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  playerStop: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
 });

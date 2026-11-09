@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -12,15 +13,15 @@ import {
   type ReportSummary,
 } from '@qu1z/shared';
 
-import { Chip } from '@/components/social';
-import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
-import { Colors, Radius, Spacing } from '@/constants/theme';
-import { api, errorMessage, useApi } from '@/net/api';
+import { AdminScreen, Field, Hint, Pill, Pills, Segmented, SectionLabel, Sheet, adminStyles, type Notice } from '@/components/admin-ui';
+import { AppText, Avatar, Button, Card } from '@/components/ui';
+import { Colors, Spacing } from '@/constants/theme';
+import { api, errorMessage, invalidateAll, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
 import { Tap } from '@/components/tap';
 
-type Tab = 'reports' | 'appeals' | 'log' | 'announce';
+type Tab = 'reports' | 'appeals' | 'log';
 
 const TYPE_LABEL: Record<string, string> = {
   message: 'Message',
@@ -53,38 +54,137 @@ const ACTION_LABEL: Record<string, string> = {
   creator_transferred: 'Groupe transféré',
   member_removed: 'Membre retiré d’un groupe',
   member_excluded: 'Membre exclu d’un groupe',
+  animation_updated: 'Animation modifiée',
+  animation_reset: 'Animation rétablie',
+  sound_updated: 'Son remplacé',
+  sound_reset: 'Son d’origine rétabli',
   exclusion_lifted: 'Exclusion de groupe levée',
   group_deleted: 'Groupe supprimé par son créateur',
 };
 
-/** Panneau de modération (modérateurs et administrateurs) : signalements, appels, journal, annonces. */
+const ROLE_LABEL: Record<string, string> = { group_creator: 'créateur du groupe', group_admin: 'admin du groupe', moderator: 'modérateur', admin: 'admin' };
+
+/** Panneau de modération (modérateurs et administrateurs) : signalements, appels et journal. */
 export default function ModerationScreen() {
   const me = useApi<{ role: string }>('/api/me');
   const params = useLocalSearchParams<{ tab?: Tab }>();
-  const [tab, setTab] = useState<Tab>(params.tab === 'announce' ? 'announce' : 'reports');
+  const [tab, setTab] = useState<Tab>(params.tab === 'appeals' || params.tab === 'log' ? params.tab : 'reports');
   const staff = me.data?.role === 'moderator' || me.data?.role === 'admin';
+  const open = useApi<{ reports: ReportSummary[] }>(staff ? '/api/mod/reports?status=open' : null);
+  const appeals = useApi<{ appeals: AppealSummary[] }>(staff ? '/api/mod/appeals' : null);
+  const [selected, setSelected] = useState<AppealSummary | null>(null);
+  const [decision, setDecision] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   if (me.data && !staff) {
     return (
-      <Screen back title="Modération">
+      <AdminScreen title="Modération">
         <AppText muted>Accès réservé à l’équipe de modération.</AppText>
-      </Screen>
+      </AdminScreen>
     );
   }
 
+  const decide = async (status: 'in_review' | 'rejected' | 'accepted', ok: string) => {
+    if (!selected) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await api('POST', `/api/mod/appeals/${selected.id}`, { status, decision });
+      setNotice({ ok: true, text: ok });
+      setSelected(null);
+      setDecision('');
+      appeals.refresh();
+      invalidateAll();
+    } catch (e) {
+      setNotice({ ok: false, text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeAppeal = () => {
+    setSelected(null);
+    setDecision('');
+  };
+
+  const list = appeals.data?.appeals ?? [];
+  const hasDecision = !!decision.trim();
+
   return (
-    <Screen title="Modération" back>
-      <View style={styles.tabs}>
-        <Chip label="Signalements" active={tab === 'reports'} onPress={() => setTab('reports')} />
-        <Chip label="Appels" active={tab === 'appeals'} onPress={() => setTab('appeals')} />
-        <Chip label="Journal" active={tab === 'log'} onPress={() => setTab('log')} />
-        {me.data?.role === 'admin' && <Chip label="Annonce" active={tab === 'announce'} onPress={() => setTab('announce')} />}
-      </View>
+    <AdminScreen
+      title="Modération"
+      notice={notice}
+      scrollKey={tab}
+      sheet={
+        selected && (
+          <Sheet onClose={closeAppeal}>
+            <View style={adminStyles.row}>
+              <Avatar name={selected.user.pseudo} color={avatarColor(selected.user.id)} uri={selected.user.avatar} size={40} />
+              <View style={adminStyles.grow}>
+                <AppText style={adminStyles.strong}>{selected.user.pseudo}</AppText>
+                <Hint>
+                  {SANCTION_LABEL[selected.sanction.level]} · {APPEAL_STATUS_LABEL[selected.status]} · {timeAgo(selected.createdAt)}
+                </Hint>
+              </View>
+            </View>
+            <Hint>Motif de la sanction : {selected.sanction.reason}</Hint>
+            <AppText>« {selected.text} »</AppText>
+            {selected.evidence && <Hint>Justificatifs : {selected.evidence}</Hint>}
+            <Field label="Décision communiquée au joueur">
+              <TextInput
+                value={decision}
+                onChangeText={setDecision}
+                multiline
+                placeholder="Écris ta décision"
+                placeholderTextColor={Colors.textMuted}
+                accessibilityLabel={`Décision pour ${selected.user.pseudo}`}
+                style={[adminStyles.input, adminStyles.multiline, { minHeight: 84 }]}
+              />
+            </Field>
+            {notice && !notice.ok && <AppText color={Colors.wrong}>{notice.text}</AppText>}
+            {selected.status === 'pending' && <Button label="Examiner" variant="outline" color={Colors.text} disabled={busy} onPress={() => void decide('in_review', 'Appel pris en charge.')} />}
+            <View style={styles.pair}>
+              <Button label="Refuser" variant="outline" color={Colors.wrong} disabled={busy || !hasDecision} onPress={() => void decide('rejected', 'Appel refusé.')} style={adminStyles.grow} />
+              <Button label="Accepter" color={Colors.correct} disabled={busy || !hasDecision} onPress={() => void decide('accepted', 'Appel accepté, sanction levée.')} style={adminStyles.grow} />
+            </View>
+          </Sheet>
+        )
+      }>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'reports', label: 'Signalements', count: open.data?.reports.length },
+          { value: 'appeals', label: 'Appels', count: list.length },
+          { value: 'log', label: 'Journal' },
+        ]}
+      />
       {tab === 'reports' && <Reports />}
-      {tab === 'appeals' && <Appeals />}
+      {tab === 'appeals' && (
+        <View style={adminStyles.stack}>
+          {appeals.data && list.length === 0 && <AppText muted>Aucun appel en attente.</AppText>}
+          {list.map((a) => (
+            <Tap key={a.id} accessibilityRole="button" accessibilityLabel={`Traiter l’appel de ${a.user.pseudo}`} onPress={() => setSelected(a)}>
+              <Card>
+                <View style={adminStyles.row}>
+                  <Avatar name={a.user.pseudo} color={avatarColor(a.user.id)} uri={a.user.avatar} size={40} />
+                  <View style={adminStyles.grow}>
+                    <AppText style={adminStyles.strong}>{a.user.pseudo}</AppText>
+                    <Hint>
+                      {SANCTION_LABEL[a.sanction.level]} · {APPEAL_STATUS_LABEL[a.status]} · {timeAgo(a.createdAt)}
+                    </Hint>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                </View>
+                <AppText numberOfLines={3}>« {a.text} »</AppText>
+              </Card>
+            </Tap>
+          ))}
+        </View>
+      )}
       {tab === 'log' && <Journal />}
-      {tab === 'announce' && <Announce />}
-    </Screen>
+    </AdminScreen>
   );
 }
 
@@ -94,158 +194,86 @@ function Reports() {
   const reports = list.data?.reports ?? [];
   return (
     <>
-      <View style={styles.tabs}>
-        {(['open', 'in_review', 'closed'] as const).map((s) => (
-          <Chip key={s} label={s === 'open' ? 'Ouverts' : s === 'in_review' ? 'En cours' : 'Clos'} color={Colors.opponent} active={status === s} onPress={() => setStatus(s)} />
+      <Pills
+        value={status}
+        onChange={setStatus}
+        options={[
+          { value: 'open', label: 'Ouverts' },
+          { value: 'in_review', label: 'En cours' },
+          { value: 'closed', label: 'Clos' },
+        ]}
+      />
+      {list.data && reports.length === 0 && <AppText muted>Aucun signalement.</AppText>}
+      <View style={adminStyles.stack}>
+        {reports.map((r) => (
+          <Tap
+            key={r.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Signalement ${TYPE_LABEL[r.targetType]} : ${r.preview}`}
+            onPress={() => router.push({ pathname: '/moderation/report/[id]', params: { id: r.id } })}>
+            <Card>
+              <View style={adminStyles.row}>
+                <AppText style={[adminStyles.strong, adminStyles.grow]}>
+                  {TYPE_LABEL[r.targetType]} · {reasonLabel(r.reason)}
+                </AppText>
+                {r.priority && <Pill label="Prioritaire" color="#7A5800" background="#FFF6DC" />}
+              </View>
+              <AppText numberOfLines={2}>{r.preview}</AppText>
+              <Hint>
+                Signalé par {r.reporter.pseudo}
+                {r.targetUser ? ` · visé : ${r.targetUser.pseudo}` : ''} · {timeAgo(r.createdAt)}
+                {r.priority ? ' · demande d’un administrateur du groupe' : ''}
+              </Hint>
+            </Card>
+          </Tap>
         ))}
       </View>
-      {list.data && reports.length === 0 && <AppText muted>Aucun signalement.</AppText>}
-      {reports.map((r) => (
-        <Tap
-          key={r.id}
-          accessibilityRole="button"
-          accessibilityLabel={`Signalement ${TYPE_LABEL[r.targetType]} : ${r.preview}`}
-          onPress={() => router.push({ pathname: '/moderation/report/[id]', params: { id: r.id } })}>
-          <Card style={r.priority ? { borderColor: Colors.gold, borderWidth: 1 } : undefined}>
-            <View style={styles.row}>
-              <AppText variant="label" style={{ flex: 1 }}>
-                {r.priority ? '⚑ ' : ''}
-                {TYPE_LABEL[r.targetType]} · {reasonLabel(r.reason)}
-              </AppText>
-              <AppText variant="caption" muted>
-                {timeAgo(r.createdAt)}
-              </AppText>
-            </View>
-            <AppText numberOfLines={2}>{r.preview}</AppText>
-            <AppText variant="caption" muted>
-              Signalé par {r.reporter.pseudo}
-              {r.targetUser ? ` · visé : ${r.targetUser.pseudo}` : ''}
-              {r.priority ? ' · demande d’un administrateur du groupe' : ''}
-            </AppText>
-          </Card>
-        </Tap>
-      ))}
     </>
   );
 }
 
-function Appeals() {
-  const list = useApi<{ appeals: AppealSummary[] }>('/api/mod/appeals');
-  const [decision, setDecision] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const appeals = list.data?.appeals ?? [];
-  const decide = (id: string, status: string) =>
-    api('POST', `/api/mod/appeals/${id}`, { status, decision: decision[id] }).catch((e) => setError(errorMessage(e)));
-  return (
-    <>
-      {error && <AppText color={Colors.wrong}>{error}</AppText>}
-      {list.data && appeals.length === 0 && <AppText muted>Aucun appel en attente.</AppText>}
-      {appeals.map((a) => (
-        <Card key={a.id}>
-          <View style={styles.row}>
-            <Avatar name={a.user.pseudo} color={avatarColor(a.user.id)} uri={a.user.avatar} size={36} />
-            <View style={{ flex: 1 }}>
-              <AppText variant="label">{a.user.pseudo}</AppText>
-              <AppText variant="caption" muted>
-                {SANCTION_LABEL[a.sanction.level]} · {APPEAL_STATUS_LABEL[a.status]} · {timeAgo(a.createdAt)}
-              </AppText>
-            </View>
-          </View>
-          <AppText variant="caption" muted>
-            Motif de la sanction : {a.sanction.reason}
-          </AppText>
-          <AppText>« {a.text} »</AppText>
-          {a.evidence && <AppText variant="caption">Justificatifs : {a.evidence}</AppText>}
-          <TextInput
-            value={decision[a.id] ?? ''}
-            onChangeText={(t) => setDecision({ ...decision, [a.id]: t })}
-            placeholder="Décision communiquée au joueur"
-            placeholderTextColor={Colors.textMuted}
-            multiline
-            accessibilityLabel={`Décision pour ${a.user.pseudo}`}
-            style={styles.input}
-          />
-          <View style={styles.buttons}>
-            {a.status === 'pending' && <Button label="Examiner" variant="outline" color={Colors.text} onPress={() => decide(a.id, 'in_review')} />}
-            <Button label="Refuser" variant="outline" color={Colors.wrong} disabled={!decision[a.id]?.trim()} onPress={() => decide(a.id, 'rejected')} />
-            <Button label="Accepter et lever" color={Colors.correct} disabled={!decision[a.id]?.trim()} onPress={() => decide(a.id, 'accepted')} />
-          </View>
-        </Card>
-      ))}
-    </>
-  );
+function dayOf(at: string | number): string {
+  const date = new Date(at);
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((start(new Date()) - start(date)) / 86_400_000);
+  if (days === 0) return 'Aujourd’hui';
+  if (days === 1) return 'Hier';
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function Journal() {
   const list = useApi<{ entries: ModerationLogEntry[] }>('/api/mod/log');
+  const days = new Map<string, ModerationLogEntry[]>();
+  for (const entry of list.data?.entries ?? []) {
+    const day = dayOf(entry.createdAt);
+    days.set(day, [...(days.get(day) ?? []), entry]);
+  }
   return (
     <>
-      {(list.data?.entries ?? []).map((e) => (
-        <View key={e.id} style={styles.logRow}>
-          <AppText variant="label">{ACTION_LABEL[e.action] ?? e.action}</AppText>
-          <AppText variant="caption" muted>
-            {e.actor?.pseudo ?? '?'} ({e.actorRole === 'group_creator' ? 'créateur du groupe' : e.actorRole === 'group_admin' ? 'admin du groupe' : e.actorRole}) ·{' '}
-            {timeAgo(e.createdAt)}
-            {typeof e.details.reason === 'string' ? ` · ${e.details.reason}` : ''}
-          </AppText>
+      {list.data && days.size === 0 && <AppText muted>Aucune action enregistrée.</AppText>}
+      {[...days].map(([day, entries]) => (
+        <View key={day} style={adminStyles.stack}>
+          <SectionLabel>{day}</SectionLabel>
+          <Card style={styles.logCard}>
+            {entries.map((e, index) => (
+              <View key={e.id} style={[styles.logRow, index > 0 && styles.logLine]}>
+                <AppText style={adminStyles.strong}>{ACTION_LABEL[e.action] ?? e.action}</AppText>
+                <Hint>
+                  {e.actor?.pseudo ?? '?'} ({ROLE_LABEL[e.actorRole] ?? e.actorRole}) · {timeAgo(e.createdAt)}
+                  {typeof e.details.reason === 'string' ? ` · ${e.details.reason}` : ''}
+                </Hint>
+              </View>
+            ))}
+          </Card>
         </View>
       ))}
     </>
   );
 }
 
-function Announce() {
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [kind, setKind] = useState('info');
-  const [state, setState] = useState<{ ok: boolean; text: string } | null>(null);
-  const publish = async () => {
-    setState(null);
-    try {
-      const r = await api<{ recipients: number }>('POST', '/api/admin/announcements', { title, body, kind });
-      setState({ ok: true, text: `Annonce publiée (${r.recipients} joueurs).` });
-      setTitle('');
-      setBody('');
-    } catch (e) {
-      setState({ ok: false, text: errorMessage(e) });
-    }
-  };
-  const KINDS = [
-    ['info', 'Information'],
-    ['update', 'Mise à jour'],
-    ['feature', 'Nouveauté'],
-    ['event', 'Événement'],
-    ['maintenance', 'Maintenance'],
-  ];
-  return (
-    <Card>
-      <AppText variant="label">Annonce officielle à tous les joueurs</AppText>
-      <View style={styles.tabs}>
-        {KINDS.map(([id, label]) => (
-          <Chip key={id} label={label} active={kind === id} onPress={() => setKind(id)} />
-        ))}
-      </View>
-      <TextInput value={title} onChangeText={setTitle} maxLength={120} placeholder="Titre" placeholderTextColor={Colors.textMuted} accessibilityLabel="Titre de l’annonce" style={styles.input} />
-      <TextInput
-        value={body}
-        onChangeText={setBody}
-        maxLength={1000}
-        multiline
-        placeholder="Texte de l’annonce"
-        placeholderTextColor={Colors.textMuted}
-        accessibilityLabel="Texte de l’annonce"
-        style={[styles.input, { minHeight: 100 }]}
-      />
-      {state && <AppText color={state.ok ? Colors.correct : Colors.wrong}>{state.text}</AppText>}
-      <Button label="Publier l’annonce" disabled={!title.trim() || !body.trim()} onPress={publish} />
-    </Card>
-  );
-}
-
 const styles = StyleSheet.create({
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  input: { color: Colors.text, fontSize: 15, backgroundColor: Colors.background, borderRadius: Radius.sm, padding: Spacing.sm, textAlignVertical: 'top' },
-  logRow: { borderBottomWidth: 1, borderBottomColor: Colors.border, paddingVertical: Spacing.sm, gap: 2 },
+  pair: { flexDirection: 'row', gap: Spacing.sm },
+  logCard: { gap: 0, paddingVertical: 2 },
+  logRow: { paddingVertical: 11, gap: 2 },
+  logLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
 });
