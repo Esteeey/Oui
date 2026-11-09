@@ -126,7 +126,7 @@ function DuelHistory({ duels }: { duels: ReturnType<typeof useProgress>['history
           <Ionicons name="trophy" size={21} color={Colors.navy} />
           <AppText variant="heading" style={styles.categoryTitle}>Historique de duel</AppText>
         </View>
-        <Tap accessibilityRole="button" accessibilityLabel="Voir les duels sur mon profil" onPress={() => router.push('/profile')} style={styles.seeAllHit}>
+        <Tap accessibilityRole="button" accessibilityLabel="Voir tout l’historique de duel" onPress={() => router.push('/duels')} style={styles.seeAllHit}>
           <View style={styles.seeAll}>
             <AppText style={styles.seeAllText}>Tout voir</AppText>
           </View>

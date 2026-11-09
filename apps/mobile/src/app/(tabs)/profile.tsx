@@ -1,28 +1,21 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 
-import { getTheme, type EarnedMedal, type PostView, type PublicProfile } from '@qu1z/shared';
+import type { EarnedMedal, PostView, PublicProfile } from '@qu1z/shared';
 
 import { AppText, Button, LoadingState } from '@/components/ui';
 import { Composer } from '@/components/composer';
+import { DuelHistoryList } from '@/components/duel-history-list';
 import { MoreMenu } from '@/components/more-menu';
 import { CoverButton, PlayedThemes, ProfileAction, ProfileLayout, ProfileOverview, totalsOf } from '@/components/player-profile';
 import { PostCard } from '@/components/post-card';
 import { BadgesGrid } from '@/components/profile-view';
-import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { computeBadges, medalBadges } from '@/game/badges';
 import { totalXp, useProgress } from '@/state/progress';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
-import { Tap } from '@/components/tap';
-
-const OUTCOME = {
-  win: { label: 'Victoire', color: Colors.correct },
-  loss: { label: 'Défaite', color: Colors.wrong },
-  draw: { label: 'Égalité', color: Colors.opponent },
-} as const;
 
 /** Mon profil : même présentation que celui des autres joueurs, avec mes propres actions. */
 export default function ProfileScreen() {
@@ -101,38 +94,7 @@ export default function ProfileScreen() {
         {
           value: 'duels',
           label: 'Duels',
-          render: () =>
-            history.length === 0 ? (
-              <AppText muted style={styles.empty}>
-                Joue ton premier duel pour commencer ta progression.
-              </AppText>
-            ) : (
-              history.slice(0, 20).map((d) => {
-                const mine = d.player.reduce((t, a) => t + a.points, 0);
-                const theirs = d.opponent.reduce((t, a) => t + a.points, 0);
-                const outcome = OUTCOME[d.outcome];
-                return (
-                  <Tap key={d.id} onPress={() => d.opponentId && router.push({ pathname: '/player/[id]', params: { id: d.opponentId } })} style={styles.duel}>
-                    <View style={[styles.duelOutcome, { backgroundColor: outcome.color }]} />
-                    <View style={{ flex: 1 }}>
-                      <AppText variant="label">contre {d.opponentName}</AppText>
-                      <AppText variant="caption" muted>
-                        {getTheme(d.themeId)?.name} · {d.ratingDelta >= 0 ? '+' : ''}
-                        {d.ratingDelta} cote
-                      </AppText>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <AppText variant="label" color={outcome.color}>
-                        {outcome.label}
-                      </AppText>
-                      <AppText variant="caption" muted>
-                        {mine} – {theirs}
-                      </AppText>
-                    </View>
-                  </Tap>
-                );
-              })
-            ),
+          render: () => <DuelHistoryList duels={history.slice(0, 20)} />,
         },
         {
           value: 'badges',
@@ -143,17 +105,3 @@ export default function ProfileScreen() {
     />
   );
 }
-
-const styles = StyleSheet.create({
-  empty: { textAlign: 'center', paddingVertical: Spacing.lg },
-  duel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm + 4,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    padding: Spacing.sm + 4,
-    ...Shadow,
-  },
-  duelOutcome: { width: 6, alignSelf: 'stretch', borderRadius: 3 },
-});
