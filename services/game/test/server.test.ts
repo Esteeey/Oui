@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -74,6 +75,30 @@ const finished = (s: DuelSnapshot) => s.phase === 'finished' && s.result !== nul
 
 afterEach(async () => {
   await stop();
+});
+
+describe('historique de duel', () => {
+  it("donne la photo actuelle de l'adversaire, sauf si elle est retirée par la modération", async () => {
+    await boot();
+    const { a, b, duelId } = await startPvp();
+    await a.waitForDuel((s) => s.phase === 'reading', 4000, 0);
+    a.send({ type: 'forfeit', duelId });
+    await a.waitForDuel(finished, 4000, 0);
+    await b.waitForDuel(finished, 4000, 0);
+    const opponentAvatar = async () => (await server.game.profile(a.playerId)).history[0].opponentAvatar;
+    expect(await opponentAvatar()).toBeNull();
+
+    const mediaId = randomUUID();
+    await db!.query(
+      "INSERT INTO media (id, owner_id, purpose, storage_key, content_type, width, height, bytes) VALUES ($1, $2, 'avatar', 'photo-adversaire.jpg', 'image/jpeg', 10, 10, 10)",
+      [mediaId, b.playerId],
+    );
+    await db!.query('UPDATE profiles SET avatar_media_id = $1 WHERE user_id = $2', [mediaId, b.playerId]);
+    expect(await opponentAvatar()).toContain('photo-adversaire.jpg');
+
+    await db!.query('UPDATE media SET removed_by_moderation_at = now() WHERE id = $1', [mediaId]);
+    expect(await opponentAvatar()).toBeNull();
+  });
 });
 
 describe('récompenses XP (calculées par le serveur)', () => {

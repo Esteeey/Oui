@@ -137,13 +137,23 @@ export class Repo {
       'SELECT result FROM duel_results WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
       [id, HISTORY_SIZE],
     );
+    // Photos lues au moment de l'affichage : un adversaire qui change de photo est à jour partout.
+    const opponentIds = [...new Set(history.flatMap((h) => h.result.record.opponentId ?? []))];
+    const opponents = opponentIds.length
+      ? await this.db.query<{ id: string; avatar_key: string | null }>(
+          `SELECT p.user_id::text AS id, (SELECT storage_key FROM media WHERE id = p.avatar_media_id AND removed_by_moderation_at IS NULL) AS avatar_key
+           FROM profiles p WHERE p.user_id::text = ANY($1::text[])`,
+          [opponentIds],
+        )
+      : [];
+    const opponentAvatars = new Map(opponents.map((o) => [o.id, mediaUrl(o.avatar_key)]));
     return {
       id,
       name: user?.pseudo ?? '?',
       xp: user?.xp ?? 0,
       avatar: mediaUrl(user?.avatar_key),
       stats: Object.fromEntries(stats.map((s) => [s.theme_id, toStats(s)])),
-      history: history.map((h) => h.result.record),
+      history: history.map(({ result: { record } }) => ({ ...record, opponentAvatar: opponentAvatars.get(record.opponentId ?? '') ?? null })),
     };
   }
 

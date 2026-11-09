@@ -22,6 +22,8 @@ export interface DuelRecord {
   /** Id du joueur réel affronté, ou `null` pour le bot. */
   opponentId: string | null;
   opponentName: string;
+  /** Photo de profil actuelle de l'adversaire, ajoutée quand le serveur envoie l'historique. */
+  opponentAvatar?: string | null;
   opponentIsBot: boolean;
   questions: DuelQuestion[];
   player: ScoredAnswer[];

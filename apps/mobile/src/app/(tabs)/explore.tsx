@@ -152,7 +152,7 @@ function DuelHistoryItem({ duel }: { duel: ReturnType<typeof useProgress>['histo
       onPress={() => duel.opponentId && router.push({ pathname: '/player/[id]', params: { id: duel.opponentId } })}
       style={({ pressed }) => [styles.duelItem, pressed && { opacity: 0.7 }]}>
       <View style={[styles.avatarRing, { borderColor: ringColor }]}>
-        <Avatar name={duel.opponentName} color={avatarColor(id)} size={42} />
+        <Avatar name={duel.opponentName} color={avatarColor(id)} size={42} uri={duel.opponentAvatar} />
       </View>
       <View style={styles.duelNameRow}>
         {theme && <ThemeIcon themeId={theme.id} size={16} />}
