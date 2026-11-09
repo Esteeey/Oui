@@ -55,6 +55,7 @@ export default function FeedScreen() {
   return (
     <Screen
       inTabs
+      headerLeft={false}
       title="Fil d'actualité"
       style={styles.content}
       headerRight={

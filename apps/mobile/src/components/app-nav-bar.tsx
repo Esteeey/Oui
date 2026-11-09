@@ -6,6 +6,7 @@ import { Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, V
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 
+import { Logo } from '@/components/header';
 import type { IconName } from '@/components/social';
 import { Colors, Fonts, NavBarHeight, NavBarLift } from '@/constants/theme';
 import { useApi } from '@/net/api';
@@ -133,7 +134,7 @@ export function AppNavBar() {
         onPress={() => router.navigate('/play' as Href)}
         style={({ pressed }) => [styles.vs, { bottom: bottom - 3 }, pressed && { transform: [{ scale: 0.95 }] }]}>
         <LinearGradient colors={['#FD40A6', '#F41180', '#D70963']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.vsFill}>
-          <Text style={styles.vsText}>VS</Text>
+          <Logo size={34} color={Colors.onAccent} />
         </LinearGradient>
       </Pressable>
     </View>
@@ -158,7 +159,6 @@ const styles = StyleSheet.create({
     boxShadow: '0 4px 7px rgba(150, 0, 80, 0.38)',
   },
   vsFill: { flex: 1, borderRadius: VS_SIZE / 2, alignItems: 'center', justifyContent: 'center' },
-  vsText: { color: Colors.onAccent, fontFamily: Fonts.extraBold, fontStyle: 'italic', fontSize: 23, lineHeight: 29 },
   badge: {
     position: 'absolute',
     top: -5,

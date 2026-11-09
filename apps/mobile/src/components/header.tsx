@@ -29,7 +29,7 @@ export function GradientHeader({
   return (
     <View style={{ paddingTop: insets.top + (flat || alignLeft ? Spacing.xs : Spacing.sm), paddingBottom: flat ? Spacing.xs : Spacing.sm }}>
       <View style={[styles.row, alignLeft && styles.rowLeft]}>
-        <View style={[styles.side, alignLeft && styles.sideTight]}>{left}</View>
+        {(left || !alignLeft) && <View style={[styles.side, alignLeft && styles.sideTight]}>{left}</View>}
         <View style={[styles.title, alignLeft && styles.titleLeft]}>
           {typeof title === 'string' ? (
             <Text style={[styles.titleText, alignLeft && styles.titleTextLeft, alignLeft && width < 360 && styles.titleTextSmall]} numberOfLines={1}>
@@ -46,11 +46,11 @@ export function GradientHeader({
 }
 
 /** Logo QuizX « Le Courant » : un X en deux moitiés, traversé par un éclair couché. */
-export function Logo({ size = 39 }: { size?: number }) {
+export function Logo({ size = 39, color }: { size?: number; /** Une seule couleur à la place des deux couleurs de marque. */ color?: string }) {
   return (
     <Svg width={size} height={(size * 184) / 222} viewBox="17 36 222 184" accessibilityLabel="QuizX">
-      <Path d="M17 36 L95 36 L128 78.17 L161 36 L239 36 L175.2 117.52 L140.5 126.82 L169.06 98.27 L89 128 Z" fill={LogoColors.top} />
-      <Path d="M239 220 L161 220 L128 177.83 L95 220 L17 220 L80.8 138.48 L115.5 129.18 L86.94 157.73 L167 128 Z" fill={LogoColors.bottom} />
+      <Path d="M17 36 L95 36 L128 78.17 L161 36 L239 36 L175.2 117.52 L140.5 126.82 L169.06 98.27 L89 128 Z" fill={color ?? LogoColors.top} />
+      <Path d="M239 220 L161 220 L128 177.83 L95 220 L17 220 L80.8 138.48 L115.5 129.18 L86.94 157.73 L167 128 Z" fill={color ?? LogoColors.bottom} />
     </Svg>
   );
 }
