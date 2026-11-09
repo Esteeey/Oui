@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +22,11 @@ import { Colors, Fonts, MaxContentWidth, NavBarHeight, Radius, Shadow, Spacing, 
 import { mediaUri } from '@/net/media';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'score';
+
+/** Dégradé du bloc d'en-tête : bleu ciel en haut, rose très pâle, puis presque blanc. */
+const HEADER_SKY = ['#CDEFFB', '#E2E9FB', '#F8E8FA', '#FEFAFE'] as const;
+const HEADER_SKY_STOPS = [0, 0.42, 0.72, 1] as const;
+const HEADER_CARD_RADIUS = 26;
 
 /** Traduit la graisse demandée en famille Poppins, sauf si le style impose déjà sa police. */
 function withAppFont(style: TextStyle): TextStyle {
@@ -58,6 +64,7 @@ export function Screen({
   back,
   headerLeft,
   headerRight,
+  headerContent,
   onRefresh,
   refreshing = false,
 }: {
@@ -71,6 +78,8 @@ export function Screen({
   back?: boolean | 'close';
   headerLeft?: ReactNode;
   headerRight?: ReactNode;
+  /** Contenu ajouté sous le titre : l'en-tête devient un bloc en dégradé, arrondi en bas, au-dessus du contenu. */
+  headerContent?: ReactNode;
   /** Active « tirer pour actualiser » sur un écran défilant. */
   onRefresh?: () => void;
   refreshing?: boolean;
@@ -79,9 +88,18 @@ export function Screen({
   const content = <View style={[styles.content, style]}>{children}</View>;
   const left = headerLeft ?? (back ? <HeaderBack close={back === 'close'} /> : inTabs ? <Logo /> : null);
   const bottom = inTabs ? { paddingBottom: navSpace } : null;
+  const header = <GradientHeader title={title} left={left} right={headerRight} alignLeft={inTabs} />;
   return (
     <View style={styles.screen}>
-      <GradientHeader title={title} left={left} right={headerRight} alignLeft={inTabs} />
+      {headerContent ? (
+        <View style={styles.headerCard}>
+          <LinearGradient colors={HEADER_SKY} locations={HEADER_SKY_STOPS} style={[StyleSheet.absoluteFill, styles.headerCardFill]} />
+          {header}
+          {headerContent}
+        </View>
+      ) : (
+        header
+      )}
       <SafeAreaView style={styles.sheet} edges={inTabs ? [] : ['bottom']}>
         {scroll ? (
           <ScrollView
@@ -257,6 +275,15 @@ const textStyles = StyleSheet.create<Record<Variant, TextStyle>>({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  headerCard: {
+    zIndex: 2,
+    elevation: 4,
+    borderBottomLeftRadius: HEADER_CARD_RADIUS,
+    borderBottomRightRadius: HEADER_CARD_RADIUS,
+    backgroundColor: Colors.surface,
+    boxShadow: '0 3px 10px rgba(14, 15, 43, 0.12)',
+  },
+  headerCardFill: { borderBottomLeftRadius: HEADER_CARD_RADIUS, borderBottomRightRadius: HEADER_CARD_RADIUS },
   sheet: { flex: 1 },
   scroll: { flexGrow: 1, alignItems: 'center' },
   content: {
