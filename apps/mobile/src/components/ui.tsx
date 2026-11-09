@@ -26,7 +26,7 @@ type Variant = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 
 /** Dégradé du bloc d'en-tête : bleu ciel en haut, rose très pâle, puis presque blanc. */
 const HEADER_SKY = ['#CDEFFB', '#E2E9FB', '#F8E8FA', '#FEFAFE'] as const;
 const HEADER_SKY_STOPS = [0, 0.42, 0.72, 1] as const;
-const HEADER_CARD_RADIUS = 26;
+const HEADER_CARD_RADIUS = 20;
 
 /** Traduit la graisse demandée en famille Poppins, sauf si le style impose déjà sa police. */
 function withAppFont(style: TextStyle): TextStyle {
@@ -88,7 +88,7 @@ export function Screen({
   const content = <View style={[styles.content, style]}>{children}</View>;
   const left = headerLeft ?? (back ? <HeaderBack close={back === 'close'} /> : inTabs ? <Logo /> : null);
   const bottom = inTabs ? { paddingBottom: navSpace } : null;
-  const header = <GradientHeader title={title} left={left} right={headerRight} alignLeft={inTabs} />;
+  const header = <GradientHeader title={title} left={left} right={headerRight} alignLeft={inTabs} compact={!!headerContent} />;
   return (
     <View style={styles.screen}>
       {headerContent ? (

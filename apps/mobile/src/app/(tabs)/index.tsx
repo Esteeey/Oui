@@ -22,11 +22,18 @@ type Filter = 'all' | 'challenges' | 'friends' | 'results';
 /** Marge du fil de chaque côté de l'écran. */
 const FEED_MARGIN = 7;
 
+/** Texte et icônes des filtres non sélectionnés : gris sombre neutre. */
+const FILTER_INK = '#3D3B47';
+/** Rose vif et clair du filtre sélectionné. */
+const FILTER_ACTIVE = '#FF2E93';
+/** Agrandit vers le haut et le bas la zone tactile des petits contrôles du header (44 px). */
+const HEADER_HIT = { top: 8, bottom: 8 };
+
 const FILTERS: { value: Filter; label: string; icon: (selected: boolean) => ReactNode }[] = [
-  { value: 'all', label: 'Tout', icon: (selected) => <Ionicons name="home-outline" size={18} color={selected ? Colors.onAccent : Colors.violetInk} /> },
-  { value: 'challenges', label: 'Défis', icon: () => <AppText style={{ fontSize: 15, lineHeight: 19 }}>🔥</AppText> },
-  { value: 'friends', label: 'Amis', icon: (selected) => <Ionicons name="people-outline" size={18} color={selected ? Colors.onAccent : Colors.violetInk} /> },
-  { value: 'results', label: 'Résultats', icon: (selected) => <Ionicons name="trophy-outline" size={18} color={selected ? Colors.onAccent : Colors.violetInk} /> },
+  { value: 'all', label: 'Tout', icon: (selected) => <Ionicons name="home-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
+  { value: 'challenges', label: 'Défis', icon: () => <AppText style={{ fontSize: 12, lineHeight: 16 }}>🔥</AppText> },
+  { value: 'friends', label: 'Amis', icon: (selected) => <Ionicons name="people-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
+  { value: 'results', label: 'Résultats', icon: (selected) => <Ionicons name="trophy-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
 ];
 
 /** Les filtres n'agissent que sur l'affichage : le serveur envoie toujours le même fil. */
@@ -70,8 +77,8 @@ export default function FeedScreen() {
       refreshing={pulled && feed.loading}
       headerRight={
         <>
-          <HeaderButton icon="search-outline" label="Rechercher" onPress={() => router.push('/search')} />
-          <HeaderButton icon="notifications-outline" label="Notifications" dot={unreadNotifications > 0} onPress={() => router.navigate('/activity')} />
+          <HeaderButton size={20} icon="search-outline" label="Rechercher" onPress={() => router.push('/search')} />
+          <HeaderButton size={20} icon="notifications-outline" label="Notifications" dot={unreadNotifications > 0} onPress={() => router.navigate('/activity')} />
         </>
       }
       headerContent={
@@ -83,7 +90,7 @@ export default function FeedScreen() {
                 <Tap key={f.value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setFilter(f.value)} style={styles.filterHit}>
                   <View style={[styles.filter, selected && styles.filterActive]}>
                     {f.icon(selected)}
-                    <AppText color={selected ? Colors.onAccent : Colors.violetInk} style={styles.filterLabel}>
+                    <AppText color={selected ? Colors.onAccent : FILTER_INK} style={styles.filterLabel}>
                       {f.label}
                     </AppText>
                   </View>
@@ -93,17 +100,17 @@ export default function FeedScreen() {
           </ScrollView>
 
           <View style={styles.compose}>
-            <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.accent} size={40} uri={profile?.avatar} ring={false} />
-            <Tap accessibilityRole="button" accessibilityLabel="Publier une publication" hitSlop={{ top: 5, bottom: 5 }} onPress={openCompose} style={styles.composeField}>
-              <AppText color={Colors.textSoft} style={{ fontSize: 14, lineHeight: 20 }} numberOfLines={1}>
+            <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.accent} size={28} uri={profile?.avatar} ring={false} />
+            <Tap accessibilityRole="button" accessibilityLabel="Publier une publication" hitSlop={HEADER_HIT} onPress={openCompose} style={styles.composeField}>
+              <AppText color={Colors.textSoft} style={{ fontSize: 12.5, lineHeight: 17 }} numberOfLines={1}>
                 Quoi de neuf ?
               </AppText>
             </Tap>
-            <Tap accessibilityRole="button" accessibilityLabel="Publier une image" onPress={openCompose} style={styles.composeIcon}>
-              <Ionicons name="image-outline" size={27} color={Colors.violetInk} />
+            <Tap accessibilityRole="button" accessibilityLabel="Publier une image" hitSlop={HEADER_HIT} onPress={openCompose} style={styles.composeIcon}>
+              <Ionicons name="image-outline" size={21} color={Colors.textSoft} />
             </Tap>
-            <Tap accessibilityRole="button" accessibilityLabel="Publier une photo" onPress={openCompose} style={styles.composeIcon}>
-              <Ionicons name="camera-outline" size={27} color={Colors.violetInk} />
+            <Tap accessibilityRole="button" accessibilityLabel="Publier une photo" hitSlop={HEADER_HIT} onPress={openCompose} style={styles.composeIcon}>
+              <Ionicons name="camera-outline" size={21} color={Colors.textSoft} />
             </Tap>
           </View>
         </>
@@ -138,24 +145,24 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: FEED_MARGIN, paddingTop: 12, gap: 10 },
   // La zone tactile fait 44 px de haut sans changer la taille visible des filtres.
-  filterScroll: { flexGrow: 0 },
-  filters: { gap: 8, paddingHorizontal: 12, flexGrow: 1, justifyContent: 'space-between' },
-  filterHit: { paddingVertical: 6 },
+  filterScroll: { flexGrow: 0, marginVertical: -9 },
+  filters: { gap: 5, paddingHorizontal: 12, flexGrow: 1, justifyContent: 'space-between' },
+  filterHit: { paddingVertical: 9 },
   filter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    height: 33,
-    paddingHorizontal: 10,
+    gap: 4,
+    height: 26,
+    paddingHorizontal: 8,
     borderRadius: Radius.pill,
     borderWidth: 1,
     borderColor: '#DDD5EA',
     backgroundColor: Colors.surface,
   },
-  filterActive: { backgroundColor: '#D60566', borderColor: '#D60566' },
-  filterLabel: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  compose: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 13, paddingRight: 12, marginTop: 6, paddingBottom: 12 },
-  composeIcon: { width: 44, height: 44, marginLeft: -8, alignItems: 'center', justifyContent: 'center' },
-  composeField: { flex: 1, height: 37, borderRadius: Radius.pill, backgroundColor: '#E8E6EF', justifyContent: 'center', paddingHorizontal: 13 },
+  filterActive: { backgroundColor: FILTER_ACTIVE, borderColor: FILTER_ACTIVE },
+  filterLabel: { fontSize: 11.5, lineHeight: 16, fontWeight: '600' },
+  compose: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 13, paddingRight: 14, marginTop: 6, paddingBottom: 8 },
+  composeIcon: { width: 32, height: 28, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },
+  composeField: { flex: 1, height: 28, borderRadius: Radius.pill, backgroundColor: '#E8E6EF', justifyContent: 'center', paddingHorizontal: 13 },
 });

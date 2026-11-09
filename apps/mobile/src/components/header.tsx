@@ -15,6 +15,7 @@ export function GradientHeader({
   right,
   flat,
   alignLeft,
+  compact,
 }: {
   title?: ReactNode;
   left?: ReactNode;
@@ -23,23 +24,27 @@ export function GradientHeader({
   flat?: boolean;
   /** Titre aligné à gauche (onglets principaux) au lieu d'être centré. */
   alignLeft?: boolean;
+  /** Ligne de titre réduite (bloc d'en-tête du fil). */
+  compact?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const paddingTop = insets.top + (compact ? 0 : flat || alignLeft ? Spacing.xs : Spacing.sm);
+  const paddingBottom = compact ? 0 : flat ? Spacing.xs : Spacing.sm;
   return (
-    <View style={{ paddingTop: insets.top + (flat || alignLeft ? Spacing.xs : Spacing.sm), paddingBottom: flat ? Spacing.xs : Spacing.sm }}>
-      <View style={[styles.row, alignLeft && styles.rowLeft]}>
+    <View style={{ paddingTop, paddingBottom }}>
+      <View style={[styles.row, alignLeft && styles.rowLeft, compact && styles.rowCompact]}>
         {(left || !alignLeft) && <View style={[styles.side, alignLeft && styles.sideTight]}>{left}</View>}
         <View style={[styles.title, alignLeft && styles.titleLeft]}>
           {typeof title === 'string' ? (
-            <Text style={[styles.titleText, alignLeft && styles.titleTextLeft, alignLeft && width < 360 && styles.titleTextSmall]} numberOfLines={1}>
+            <Text style={[styles.titleText, alignLeft && styles.titleTextLeft, compact && styles.titleTextCompact, alignLeft && width < 360 && styles.titleTextSmall]} numberOfLines={1}>
               {title}
             </Text>
           ) : (
             title
           )}
         </View>
-        <View style={[styles.side, styles.right]}>{right}</View>
+        <View style={[styles.side, styles.right, compact && styles.sideCompact]}>{right}</View>
       </View>
     </View>
   );
@@ -56,7 +61,7 @@ export function Logo({ size = 39, color }: { size?: number; /** Une seule couleu
 }
 
 /** Icône de l'en-tête, avec une pastille de compteur ou un simple point rose facultatifs. */
-export function HeaderButton({ icon, label, onPress, badge, dot }: { icon: IconName; label: string; onPress: () => void; badge?: number; dot?: boolean }) {
+export function HeaderButton({ icon, label, onPress, badge, dot, size = 26 }: { icon: IconName; label: string; onPress: () => void; badge?: number; dot?: boolean; size?: number }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -64,7 +69,7 @@ export function HeaderButton({ icon, label, onPress, badge, dot }: { icon: IconN
       hitSlop={8}
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && { opacity: 0.6 }]}>
-      <Ionicons name={icon} size={26} color={Colors.ink} />
+      <Ionicons name={icon} size={size} color={Colors.ink} />
       {dot && <View style={styles.dot} />}
       {!!badge && (
         <View style={styles.badge}>
@@ -92,13 +97,16 @@ export function HeaderBack({ close }: { close?: boolean }) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, minHeight: 48, gap: Spacing.sm },
   rowLeft: { paddingLeft: 19, gap: 18 },
+  rowCompact: { minHeight: 36 },
   side: { minWidth: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   sideTight: { minWidth: 0 },
+  sideCompact: { gap: Spacing.sm },
   right: { justifyContent: 'flex-end' },
   title: { flex: 1, alignItems: 'center' },
   titleLeft: { alignItems: 'flex-start' },
   titleText: { color: Colors.text, fontSize: 20, fontFamily: Fonts.extraBold },
   titleTextLeft: { color: Colors.ink, fontSize: 20 },
+  titleTextCompact: { fontSize: 17 },
   titleTextSmall: { fontSize: 16 },
   button: { padding: 4 },
   dot: { position: 'absolute', top: 2, right: 3, width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.accent },
