@@ -31,6 +31,7 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
+import { haptic } from '@/utils/haptics';
 
 /** Couleurs de l'écran de duel (fond noir, boutons clairs). */
 const D = {
@@ -41,6 +42,9 @@ const D = {
   buttonText: '#0A0A0A',
   correct: '#22C55E',
   wrong: '#EF4444',
+  /** Fonds des réponses révélées : assez sombres pour le texte blanc. */
+  correctFill: '#15803D',
+  wrongFill: '#DC2626',
   gauge: '#22C55E',
   track: '#2A2A2E',
   ring: '#251F44',
@@ -294,6 +298,7 @@ function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
     if (judged.current === questionKey) return;
     judged.current = questionKey;
     playSound(duel.myChoice === duel.correctIndex ? 'correct' : 'wrong');
+    haptic(duel.myChoice === duel.correctIndex ? 'success' : 'error');
   }, [duel.phase, duel.myChoice, duel.correctIndex, questionKey]);
 
   useEffect(() => preloadSounds(), []);
@@ -338,6 +343,7 @@ function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
       if (judged.current !== questionKey) {
         judged.current = questionKey;
         playSound(mine?.correct ? 'correct' : mine?.choice == null ? 'timeout' : 'wrong');
+        haptic(mine?.correct ? 'success' : mine?.choice == null ? 'warning' : 'error');
       }
       if (duel.opponentChoice === null || duel.opponentChoice === undefined) return;
       const opponentCorrect = duel.opponentChoice === duel.correctIndex;
@@ -492,6 +498,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
                     disabled={!online || duel.phase !== 'answering' || duel.myChoice !== null}
                     onPress={() => {
                       playSound('answered');
+                      haptic('tap');
                       game.answer(i);
                     }}
                   />
@@ -684,7 +691,7 @@ function Choice({
     );
   }, [state, reduced, shake]);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.get() }] }));
-  const bg = state === 'correct' ? D.correct : state === 'wrong' ? D.wrong : D.button;
+  const bg = state === 'correct' ? D.correctFill : state === 'wrong' ? D.wrongFill : D.button;
   const fg = state === 'idle' ? D.buttonText : '#FFFFFF';
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.choiceRow}>
@@ -773,7 +780,7 @@ const styles = StyleSheet.create({
   cardEmoji: { fontSize: 46, lineHeight: 56, textAlign: 'center' },
   cardNames: { alignItems: 'center', marginTop: 10, maxWidth: '90%' },
   cardTheme: { fontSize: 17, lineHeight: 22 },
-  cardCategory: { fontSize: 10, lineHeight: 14, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 2 },
+  cardCategory: { fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 2 },
   cardRound: { alignItems: 'center', marginTop: 26, maxWidth: '100%' },
   roundText: { fontFamily: Fonts.score, fontSize: 44, lineHeight: 52, letterSpacing: 0.5, textTransform: 'uppercase', textAlign: 'center' },
   roundHint: { fontSize: 14, lineHeight: 18, marginTop: 4 },

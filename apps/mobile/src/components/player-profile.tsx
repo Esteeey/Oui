@@ -354,7 +354,7 @@ function ThemesCard({ title, stats, onSeeAll }: { title: string; stats: Record<s
           {title}
         </AppText>
         <Tap accessibilityRole="button" onPress={onSeeAll} hitSlop={8} style={styles.seeAll}>
-          <AppText color={Colors.accent} style={{ fontSize: 13, lineHeight: 18, fontWeight: '600' }}>
+          <AppText color={Colors.accentInk} style={{ fontSize: 13, lineHeight: 18, fontWeight: '600' }}>
             Voir tout
           </AppText>
           <Ionicons name="chevron-forward" size={15} color={Colors.accent} />

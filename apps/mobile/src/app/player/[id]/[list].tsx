@@ -7,7 +7,7 @@ import type { PublicProfile, UserSummary } from '@qu1z/shared';
 
 import { UserRow } from '@/components/player-row';
 import { HeaderButton } from '@/components/header';
-import { AppText, Button, Screen } from '@/components/ui';
+import { AppText, Button, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
 
@@ -48,6 +48,7 @@ export default function FollowListScreen() {
       {users.error && (
         <AppText muted>{users.error.code === 'hidden' ? 'Cette liste est masquée par son propriétaire.' : 'Liste indisponible.'}</AppText>
       )}
+      <LoadingState visible={users.loading && !users.data} label="Chargement de la liste" />
       {(users.data?.users ?? []).map((u) => (
         <UserRow
           key={u.id}

@@ -26,7 +26,7 @@ import { UserRow } from '@/components/player-row';
 import { PostCard } from '@/components/post-card';
 import { OutcomeBar } from '@/components/profile-view';
 import { DivisionBadge } from '@/components/social';
-import { AppText, Button, Card, ProgressBar, Stat } from '@/components/ui';
+import { AppText, Button, Card, LoadingState, ProgressBar, Stat } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { themeCover } from '@/game/theme-covers';
 import { mediaUri } from '@/net/media';
@@ -202,7 +202,10 @@ export default function ThemeScreen() {
           <View style={styles.body}>
             {tab === 'feed' &&
               (subscribed ? (
-                <FeedTab themeId={theme.id} themeName={theme.name} posts={posts.data?.posts ?? []} />
+                <>
+                  <LoadingState visible={posts.loading && !posts.data} label="Chargement du fil du thème" />
+                  <FeedTab themeId={theme.id} themeName={theme.name} posts={posts.data?.posts ?? []} />
+                </>
               ) : (
                 <LockedFeed loading={!info.data} onFollow={toggleSubscription} />
               ))}
@@ -536,7 +539,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E6E3E8',
   },
-  tab: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 2, paddingBottom: Spacing.sm + 2 },
+  tab: { flexGrow: 1, minHeight: 44, alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 2, paddingBottom: Spacing.sm + 2 },
   tabLabel: { fontSize: 15, fontWeight: '700', color: '#9A97A0' },
   tabLabelActive: { color: '#0F0F14', fontWeight: '800' },
   underline: { position: 'absolute', bottom: -1, left: 6, right: 6, height: 4, borderRadius: 2, backgroundColor: Page.pink },

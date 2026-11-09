@@ -8,7 +8,7 @@ import { notificationText, type ChallengeView, type NotificationView, type UserS
 import { UserRow } from '@/components/player-row';
 import { SectionHeader, type IconName } from '@/components/social';
 import { HeaderButton } from '@/components/header';
-import { AppText, Avatar, Button, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
@@ -109,12 +109,13 @@ export default function ActivityScreen() {
       <View style={styles.header}>
         {(list.data?.unread ?? 0) > 0 && (
           <Tap accessibilityRole="button" onPress={() => act('POST', '/api/notifications/read-all')} style={{ padding: Spacing.xs }}>
-            <AppText variant="label" color={Colors.accent}>
+            <AppText variant="label" color={Colors.accentInk}>
               Tout marquer comme lu
             </AppText>
           </Tap>
         )}
       </View>
+      <LoadingState visible={list.loading && !list.data} label="Chargement des notifications" />
       {error && <AppText color={Colors.wrong}>{error}</AppText>}
       {pendingRequests.size > 0 && (
         <>

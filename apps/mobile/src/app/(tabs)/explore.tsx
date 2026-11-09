@@ -87,8 +87,10 @@ function CategoryStrip({ category, themeIds, index, stats }: { category: Categor
           accessibilityRole="button"
           accessibilityLabel={`Voir tous les thèmes de ${category.name}`}
           onPress={() => router.push({ pathname: '/category/[id]', params: { id: category.id } })}
-          style={styles.seeAll}>
-          <AppText style={styles.seeAllText}>Tout voir</AppText>
+          style={styles.seeAllHit}>
+          <View style={styles.seeAll}>
+            <AppText style={styles.seeAllText}>Tout voir</AppText>
+          </View>
         </Tap>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeStrip}>
@@ -124,8 +126,10 @@ function DuelHistory({ duels }: { duels: ReturnType<typeof useProgress>['history
           <Ionicons name="trophy" size={21} color={Colors.navy} />
           <AppText variant="heading" style={styles.categoryTitle}>Historique de duel</AppText>
         </View>
-        <Tap accessibilityRole="button" accessibilityLabel="Voir les duels sur mon profil" onPress={() => router.push('/profile')} style={styles.seeAll}>
-          <AppText style={styles.seeAllText}>Tout voir</AppText>
+        <Tap accessibilityRole="button" accessibilityLabel="Voir les duels sur mon profil" onPress={() => router.push('/profile')} style={styles.seeAllHit}>
+          <View style={styles.seeAll}>
+            <AppText style={styles.seeAllText}>Tout voir</AppText>
+          </View>
         </Tap>
       </View>
       <View style={styles.historyDivider} />
@@ -172,14 +176,15 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: Colors.text, fontSize: 14, paddingVertical: 6 },
   noResults: { paddingVertical: Spacing.lg, textAlign: 'center' },
   categorySection: { marginTop: 4 },
-  sectionHeading: { minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  sectionHeading: { zIndex: 1, minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   categoryTitle: { fontSize: 16, fontWeight: '800' },
+  seeAllHit: { paddingVertical: 8, marginVertical: -8 },
   seeAll: { borderWidth: 1, borderColor: Colors.accent, borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
-  seeAllText: { color: Colors.accent, fontSize: 12, fontWeight: '700' },
-  themeStrip: { gap: 6, paddingTop: 2, paddingBottom: 1 },
-  themeTile: { width: 54, alignItems: 'center', gap: 2 },
+  seeAllText: { color: Colors.accentInk, fontSize: 12, fontWeight: '700' },
+  themeStrip: { gap: 4, paddingTop: 2, paddingBottom: 1 },
+  themeTile: { width: 92, alignItems: 'center', gap: 2 },
   themeArtwork: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, ...Shadow },
-  themeName: { minHeight: 24, width: '100%', color: Colors.text, fontSize: 9, lineHeight: 11, fontWeight: '600', textAlign: 'center' },
+  themeName: { minHeight: 28, width: '100%', color: Colors.text, fontSize: 11, lineHeight: 14, fontWeight: '600', textAlign: 'center' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginTop: 3 },
   historyCard: { marginTop: 6, padding: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, ...Shadow },
   historyTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
@@ -188,5 +193,5 @@ const styles = StyleSheet.create({
   duelItem: { width: 66, alignItems: 'center', gap: 4 },
   avatarRing: { width: 48, height: 48, borderWidth: 2.5, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   duelNameRow: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
-  duelName: { flexShrink: 1, fontSize: 10, fontWeight: '600' },
+  duelName: { flexShrink: 1, fontSize: 11, fontWeight: '600' },
 });

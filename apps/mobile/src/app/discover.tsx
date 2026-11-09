@@ -7,7 +7,7 @@ import type { UserSummary } from '@qu1z/shared';
 
 import { UserRow } from '@/components/player-row';
 import { SectionHeader } from '@/components/social';
-import { AppText, Avatar, Screen } from '@/components/ui';
+import { AppText, Avatar, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
@@ -62,6 +62,7 @@ export default function DiscoverScreen() {
       ) : (
         <>
           <SectionHeader title="Suggestions" />
+          <LoadingState visible={suggestions.loading && !suggestions.data} label="Chargement des suggestions" />
           {suggestions.data && users.length === 0 && <AppText muted>Pas encore d’autres joueurs à te proposer.</AppText>}
           <View style={styles.grid}>
             {users.map((u) => (
@@ -75,7 +76,7 @@ export default function DiscoverScreen() {
                   <AppText variant="label" numberOfLines={1}>
                     {u.pseudo}
                   </AppText>
-                  <AppText variant="caption" color={Colors.gold}>
+                  <AppText variant="caption" color={Colors.goldInk}>
                     Niveau {u.level}
                   </AppText>
                   <AppText variant="caption" muted numberOfLines={1}>

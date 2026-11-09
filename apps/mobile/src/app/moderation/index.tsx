@@ -14,7 +14,7 @@ import {
 } from '@qu1z/shared';
 
 import { AdminScreen, Field, Hint, Pill, Pills, Segmented, SectionLabel, Sheet, adminStyles, type Notice } from '@/components/admin-ui';
-import { AppText, Avatar, Button, Card } from '@/components/ui';
+import { AppText, Avatar, Button, Card, LoadingState } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { api, errorMessage, invalidateAll, useApi } from '@/net/api';
 import { avatarColor } from '@/utils/avatar';
@@ -163,6 +163,7 @@ export default function ModerationScreen() {
       {tab === 'reports' && <Reports />}
       {tab === 'appeals' && (
         <View style={adminStyles.stack}>
+          <LoadingState visible={appeals.loading && !appeals.data} />
           {appeals.data && list.length === 0 && <AppText muted>Aucun appel en attente.</AppText>}
           {list.map((a) => (
             <Tap key={a.id} accessibilityRole="button" accessibilityLabel={`Traiter l’appel de ${a.user.pseudo}`} onPress={() => setSelected(a)}>
@@ -203,6 +204,7 @@ function Reports() {
           { value: 'closed', label: 'Clos' },
         ]}
       />
+      <LoadingState visible={list.loading && !list.data} />
       {list.data && reports.length === 0 && <AppText muted>Aucun signalement.</AppText>}
       <View style={adminStyles.stack}>
         {reports.map((r) => (
@@ -250,6 +252,7 @@ function Journal() {
   }
   return (
     <>
+      <LoadingState visible={list.loading && !list.data} />
       {list.data && days.size === 0 && <AppText muted>Aucune action enregistrée.</AppText>}
       {[...days].map(([day, entries]) => (
         <View key={day} style={adminStyles.stack}>

@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   rankRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexShrink: 1 },
   rank: { justifyContent: 'center', flexShrink: 1 },
   rankText: { fontSize: 12, lineHeight: 17, fontWeight: '600' },
-  rankTextSmall: { fontSize: 9, lineHeight: 13 },
+  rankTextSmall: { fontSize: 11, lineHeight: 14 },
   star: { position: 'absolute', alignSelf: 'center', zIndex: 2 },
   ribbon: { alignSelf: 'center', alignItems: 'center', gap: 3 },
   band: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },

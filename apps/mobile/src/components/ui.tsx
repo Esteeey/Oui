@@ -1,7 +1,9 @@
 import { Image } from 'expo-image';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -56,6 +58,8 @@ export function Screen({
   back,
   headerLeft,
   headerRight,
+  onRefresh,
+  refreshing = false,
 }: {
   children?: ReactNode;
   scroll?: boolean;
@@ -67,6 +71,9 @@ export function Screen({
   back?: boolean | 'close';
   headerLeft?: ReactNode;
   headerRight?: ReactNode;
+  /** Active « tirer pour actualiser » sur un écran défilant. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const navSpace = useNavBarSpace();
   const content = <View style={[styles.content, style]}>{children}</View>;
@@ -77,13 +84,35 @@ export function Screen({
       <GradientHeader title={title} left={left} right={headerRight} alignLeft={inTabs} />
       <SafeAreaView style={styles.sheet} edges={inTabs ? [] : ['bottom']}>
         {scroll ? (
-          <ScrollView contentContainerStyle={[styles.scroll, bottom]} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={[styles.scroll, bottom]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} colors={[Colors.accent]} /> : undefined}>
             {content}
           </ScrollView>
         ) : (
           <View style={[styles.scroll, bottom]}>{content}</View>
         )}
       </SafeAreaView>
+    </View>
+  );
+}
+
+/** Indicateur d'un premier chargement ; attend un instant pour ne pas clignoter sur un chargement rapide. */
+export function LoadingState({ visible, label = 'Chargement…' }: { visible: boolean; label?: string }) {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!visible) {
+      setLate(false);
+      return;
+    }
+    const timer = setTimeout(() => setLate(true), 300);
+    return () => clearTimeout(timer);
+  }, [visible]);
+  if (!visible || !late) return null;
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel={label} accessibilityLiveRegion="polite" style={styles.loading}>
+      <ActivityIndicator color={Colors.accent} />
     </View>
   );
 }
@@ -132,11 +161,11 @@ export function Button({
           styles.button,
           small && styles.buttonSmall,
           compact && styles.buttonCompact,
-          solid ? { backgroundColor: color ?? Colors.accent } : { borderColor: color ?? Colors.accent, borderWidth: 2 },
+          solid ? { backgroundColor: !color || color === Colors.accent ? Colors.accentFill : color } : { borderColor: color ?? Colors.accent, borderWidth: 2 },
           disabled && { opacity: 0.4 },
           animated,
         ]}>
-        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : (color ?? Colors.accent))} style={small ? { fontSize: 13 } : compact ? { fontSize: 14 } : undefined}>
+        <AppText variant="label" color={textColor ?? (solid ? Colors.onAccent : !color || color === Colors.accent ? Colors.accentInk : color)} style={small ? { fontSize: 13 } : compact ? { fontSize: 14 } : undefined}>
           {label}
         </AppText>
       </Animated.View>
@@ -260,4 +289,5 @@ const styles = StyleSheet.create({
   buttonCompact: { minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radius.xs },
   track: { width: '100%', backgroundColor: Colors.surfaceRaised, overflow: 'hidden' },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
+  loading: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl },
 });

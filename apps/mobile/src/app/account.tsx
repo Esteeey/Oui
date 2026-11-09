@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, TextInput } from 'react-native';
 
-import { AppText, Button, Card, Screen } from '@/components/ui';
+import { AppText, Button, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, invalidateAll, TOKEN_KEY, useApi } from '@/net/api';
 import { currentPushToken, registerForPush } from '@/net/push';
@@ -98,6 +98,7 @@ export default function AccountScreen() {
 
   return (
     <Screen title="Compte et e-mail" back>
+      <LoadingState visible={account.loading && !account.data} />
 
       {a?.emailVerified ? (
         <Card>
@@ -114,7 +115,7 @@ export default function AccountScreen() {
           <AppText variant="label">Confirme ton adresse e-mail</AppText>
           <AppText muted>Tu reçois un code à 6 chiffres : il prouve que l’adresse est bien la tienne.</AppText>
           {a?.emailRequired && (
-            <AppText color={Colors.gold}>Une adresse confirmée est nécessaire pour la messagerie, les publications et les groupes.</AppText>
+            <AppText color={Colors.goldInk}>Une adresse confirmée est nécessaire pour la messagerie, les publications et les groupes.</AppText>
           )}
         </Card>
       )}

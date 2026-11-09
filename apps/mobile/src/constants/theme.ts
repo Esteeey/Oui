@@ -16,7 +16,7 @@ export const Colors = {
   ink: '#250A44',
   textMuted: '#5D6B6B',
   /** Gris de la date d'une publication et du champ « Quoi de neuf ? ». */
-  textSoft: '#8A8696',
+  textSoft: '#6E6A7B',
   /** Violet des filtres, des icônes de publication et de l'action « Suivre ». */
   violetInk: '#5B17B0',
   /** Texte et icônes posés sur l'accent ou une couleur vive. */
@@ -25,20 +25,24 @@ export const Colors = {
   accent: '#FF007A',
   /** Rose vif assombri pour les petits textes sur fond blanc (contraste). */
   accentInk: '#D6006A',
+  /** Rose des fonds pleins portant du texte blanc (contraste 4,7:1). */
+  accentFill: '#E2006C',
   /** Violet : rangs et visuels de duel. */
   secondary: '#7B2FFF',
   /** Turquoise : informations positives, version lisible en texte. */
-  infoInk: '#00A886',
+  infoInk: '#007A64',
   /** Contour commun à toutes les photos de profil. */
   avatarRing: '#FBA6E0',
   navy: '#0E0F2B',
   /** Couleurs des joueurs dans le jeu (avatars du duel et des résultats). */
   player: '#FF6B57',
   opponent: '#13B5A3',
-  correct: '#16A34A',
+  correct: '#15803D',
   wrong: '#E11D48',
   warning: '#F5B800',
   gold: '#E0A100',
+  /** Or assombri pour les textes sur fond clair (contraste). */
+  goldInk: '#8F6A00',
   /** Or vif du bandeau et des décorations de rang. */
   goldBright: '#FFC928',
   goldDeep: '#C98A00',

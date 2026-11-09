@@ -22,7 +22,7 @@ import { AttachmentTray, AttachmentView } from '@/components/attachments';
 import { GroupAvatar } from '@/components/group';
 import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
 import { GradientHeader, HeaderBack } from '@/components/header';
-import { AppText, Avatar } from '@/components/ui';
+import { AppText, Avatar, LoadingState } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { pickImage, uploadImage, type PickedImage } from '@/net/media';
@@ -235,6 +235,7 @@ export default function ConversationScreen() {
         ref={scroll}
         contentContainerStyle={styles.messages}
         onContentSizeChange={() => !replyTo && scroll.current?.scrollToEnd({ animated: false })}>
+        <LoadingState visible={detail.loading && !detail.data} label="Chargement des messages" />
         {messages.map((m, i) => {
           const mine = m.senderId === playerId;
           if (m.kind === 'system') {
@@ -266,7 +267,7 @@ export default function ConversationScreen() {
                 </Tap>
               )}
               {pinnedIds.has(m.id) && (
-                <AppText variant="caption" color={Colors.gold}>
+                <AppText variant="caption" color={Colors.goldInk}>
                   📌 Épinglé
                 </AppText>
               )}

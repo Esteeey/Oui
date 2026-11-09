@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { NOTIFICATION_CATEGORIES, type NotificationCategory, type NotificationPrefs } from '@qu1z/shared';
 
 import { SectionHeader } from '@/components/social';
-import { AppText, Button, Card, Screen } from '@/components/ui';
+import { AppText, Button, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
 import { enableWebPush, webPushAvailable } from '@/net/web-push';
@@ -21,7 +21,7 @@ export default function NotificationSettingsScreen() {
 
   return (
     <Screen title="Notifications" back>
-
+      <LoadingState visible={prefs.loading && !prefs.data} />
       <SectionHeader title="Notifications push" />
       <AppText variant="caption" muted>
         Désactiver une catégorie n’efface rien : tout reste dans le centre de notifications.

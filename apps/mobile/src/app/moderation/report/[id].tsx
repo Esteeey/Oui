@@ -178,7 +178,7 @@ export default function ReportScreen() {
       {notice && !notice.ok && <AppText color={Colors.wrong}>{notice.text}</AppText>}
       <Button
         label={`Appliquer : ${SANCTION_LABEL[level]}`}
-        color={level === 'ban' ? Colors.wrong : Colors.gold}
+        color={level === 'ban' ? Colors.wrong : Colors.goldInk}
         disabled={busy || !reason.trim()}
         onPress={() =>
           void run(

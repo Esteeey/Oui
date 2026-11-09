@@ -3,7 +3,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 
 import { APPEAL_STATUS_LABEL, RESTRICTIONS, SANCTION_LABEL, type SanctionView } from '@qu1z/shared';
 
-import { AppText, Button, Card } from '@/components/ui';
+import { AppText, Button, Card, LoadingState } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 
@@ -15,7 +15,7 @@ function SanctionCard({ s }: { s: SanctionView }) {
   const [text, setText] = useState('');
   const [evidence, setEvidence] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const color = s.level === 'ban' ? Colors.wrong : s.level === 'suspension' ? Colors.gold : Colors.opponent;
+  const color = s.level === 'ban' ? Colors.wrong : s.level === 'suspension' ? Colors.goldInk : Colors.infoInk;
 
   const send = async () => {
     setError(null);
@@ -96,6 +96,7 @@ export function SanctionsList() {
   const sanctions = list.data?.sanctions ?? [];
   return (
     <View style={{ gap: Spacing.md }}>
+      <LoadingState visible={list.loading && !list.data} />
       {list.data && sanctions.length === 0 && <AppText muted>Aucune sanction sur ton compte.</AppText>}
       {sanctions.map((s) => (
         <SanctionCard key={s.id} s={s} />

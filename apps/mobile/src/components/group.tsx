@@ -33,7 +33,7 @@ export const ROLE_LABEL: Record<GroupRole, string> = { creator: 'Créateur', adm
 
 export function RoleBadge({ role }: { role: GroupRole }) {
   if (role === 'member') return null;
-  const color = role === 'creator' ? Colors.gold : Colors.opponent;
+  const color = role === 'creator' ? Colors.goldInk : Colors.infoInk;
   return (
     <View style={[styles.badge, { borderColor: color }]}>
       <AppText variant="caption" color={color} style={{ fontSize: 11 }}>
@@ -118,7 +118,7 @@ export function PlayerPicker({
           <View style={{ flex: 1 }}>
             <AppText variant="label">{u.pseudo}</AppText>
             {u.title && (
-              <AppText variant="caption" color={Colors.gold}>
+              <AppText variant="caption" color={Colors.goldInk}>
                 {u.title}
               </AppText>
             )}

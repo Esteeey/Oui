@@ -71,7 +71,7 @@ export function DailyQuestsCard() {
               {q.kind === 'score' ? (q.done ? 'Atteint' : 'Pas encore') : `${q.progress}/${q.goal}`}
             </AppText>
           </View>
-          <AppText variant="label" color={q.done ? Colors.correct : Colors.accent}>
+          <AppText variant="label" color={q.done ? Colors.correct : Colors.accentInk}>
             +{q.reward} XP
           </AppText>
         </View>

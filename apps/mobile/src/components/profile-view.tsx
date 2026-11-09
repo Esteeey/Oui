@@ -57,7 +57,7 @@ export function ProfileHeader({
         <Avatar name={name} color={color} size={96} uri={avatar} />
       </View>
       <AppText variant="title">{name}</AppText>
-      <AppText variant="label" color={Colors.gold}>
+      <AppText variant="label" color={Colors.goldInk}>
         {title ?? titleForLevel(level.level)} · Niveau {level.level}
       </AppText>
       {bio ? (
@@ -141,11 +141,11 @@ export function OutcomeBar({ wins, draws, losses }: { wins: number; draws: numbe
         </AppText>
       ) : (
         <View style={styles.outcomeLegend}>
-          <AppText variant="caption" color={Colors.opponent}>
+          <AppText variant="caption" color={Colors.infoInk}>
             {pct(wins)} % victoires
           </AppText>
           <AppText variant="caption">{pct(draws)} % nuls</AppText>
-          <AppText variant="caption" color={Colors.accent}>
+          <AppText variant="caption" color={Colors.accentInk}>
             {pct(losses)} % défaites
           </AppText>
         </View>

@@ -37,6 +37,7 @@ import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
 import { XpProgress } from '@/components/xp-progress';
+import { haptic } from '@/utils/haptics';
 import { DuelChat } from '@/components/duel-chat';
 
 const R = {
@@ -82,6 +83,7 @@ export default function ResultsScreen() {
     if (!r) return;
     const music = r.outcome === 'win' ? 'win' : r.outcome === 'loss' ? 'loss' : 'draw';
     playSound(r.outcome === 'win' ? 'endWin' : r.outcome === 'loss' ? 'endLoss' : 'endDraw');
+    if (r.outcome !== 'draw') haptic(r.outcome === 'win' ? 'success' : 'error');
     let stop: (() => void) | undefined;
     const timers = [setTimeout(() => (stop = playMusic(music)), 900)];
     if (r.accountXpAfter > r.accountXpBefore) {
@@ -89,7 +91,12 @@ export default function ResultsScreen() {
       timers.push(setTimeout(() => playSound('xp'), xpAt));
       timers.push(setTimeout(() => playSound('xpEnd'), xpAt + XP_SOUND_MS));
       if (levelFromXp(r.record.xpBefore + r.record.xpGained).level > levelFromXp(r.record.xpBefore).level) {
-        timers.push(setTimeout(() => playSound('levelUp'), xpAt + XP_SOUND_MS + 150));
+        timers.push(
+          setTimeout(() => {
+            playSound('levelUp');
+            haptic('success');
+          }, xpAt + XP_SOUND_MS + 150),
+        );
       }
     }
     return () => {

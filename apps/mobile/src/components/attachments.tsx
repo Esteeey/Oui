@@ -127,7 +127,7 @@ export function AttachmentTray({
             ))}
           </ScrollView>
           {gifs?.provider && (
-            <AppText variant="caption" muted style={{ textAlign: 'right', fontSize: 10 }}>
+            <AppText variant="caption" muted style={{ textAlign: 'right', fontSize: 11 }}>
               Propulsé par {gifs.provider === 'giphy' ? 'GIPHY' : 'Tenor'}
             </AppText>
           )}
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   viewerClose: { position: 'absolute', top: 48, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   tray: { gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.sm },
   trayRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
-  trayButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, minHeight: 36, borderRadius: Radius.pill },
+  trayButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, minHeight: 44, borderRadius: Radius.pill },
   stickerCell: { padding: 2, borderRadius: Radius.sm },
   search: { color: Colors.text, fontSize: 15, backgroundColor: Colors.background, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 8 },
 });

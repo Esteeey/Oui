@@ -7,7 +7,7 @@ import { groupRights, MAX_GROUP_NAME_LENGTH, type GroupDetail, type GroupMemberV
 import { GroupAvatar, RoleBadge } from '@/components/group';
 import { ReportSheet } from '@/components/report-sheet';
 import { SectionHeader } from '@/components/social';
-import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { pickImage, uploadImage } from '@/net/media';
@@ -113,6 +113,7 @@ export default function GroupInfoScreen() {
 
   return (
     <Screen back title="Groupe">
+      <LoadingState visible={group.loading && !group.data} />
       {g && (
         <>
           <View style={styles.head}>
@@ -167,7 +168,7 @@ export default function GroupInfoScreen() {
                   accessibilityRole="button"
                   onPress={() => router.push({ pathname: '/messages/group/[id]/invite', params: { id } })}
                   style={{ padding: Spacing.xs }}>
-                  <AppText variant="label" color={Colors.accent}>
+                  <AppText variant="label" color={Colors.accentInk}>
                     + Inviter
                   </AppText>
                 </Tap>
@@ -175,7 +176,7 @@ export default function GroupInfoScreen() {
             }
           />
           {transferring && (
-            <AppText color={Colors.gold}>Choisis le nouveau créateur du groupe. Tu deviendras membre.</AppText>
+            <AppText color={Colors.goldInk}>Choisis le nouveau créateur du groupe. Tu deviendras membre.</AppText>
           )}
           {g.members.map((m) => {
             const actions = m.user.id === playerId ? [] : memberActions(m);
@@ -190,7 +191,7 @@ export default function GroupInfoScreen() {
                         title: `Transférer le groupe à ${m.user.pseudo} ?`,
                         text: `${m.user.pseudo} deviendra le créateur du groupe et tu deviendras membre.`,
                         label: 'Transférer',
-                        color: Colors.gold,
+                        color: Colors.goldInk,
                         run: () => api('POST', `/api/groups/${id}/transfer`, { userId: m.user.id }),
                       });
                       setTransferring(false);
@@ -207,7 +208,7 @@ export default function GroupInfoScreen() {
                       </AppText>
                       <RoleBadge role={m.role} />
                     </View>
-                    <AppText variant="caption" color={m.blockedByMe ? Colors.wrong : Colors.gold}>
+                    <AppText variant="caption" color={m.blockedByMe ? Colors.wrong : Colors.goldInk}>
                       {m.blockedByMe ? 'Bloqué : ses messages te sont masqués' : (m.user.title ?? `Niveau ${m.user.level}`)}
                     </AppText>
                   </View>
@@ -274,7 +275,7 @@ export default function GroupInfoScreen() {
                 <Button
                   label={transferring ? 'Annuler le transfert' : 'Transférer le rôle de créateur'}
                   variant="outline"
-                  color={Colors.gold}
+                  color={Colors.goldInk}
                   onPress={() => setTransferring(!transferring)}
                 />
               )}

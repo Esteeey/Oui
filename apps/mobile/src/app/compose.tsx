@@ -11,7 +11,7 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
 
 /** Puces de destination, plus petites que celles des filtres. */
-const chip = { paddingHorizontal: 12, paddingVertical: 6 } as const;
+const chip = { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 6 } as const;
 
 /** Publier depuis l'accueil : sur son mur, ou dans un thème auquel on est abonné. */
 export default function ComposeScreen() {

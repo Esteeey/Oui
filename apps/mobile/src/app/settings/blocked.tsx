@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import type { UserSummary } from '@qu1z/shared';
 
 import { UserRow } from '@/components/player-row';
-import { AppText, Button, Card, Screen } from '@/components/ui';
+import { AppText, Button, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { api, useApi } from '@/net/api';
 
@@ -16,6 +16,7 @@ export default function BlockedScreen() {
 
   return (
     <Screen title="Joueurs bloqués" back>
+      <LoadingState visible={list.loading && !list.data} />
       {list.data && blocked.length === 0 && <AppText muted>Tu n’as bloqué personne.</AppText>}
       {blocked.map((b) => {
         const user: UserSummary = { id: b.id, pseudo: b.pseudo, title: null, level: 1, avatar: null };

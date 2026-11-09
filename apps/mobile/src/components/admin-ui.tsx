@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState, type ComponentProps, type ComponentRef, type ReactNode } from 'react';
-import { BackHandler, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { BackHandler, KeyboardAvoidingView, PanResponder, Platform, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppNavBar, useKeyboardVisible, useNavBarHeight } from '@/components/app-nav-bar';
 import { GradientHeader, HeaderBack } from '@/components/header';
+import { PhysicalSheet, SheetPresence } from '@/components/physical-sheet';
 import { Tap } from '@/components/tap';
 import { AppText, Button } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
@@ -61,9 +61,18 @@ export function AdminScreen({
         </View>
       </KeyboardAvoidingView>
       <AppNavBar />
-      {sheet}
+      <SheetHost sheet={sheet} />
     </View>
   );
+}
+
+/** Garde la feuille affichée pendant son animation de sortie, une fois que l'écran l'a retirée. */
+function SheetHost({ sheet }: { sheet?: ReactNode }) {
+  const [shown, setShown] = useState<ReactNode>(null);
+  if (sheet && sheet !== shown) setShown(sheet);
+  const content = sheet || shown;
+  if (!content) return null;
+  return <SheetPresence.Provider value={{ closing: !sheet, onExited: () => setShown(null) }}>{content}</SheetPresence.Provider>;
 }
 
 /** Actions toujours accessibles en bas de l'écran. */
@@ -182,20 +191,12 @@ export function Sheet({ title, onClose, children }: { title?: string; onClose: (
   }, []);
 
   return (
-    <View style={styles.sheetRoot}>
-      <Animated.View entering={FadeIn.duration(160)} style={StyleSheet.absoluteFill}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={styles.backdrop} />
-      </Animated.View>
-      <KeyboardAvoidingView pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetPlace}>
-        <Animated.View entering={SlideInDown.duration(220)} accessibilityViewIsModal style={styles.sheet}>
-          <View style={styles.grab} />
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.sheetBody, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
-            {title && <AppText variant="heading" accessibilityRole="header">{title}</AppText>}
-            {children}
-          </ScrollView>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </View>
+    <PhysicalSheet onClose={onClose} style={styles.sheet}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.sheetBody, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
+        {title && <AppText variant="heading" accessibilityRole="header">{title}</AppText>}
+        {children}
+      </ScrollView>
+    </PhysicalSheet>
   );
 }
 
@@ -367,11 +368,7 @@ const styles = StyleSheet.create({
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   choice: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
   choiceText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  sheetRoot: { ...StyleSheet.absoluteFill, zIndex: 40, elevation: 40 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(14,15,43,0.45)' },
-  sheetPlace: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
-  sheet: { width: '100%', maxWidth: MaxContentWidth, maxHeight: '86%', backgroundColor: Colors.background, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, paddingTop: 8 },
-  grab: { width: 42, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
+  sheet: { maxWidth: MaxContentWidth, maxHeight: '86%', backgroundColor: Colors.background },
   sheetBody: { paddingHorizontal: 14, gap: 12 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, paddingHorizontal: 14, borderRadius: 14, backgroundColor: Colors.surface },
   actionText: { flex: 1, fontSize: 14.5, lineHeight: 20, fontWeight: '600' },

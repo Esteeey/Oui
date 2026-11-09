@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.accentFill,
     borderWidth: 2,
     borderColor: Colors.surface,
     alignItems: 'center',

@@ -6,7 +6,7 @@ import { getCategory, getTheme, type PeopleEntry, type PeopleSections, type Publ
 import { HeaderButton } from '@/components/header';
 import { UserRow } from '@/components/player-row';
 import { SectionHeader } from '@/components/social';
-import { AppText, Avatar, Button, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
@@ -49,12 +49,13 @@ export default function PeopleScreen() {
         title="Suggestions"
         action={
           <Tap accessibilityRole="link" onPress={() => router.push('/discover')} hitSlop={8}>
-            <AppText variant="label" color={Colors.accent}>
+            <AppText variant="label" color={Colors.accentInk}>
               Tout voir
             </AppText>
           </Tap>
         }
       />
+      <LoadingState visible={people.loading && !people.data} label="Chargement des suggestions" />
       {people.data && people.data.suggestions.length === 0 && <AppText muted>Pas encore d’autres joueurs à te proposer.</AppText>}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel} style={styles.carouselBleed}>
         {(people.data?.suggestions ?? []).map((u) => (
@@ -68,7 +69,7 @@ export default function PeopleScreen() {
             <AppText variant="label" numberOfLines={1}>
               {u.pseudo}
             </AppText>
-            <AppText variant="caption" color={Colors.gold}>
+            <AppText variant="caption" color={Colors.goldInk}>
               Niveau {u.level}
             </AppText>
           </Pressable>

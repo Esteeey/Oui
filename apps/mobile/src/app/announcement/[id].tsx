@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { AppText, Card, Screen } from '@/components/ui';
+import { AppText, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors } from '@/constants/theme';
 import { useApi } from '@/net/api';
 
@@ -18,10 +18,11 @@ export default function AnnouncementScreen() {
   const a = useApi<{ title: string; body: string; kind: string; createdAt: number }>(`/api/announcements/${id}`);
   return (
     <Screen back title="Annonce">
+      <LoadingState visible={a.loading && !a.data} />
       {a.error && <AppText muted>Annonce introuvable.</AppText>}
       {a.data && (
         <Card>
-          <AppText variant="caption" color={Colors.accent}>
+          <AppText variant="caption" color={Colors.accentInk}>
             {(KIND[a.data.kind] ?? 'Information').toUpperCase()} · {new Date(a.data.createdAt).toLocaleDateString('fr-FR')}
           </AppText>
           <AppText variant="title">{a.data.title}</AppText>

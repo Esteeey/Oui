@@ -126,7 +126,7 @@ export function Composer({
       )}
       {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
       <View style={styles.footer}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
           <Tap accessibilityRole="button" accessibilityLabel="Ajouter une photo" onPress={() => choose('library')} style={styles.icon}>
             <Ionicons name="image-outline" size={20} color={Colors.text} />
           </Tap>
@@ -143,11 +143,11 @@ export function Composer({
             style={styles.icon}>
             <Ionicons name={stickersOpen ? 'happy' : 'happy-outline'} size={20} color={stickersOpen ? Colors.accent : Colors.text} />
           </Tap>
-          <AppText variant="caption" color={remaining < 20 ? Colors.gold : Colors.textMuted} style={{ flexShrink: 1 }}>
+          <AppText variant="caption" color={remaining < 20 ? Colors.goldInk : Colors.textMuted} style={{ flexShrink: 1 }}>
             {remaining} · @pseudo pour mentionner
           </AppText>
         </View>
-        <Button small label={sending ? 'Envoi…' : 'Publier'} onPress={submit} disabled={empty || sending} style={{ minWidth: 92 }} />
+        <Button compact label={sending ? 'Envoi…' : 'Publier'} onPress={submit} disabled={empty || sending} style={{ minWidth: 92 }} />
       </View>
     </View>
   );
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: Colors.text, fontSize: 15, minHeight: 40, paddingTop: 6, textAlignVertical: 'top' },
   preview: { width: '100%', maxHeight: 240, borderRadius: Radius.sm },
   remove: { position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  icon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   stickerPreview: { alignSelf: 'flex-start' },
   stickerCell: { padding: 4, borderRadius: Radius.sm, backgroundColor: Colors.background },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },

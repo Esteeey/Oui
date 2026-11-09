@@ -6,7 +6,7 @@ import { NEARBY_KM, countryFlag, countryName, type LeaderboardPeriod, type Leade
 
 import { useCountdown } from '@/components/challenge-card';
 import { Chip, DivisionBadge, Segmented } from '@/components/social';
-import { AppText, Avatar } from '@/components/ui';
+import { AppText, Avatar, LoadingState } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { shareApproxLocation } from '@/net/location';
@@ -100,7 +100,7 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
             {locationError && <AppText color={Colors.wrong}>{locationError}</AppText>}
           </View>
           <Tap accessibilityRole="button" disabled={locating} onPress={locate}>
-            <AppText variant="label" color={Colors.accent}>
+            <AppText variant="label" color={Colors.accentInk}>
               {locating ? '…' : 'Activer ›'}
             </AppText>
           </Tap>
@@ -112,12 +112,13 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
               ? 'Choisis ton pays (facultatif) pour comparer ton score aux joueurs de ton pays.'
               : 'Choisis ta région (facultatif) pour comparer ton score aux joueurs de ta région.'}
           </AppText>
-          <AppText variant="label" color={Colors.accent}>
+          <AppText variant="label" color={Colors.accentInk}>
             Choisir ›
           </AppText>
         </Tap>
       ) : (
         <>
+          <LoadingState visible={board.loading && !board.data} label="Chargement du classement" />
           {board.data && rows.length === 0 && (
             <AppText muted>
               {scope === 'country'
@@ -156,7 +157,7 @@ function RankRow({ row, period }: { row: LeaderboardRow; period: LeaderboardPeri
       accessibilityRole="button"
       onPress={() => router.push({ pathname: '/player/[id]', params: { id: row.user.id } })}
       style={[styles.row, row.isMe && styles.me]}>
-      <AppText variant="heading" style={styles.rank} color={row.rank <= 3 ? Colors.gold : Colors.textMuted} numberOfLines={1} adjustsFontSizeToFit>
+      <AppText variant="heading" style={styles.rank} color={row.rank <= 3 ? Colors.goldInk : Colors.textMuted} numberOfLines={1} adjustsFontSizeToFit>
         {row.rank}
       </AppText>
       <Avatar name={row.user.pseudo} color={avatarColor(row.user.id)} uri={row.user.avatar} size={32} />

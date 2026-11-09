@@ -228,7 +228,7 @@ export default function ProfileSettingsScreen() {
               Facultatif. Utilisé pour le classement « Pays » ; il apparaît publiquement avec ta ville quand tu renseignes celle-ci.
             </AppText>
           </View>
-          <AppText variant="label" color={Colors.accent}>
+          <AppText variant="label" color={Colors.accentInk}>
             {pickCountry ? 'Fermer' : 'Modifier'}
           </AppText>
         </Tap>
@@ -264,7 +264,7 @@ export default function ProfileSettingsScreen() {
               Facultatif. Sert uniquement au classement « Région » avec les joueurs de ton pays.
             </AppText>
           </View>
-          <AppText variant="label" color={Colors.accent}>
+          <AppText variant="label" color={Colors.accentInk}>
             {pickRegion ? 'Fermer' : 'Modifier'}
           </AppText>
         </Tap>
@@ -349,7 +349,7 @@ export default function ProfileSettingsScreen() {
       </Tap>
       {(account.data?.role === 'moderator' || account.data?.role === 'admin') && (
         <Tap accessibilityRole="button" onPress={() => router.push('/moderation')} style={styles.link}>
-          <AppText variant="label" color={Colors.gold}>
+          <AppText variant="label" color={Colors.goldInk}>
             Panneau de modération
           </AppText>
           <AppText muted>›</AppText>
@@ -357,7 +357,7 @@ export default function ProfileSettingsScreen() {
       )}
       {account.data?.role === 'admin' && (
         <Tap accessibilityRole="button" onPress={() => router.push('/admin')} style={styles.link}>
-          <AppText variant="label" color={Colors.gold}>
+          <AppText variant="label" color={Colors.goldInk}>
             Panneau d’administration
           </AppText>
           <AppText muted>›</AppText>

@@ -160,7 +160,7 @@ export function LoginScreen() {
               <Tap accessibilityRole="button" onPress={() => switchMode(register ? 'login' : 'register')} style={styles.switch}>
                 <AppText muted style={styles.center}>
                   {register ? 'Déjà un compte ? ' : 'Pas encore de compte ? '}
-                  <AppText variant="label" color={Colors.accent}>
+                  <AppText variant="label" color={Colors.accentInk}>
                     {register ? 'Se connecter' : 'S’inscrire'}
                   </AppText>
                 </AppText>

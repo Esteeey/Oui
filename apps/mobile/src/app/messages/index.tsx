@@ -8,7 +8,7 @@ import { attachmentLabel, type ConversationSummary, type GroupInvitationView, ty
 import { SectionHeader } from '@/components/social';
 import { GroupAvatar } from '@/components/group';
 import { HeaderButton } from '@/components/header';
-import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
@@ -117,6 +117,7 @@ export default function InboxScreen() {
       )}
 
       <SectionHeader title="Conversations" />
+      <LoadingState visible={inbox.loading && !inbox.data} label="Chargement des conversations" />
       {inbox.data && conversations.length === 0 && <AppText muted>Aucune conversation. Écris à un joueur depuis son profil.</AppText>}
       <View style={styles.list}>
         {conversations.map((c) => {
@@ -238,6 +239,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm + 4, padding: Spacing.sm + 4, borderBottomWidth: 1, borderBottomColor: Colors.border },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   online: { position: 'absolute', right: 0, bottom: 0, width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.correct, borderWidth: 2, borderColor: Colors.surface },
-  badge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  badge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: Colors.accentFill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   menu: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, backgroundColor: Colors.surfaceRaised },
 });

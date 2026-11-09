@@ -81,7 +81,7 @@ export function AppNavBar() {
 
   const renderItem = (item: (typeof ITEMS)[number]) => {
     const focused = active === item.key;
-    const color = focused ? Colors.accent : Colors.text;
+    const color = focused ? Colors.accentInk : Colors.text;
     const count = item.key === 'activity' ? badge : 0;
     return (
       <Pressable
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   items: { position: 'absolute', left: 0, right: 0, height: 44, flexDirection: 'row', paddingHorizontal: 2 },
   item: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   label: { fontSize: 11, lineHeight: 15, fontFamily: Fonts.regular },
-  labelSmall: { fontSize: 9 },
+  labelSmall: { fontSize: 10 },
   vsSlot: { flex: 1 },
   vs: {
     position: 'absolute',
@@ -169,10 +169,10 @@ const styles = StyleSheet.create({
     minWidth: 17,
     height: 17,
     borderRadius: 9,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  badgeText: { color: Colors.onAccent, fontSize: 9, lineHeight: 12, fontFamily: Fonts.bold },
+  badgeText: { color: Colors.onAccent, fontSize: 10, lineHeight: 12, fontFamily: Fonts.bold },
 });

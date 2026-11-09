@@ -15,7 +15,7 @@ import { PostCard, PostMenu } from '@/components/post-card';
 import { RankBadge, rankLabel } from '@/components/rank';
 import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
 import { RichText } from '@/components/rich-text';
-import { AppText, Avatar, Button, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, LoadingState, Screen } from '@/components/ui';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { pickImage, uploadImage, type PickedImage } from '@/net/media';
@@ -164,6 +164,7 @@ export default function PostScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.column}>
+            <LoadingState visible={post.loading && !p} label="Chargement de la publication" />
             {p && <PostCard post={p} linkToDetail={false} detail={summary} />}
 
             <View style={styles.titleRow}>
@@ -183,7 +184,7 @@ export default function PostScreen() {
               ).map(([value, label]) => {
                 const selected = order === value;
                 return (
-                  <Tap key={value} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => setOrder(value)} style={[styles.tab, selected && styles.tabActive]}>
+                  <Tap key={value} accessibilityRole="tab" accessibilityState={{ selected }} hitSlop={6} onPress={() => setOrder(value)} style={[styles.tab, selected && styles.tabActive]}>
                     <AppText variant="caption" color={selected ? Colors.onAccent : Colors.text} style={{ fontWeight: '600' }}>
                       {label}
                     </AppText>
@@ -204,6 +205,7 @@ export default function PostScreen() {
                 ))}
               </View>
             )}
+            <LoadingState visible={thread.loading && !thread.data} label="Chargement des commentaires" />
             {thread.data && comments.length === 0 && <AppText muted>Sois le premier à commenter.</AppText>}
           </View>
         </ScrollView>
@@ -271,7 +273,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xs },
   tabs: { flexDirection: 'row', gap: Spacing.sm },
   tab: { paddingHorizontal: Spacing.md, height: 32, justifyContent: 'center', borderRadius: Radius.xs, backgroundColor: Colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
-  tabActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  tabActive: { backgroundColor: Colors.accentFill, borderColor: Colors.accentFill },
   list: { backgroundColor: Colors.surface, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 4, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
   separator: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
   comment: { flexDirection: 'row', gap: Spacing.sm + 2, alignItems: 'flex-start', paddingVertical: Spacing.sm + 2 },

@@ -11,7 +11,7 @@ import { CoverButton, PlayedThemes, ProfileAction, ProfileLayout, ProfileOvervie
 import { PostCard } from '@/components/post-card';
 import { BadgesGrid } from '@/components/profile-view';
 import { ReportSheet } from '@/components/report-sheet';
-import { AppText, Button, Card, Screen } from '@/components/ui';
+import { AppText, Button, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { medalBadges } from '@/game/badges';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -51,7 +51,13 @@ export default function PlayerScreen() {
       </Screen>
     );
   }
-  if (!p) return <Screen back title="Profil" />;
+  if (!p) {
+    return (
+      <Screen back title="Profil">
+        <LoadingState visible={profile.loading} label="Chargement du profil" />
+      </Screen>
+    );
+  }
   if (p.relationship.isMe) return <Redirect href="/profile" />;
 
   const rel = p.relationship;
@@ -230,7 +236,7 @@ export default function PlayerScreen() {
                     FACE-À-FACE
                   </AppText>
                   <AppText variant="score">
-                    <AppText variant="score" color={Colors.accent}>
+                    <AppText variant="score" color={Colors.accentInk}>
                       {myWins}
                     </AppText>
                     {' – '}

@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState, type ReactNode } from 'react';
+import { Modal, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PhysicalSheet, SheetPresence } from '@/components/physical-sheet';
 import type { IconName } from '@/components/social';
 import { Tap } from '@/components/tap';
 import { AppText } from '@/components/ui';
-import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 
 export interface MoreMenuItem {
   label: string;
@@ -18,25 +19,39 @@ export interface MoreMenuItem {
 /** Menu « trois points » : la liste d'actions s'ouvre depuis le bas de l'écran. */
 export function MoreMenu({ items, label = 'Plus d’options', trigger }: { items: MoreMenuItem[]; label?: string; trigger?: (open: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const afterExit = useRef<(() => void) | null>(null);
   const insets = useSafeAreaInsets();
   if (items.length === 0) return null;
+  const show = () => {
+    setMounted(true);
+    setOpen(true);
+  };
+  const close = () => setOpen(false);
   const choose = (item: MoreMenuItem) => {
     setOpen(false);
     // iOS refuse d'ouvrir une fenêtre tant que la précédente n'est pas refermée (feuille de signalement).
-    setTimeout(item.onPress, Platform.OS === 'ios' ? 350 : 0);
+    if (Platform.OS === 'ios') afterExit.current = item.onPress;
+    else setTimeout(item.onPress, 0);
+  };
+  const exited = () => {
+    setMounted(false);
+    const next = afterExit.current;
+    afterExit.current = null;
+    if (next) setTimeout(next, 350);
   };
   return (
     <>
       {trigger ? (
-        trigger(() => setOpen(true))
+        trigger(show)
       ) : (
-        <Tap accessibilityRole="button" accessibilityLabel={label} hitSlop={10} onPress={() => setOpen(true)} style={styles.trigger}>
+        <Tap accessibilityRole="button" accessibilityLabel={label} hitSlop={10} onPress={show} style={styles.trigger}>
           <Ionicons name="ellipsis-horizontal" size={20} color={Colors.text} />
         </Tap>
       )}
-      <Modal visible={open} transparent animationType="none" onRequestClose={() => setOpen(false)}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Fermer" style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.sm }]}>
+      <Modal visible={mounted} transparent animationType="none" onRequestClose={close}>
+        <SheetPresence.Provider value={{ closing: !open, onExited: exited }}>
+          <PhysicalSheet onClose={close} style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.sm }]}>
             {items.map((item) => {
               const color = item.destructive ? Colors.wrong : Colors.text;
               return (
@@ -49,13 +64,13 @@ export function MoreMenu({ items, label = 'Plus d’options', trigger }: { items
               );
             })}
             <View style={styles.separator} />
-            <Tap accessibilityRole="button" onPress={() => setOpen(false)} style={[styles.row, styles.cancel]}>
+            <Tap accessibilityRole="button" onPress={close} style={[styles.row, styles.cancel]}>
               <AppText variant="label" muted>
                 Annuler
               </AppText>
             </Tap>
-          </Pressable>
-        </Pressable>
+          </PhysicalSheet>
+        </SheetPresence.Provider>
       </Modal>
     </>
   );
@@ -63,17 +78,7 @@ export function MoreMenu({ items, label = 'Plus d’options', trigger }: { items
 
 const styles = StyleSheet.create({
   trigger: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(14, 15, 43, 0.35)' },
-  sheet: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
-    paddingTop: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-  },
+  sheet: { maxWidth: MaxContentWidth, backgroundColor: Colors.surface, paddingHorizontal: Spacing.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, minHeight: 52, paddingHorizontal: Spacing.md },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginVertical: Spacing.xs },
   cancel: { justifyContent: 'center' },

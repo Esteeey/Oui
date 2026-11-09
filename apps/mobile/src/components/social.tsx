@@ -80,7 +80,7 @@ export function Segmented<T extends string>({
           key={o.value}
           accessibilityRole="button"
           onPress={() => onChange(o.value)}
-          style={[styles.segment, compact && styles.segmentCompact, o.value === value && { backgroundColor: Colors.accent }]}>
+          style={[styles.segment, compact && styles.segmentCompact, o.value === value && { backgroundColor: Colors.accentFill }]}>
           <AppText variant="label" color={o.value === value ? Colors.onAccent : Colors.textMuted} style={compact ? { fontSize: 12 } : undefined}>
             {o.label}
           </AppText>
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.accentFill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,

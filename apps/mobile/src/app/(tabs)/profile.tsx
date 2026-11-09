@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { getTheme, type EarnedMedal, type PostView, type PublicProfile } from '@qu1z/shared';
 
-import { AppText, Button } from '@/components/ui';
+import { AppText, Button, LoadingState } from '@/components/ui';
 import { Composer } from '@/components/composer';
 import { MoreMenu } from '@/components/more-menu';
 import { CoverButton, PlayedThemes, ProfileAction, ProfileLayout, ProfileOverview, totalsOf } from '@/components/player-profile';
@@ -81,6 +81,7 @@ export default function ProfileScreen() {
               <ProfileOverview xp={xp} stats={stats} history={history} />
               <AppText variant="heading">Mon mur</AppText>
               <Composer target={{ kind: 'profile' }} placeholder="Publie sur ton mur…" />
+              <LoadingState visible={wallData.loading && !wallData.data} label="Chargement du mur" />
               {wall.map((post) => (
                 <PostCard key={post.id} post={post} showTheme={false} />
               ))}

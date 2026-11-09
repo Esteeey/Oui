@@ -5,7 +5,7 @@ import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { CHALLENGE_STATUS_LABEL, challengeLinks, getTheme, type ChallengeView } from '@qu1z/shared';
 
 import { shareChallenge, useCountdown } from '@/components/challenge-card';
-import { AppText, Avatar, Button, Card, Screen } from '@/components/ui';
+import { AppText, Avatar, Button, Card, LoadingState, Screen } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
@@ -41,6 +41,7 @@ export default function ChallengeScreen() {
           </AppText>
         </Card>
       )}
+      <LoadingState visible={c.loading && !c.data} />
       {c.error && <AppText muted>Ce défi est introuvable, ou il ne t’est pas destiné.</AppText>}
       {challenge && <ChallengeDetails c={challenge} left={left} onAct={act} />}
       {message && <AppText color={Colors.wrong}>{message}</AppText>}
@@ -54,7 +55,7 @@ function ChallengeDetails({ c, left, onAct }: { c: ChallengeView; left: string |
   const to = c.to;
   return (
     <Card style={{ gap: Spacing.md }}>
-      <AppText variant="caption" color={Colors.accent}>
+      <AppText variant="caption" color={Colors.accentInk}>
         {(c.kind === 'rematch' ? 'Revanche' : 'Défi').toUpperCase()} · {theme?.name ?? ''}
       </AppText>
       <View style={styles.players}>
