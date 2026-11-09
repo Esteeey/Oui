@@ -31,7 +31,11 @@ import { timeAgo } from '@/utils/time';
 import { Tap } from '@/components/tap';
 import { ThemeIcon } from '@/components/theme-icon';
 
-const AVATAR_SIZE = 113;
+const AVATAR_SIZE = 92;
+/** Largeur de la décoration du titre sur le profil. */
+const DECOR_WIDTH = 230;
+/** Agrandit la zone tactile des actions jusqu'à 44 px sans changer leur taille visible. */
+const ACTION_HIT = { top: 4, bottom: 4 };
 /** Hauteur du fondu qui fait disparaître la couverture dans le fond du profil, derrière la première carte. */
 const FADE_HEIGHT = 124;
 const FADE_START = 'rgba(230, 227, 249, 0)';
@@ -110,7 +114,7 @@ export function ProfileLayout({
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: navSpace }} showsVerticalScrollIndicator={false}>
-        <View style={[styles.hero, { paddingTop: insets.top + 40, paddingBottom: FADE_HEIGHT }]}>
+        <View style={[styles.hero, { paddingTop: insets.top + 28, paddingBottom: FADE_HEIGHT }]}>
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.coverLayer]}>
             {coverUri ? (
               <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" accessibilityLabel={`Couverture de ${name}`} />
@@ -129,19 +133,19 @@ export function ProfileLayout({
             <AppText style={styles.name} numberOfLines={1}>
               {name}
             </AppText>
-            <TitleDecor decor={profile?.decor ?? 'gris'} label={title ?? profile?.autoTitle ?? titleForLevel(level.level)} />
+            <TitleDecor decor={profile?.decor ?? 'gris'} width={DECOR_WIDTH} label={title ?? profile?.autoTitle ?? titleForLevel(level.level)} />
             {(locationLabel || presenceLabel) && (
               <View style={styles.metaRow}>
                 {country ? <AppText style={styles.flag}>{countryFlag(country)}</AppText> : null}
                 {locationLabel ? (
-                  <AppText variant="caption" color={Colors.onAccent} numberOfLines={1} style={{ flexShrink: 1 }}>
+                  <AppText variant="caption" color={Colors.onAccent} numberOfLines={1} style={[styles.small, { flexShrink: 1 }]}>
                     {locationLabel}
                   </AppText>
                 ) : null}
                 {locationLabel && presenceLabel ? <View style={styles.metaDot} /> : null}
                 {presence?.online ? <View style={styles.onlineSmall} /> : null}
                 {presenceLabel ? (
-                  <AppText variant="caption" color={Colors.onAccent} numberOfLines={1}>
+                  <AppText variant="caption" color={Colors.onAccent} numberOfLines={1} style={styles.small}>
                     {presenceLabel}
                   </AppText>
                 ) : null}
@@ -153,7 +157,7 @@ export function ProfileLayout({
               </AppText>
             ) : null}
             {tag ? (
-              <AppText variant="caption" color={Colors.onAccent} style={{ textAlign: 'center' }}>
+              <AppText variant="caption" color={Colors.onAccent} style={[styles.small, { textAlign: 'center' }]}>
                 {tag}
               </AppText>
             ) : null}
@@ -266,9 +270,10 @@ export function ProfileAction({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
+      hitSlop={ACTION_HIT}
       onPress={onPress}
       style={[styles.action, label ? { flex: primary ? 1.1 : 1, paddingHorizontal: Spacing.xs } : styles.actionSquare, disabled && { opacity: 0.45 }]}>
-      <Ionicons name={icon} size={24} color={color} />
+      <Ionicons name={icon} size={21} color={color} />
       {label ? (
         <AppText color={color} style={styles.actionLabel} numberOfLines={1}>
           {label}
@@ -282,7 +287,7 @@ function Count({ label, value, color, onPress }: { label: string; value: number 
   return (
     <Tap accessibilityRole="button" accessibilityState={{ disabled: !onPress }} disabled={!onPress} onPress={onPress} style={styles.count}>
       <AppText style={[styles.countValue, { color }]}>{value === null ? '–' : formatCount(value)}</AppText>
-      <AppText variant="caption" color={Colors.onAccent} numberOfLines={1}>
+      <AppText variant="caption" color={Colors.onAccent} numberOfLines={1} style={styles.small}>
         {label}
       </AppText>
     </Tap>
@@ -301,7 +306,7 @@ function StatsCard({ wins, draws, losses, onPress }: { wins: number; draws: numb
   return (
     <Card style={[styles.cardGap, styles.profileCard]}>
       <Tap accessibilityRole="button" accessibilityLabel="Voir les duels" onPress={onPress} style={styles.cardHead}>
-        <Svg width={22} height={20} viewBox="0 0 22 20">
+        <Svg width={19} height={17} viewBox="0 0 22 20">
           <Rect x={1} y={12} width={4} height={7} fill="#16C784" />
           <Rect x={6.5} y={8} width={4} height={11} fill="#12B5A6" />
           <Rect x={12} y={4} width={4} height={15} fill="#1E9BE8" />
@@ -311,7 +316,7 @@ function StatsCard({ wins, draws, losses, onPress }: { wins: number; draws: numb
         <AppText variant="heading" color={Colors.ink} style={styles.cardTitle}>
           Statistiques
         </AppText>
-        <Ionicons name="chevron-forward" size={20} color={Colors.ink} />
+        <Ionicons name="chevron-forward" size={18} color={Colors.ink} />
       </Tap>
       <View
         style={styles.split}
@@ -328,7 +333,7 @@ function StatsCard({ wins, draws, losses, onPress }: { wins: number; draws: numb
           <View key={v.label} style={[styles.statColumn, i > 0 && styles.statDivider]}>
             <View style={styles.statLabel}>
               <View style={[styles.statDot, { backgroundColor: v.color }]} />
-              <AppText variant="caption" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ flexShrink: 1 }}>
+              <AppText variant="caption" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.small, { flexShrink: 1 }]}>
                 {v.label}
               </AppText>
             </View>
@@ -354,10 +359,10 @@ function ThemesCard({ title, stats, onSeeAll }: { title: string; stats: Record<s
           {title}
         </AppText>
         <Tap accessibilityRole="button" onPress={onSeeAll} hitSlop={8} style={styles.seeAll}>
-          <AppText color={Colors.accentInk} style={{ fontSize: 13, lineHeight: 18, fontWeight: '600' }}>
+          <AppText color={Colors.accentInk} style={{ fontSize: 11.5, lineHeight: 16, fontWeight: '600' }}>
             Voir tout
           </AppText>
-          <Ionicons name="chevron-forward" size={15} color={Colors.accent} />
+          <Ionicons name="chevron-forward" size={13} color={Colors.accent} />
         </Tap>
       </View>
       <View style={styles.themeRow}>
@@ -367,7 +372,7 @@ function ThemesCard({ title, stats, onSeeAll }: { title: string; stats: Record<s
           return (
             <Tap key={id} accessibilityRole="button" onPress={() => router.push({ pathname: '/theme/[id]', params: { id } })} style={styles.themeItem}>
               <View style={[styles.themeTile, { backgroundColor: category.color + '33', borderColor: category.color + '55' }]}>
-                <ThemeIcon themeId={id} size={38} />
+                <ThemeIcon themeId={id} size={32} />
               </View>
               <AppText variant="caption" numberOfLines={1} style={styles.themeName}>
                 {theme.name}
@@ -490,40 +495,41 @@ const styles = StyleSheet.create({
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   column: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   identity: { alignItems: 'center', gap: 2, paddingHorizontal: Spacing.md },
-  name: { fontSize: 30, lineHeight: 40, fontWeight: '800', color: Colors.onAccent, maxWidth: '100%' },
-  online: { position: 'absolute', right: 5, bottom: 7, width: 20, height: 20, borderRadius: 10, backgroundColor: '#25E16C', borderWidth: 2, borderColor: '#FBE3F1' },
+  name: { fontSize: 24, lineHeight: 32, fontWeight: '800', color: Colors.onAccent, maxWidth: '100%' },
+  online: { position: 'absolute', right: 4, bottom: 5, width: 17, height: 17, borderRadius: 9, backgroundColor: '#25E16C', borderWidth: 2, borderColor: '#FBE3F1' },
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, maxWidth: '100%', marginTop: 5 },
-  flag: { fontSize: 14, lineHeight: 19 },
+  flag: { fontSize: 13, lineHeight: 18 },
+  small: { fontSize: 11.5, lineHeight: 16 },
   metaDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.onAccent },
-  onlineSmall: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#25E16C' },
-  bio: { maxWidth: '92%', textAlign: 'center', fontSize: 14, lineHeight: 19 },
+  onlineSmall: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#25E16C' },
+  bio: { maxWidth: '92%', textAlign: 'center', fontSize: 13, lineHeight: 18 },
   counts: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.sm, marginTop: Spacing.sm },
-  count: { flex: 1, alignItems: 'center', minHeight: 46, justifyContent: 'center' },
-  countValue: { fontSize: 21, lineHeight: 28, fontWeight: '800' },
-  countDivider: { width: 1, height: 34, backgroundColor: 'rgba(255, 255, 255, 0.7)' },
+  count: { flex: 1, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
+  countValue: { fontSize: 18, lineHeight: 24, fontWeight: '800' },
+  countDivider: { width: 1, height: 32, backgroundColor: 'rgba(255, 255, 255, 0.7)' },
   actions: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', flexDirection: 'row', gap: 7, paddingHorizontal: 18, marginTop: Spacing.sm },
-  action: { height: 39, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, ...Shadow },
+  action: { height: 36, borderRadius: 10, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, ...Shadow },
   actionSquare: { width: 65 },
-  actionLabel: { fontSize: 15, lineHeight: 21, fontWeight: '800' },
+  actionLabel: { fontSize: 14, lineHeight: 20, fontWeight: '800' },
   notices: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   cards: { gap: Spacing.sm + 1, marginHorizontal: 9 },
-  cardGap: { gap: Spacing.sm + 4 },
-  profileCard: { backgroundColor: Colors.profileCard, borderWidth: 0, borderRadius: Radius.md + 1 },
+  cardGap: { gap: 10 },
+  profileCard: { backgroundColor: Colors.profileCard, borderWidth: 0, borderRadius: Radius.md + 1, padding: 13 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  cardTitle: { flex: 1, fontSize: 17, lineHeight: 24, fontWeight: '800' },
+  cardTitle: { flex: 1, fontSize: 15.5, lineHeight: 22, fontWeight: '800' },
   seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  split: { flexDirection: 'row', height: 15, borderRadius: Radius.pill, overflow: 'hidden' },
+  split: { flexDirection: 'row', height: 12, borderRadius: Radius.pill, overflow: 'hidden' },
   statColumns: { flexDirection: 'row' },
   statColumn: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 4 },
   statDivider: { borderLeftWidth: 1, borderLeftColor: '#D9D2E8' },
   statLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' },
   statDot: { width: 9, height: 9, borderRadius: 5 },
-  statValue: { fontSize: 18, lineHeight: 25, fontWeight: '800', color: Colors.ink },
+  statValue: { fontSize: 16, lineHeight: 22, fontWeight: '800', color: Colors.ink },
   themeRow: { flexDirection: 'row', gap: Spacing.xs },
   themeItem: { flex: 1, alignItems: 'center', gap: 3, maxWidth: '20%' },
-  themeTile: { width: 55, height: 55, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  themeName: { fontSize: 11, lineHeight: 15, fontWeight: '600', textAlign: 'center', maxWidth: '100%' },
-  themeLevel: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  themeTile: { width: 46, height: 46, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  themeName: { fontSize: 10.5, lineHeight: 14, fontWeight: '600', textAlign: 'center', maxWidth: '100%' },
+  themeLevel: { fontSize: 12.5, lineHeight: 17, fontWeight: '700' },
   tabs: { flexDirection: 'row', marginTop: Spacing.md, marginHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
   tab: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 2, paddingBottom: Spacing.sm + 2, paddingTop: Spacing.xs },
   tabLabel: { fontSize: 14, fontWeight: '600', color: Colors.textMuted },

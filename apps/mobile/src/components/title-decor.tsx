@@ -12,6 +12,8 @@ const VIEW_WIDTH = 554;
 const MID = 68;
 const LINE_HEIGHT = 5;
 const INK = '#17121F';
+/** Sous cette taille de texte, les ornements de la plaque se resserrent pour lui laisser la place. */
+const MIN_ROOMY_FONT = 9;
 
 const pill = (x0: number, x1: number, h: number) => `M${x0 + h} ${MID - h} H${x1 - h} A${h} ${h} 0 0 1 ${x1 - h} ${MID + h} H${x0 + h} A${h} ${h} 0 0 1 ${x0 + h} ${MID - h} Z`;
 const hex = (x0: number, x1: number, h: number, c: number) => `M${x0} ${MID} L${x0 + c} ${MID - h} H${x1 - c} L${x1} ${MID} L${x1 - c} ${MID + h} H${x0 + c} Z`;
@@ -92,9 +94,9 @@ const WHITE_LEAVES = [
   [13, 15, 38],
 ] as const;
 
-function WhiteLaurel({ x }: { x: number }) {
+function WhiteLaurel({ x, scale = 1 }: { x: number; scale?: number }) {
   return (
-    <G transform={`translate(${x} ${MID - 24})`}>
+    <G transform={`translate(${x} ${MID - 24 * scale}) scale(${scale})`}>
       <Path d="M23 47 C 9 40, 3 22, 15 3" stroke={Colors.onAccent} strokeWidth={2.2} fill="none" strokeLinecap="round" />
       {WHITE_LEAVES.map(([cx, cy, angle]) => (
         <Ellipse key={`${cx}-${cy}`} cx={cx} cy={cy} rx={3.3} ry={7} fill={Colors.onAccent} transform={`rotate(${angle} ${cx} ${cy})`} />
@@ -112,7 +114,9 @@ interface Art {
   textColor: string;
   /** Zone du texte (début, fin). */
   text: [number, number];
-  draw: () => ReactNode;
+  /** Zone du texte quand un titre long resserre les ornements de la plaque. */
+  tightText?: [number, number];
+  draw: (tight: boolean) => ReactNode;
 }
 
 const PLAIN_TOP = 32;
@@ -143,7 +147,7 @@ const ART: Record<DecorId, Art> = {
     ),
   },
   vert: {
-    top: PLAIN_TOP, line: '#5FE65F', lineEnds: [114, 441], textColor: Colors.onAccent, text: [176, 378],
+    top: PLAIN_TOP, line: '#5FE65F', lineEnds: [114, 441], textColor: Colors.onAccent, text: [150, 404],
     draw: () => (
       <>
         <Defs><Vertical id="dVert" top="#2BA640" bottom="#1F8F35" /></Defs>
@@ -154,7 +158,7 @@ const ART: Record<DecorId, Art> = {
     ),
   },
   bleu: {
-    top: PLAIN_TOP, line: '#2F95F0', lineEnds: [109, 446], textColor: Colors.onAccent, text: [172, 382],
+    top: PLAIN_TOP, line: '#2F95F0', lineEnds: [109, 446], textColor: Colors.onAccent, text: [150, 405],
     draw: () => (
       <>
         <Defs><Vertical id="dBleu" top="#0B62D8" bottom="#0650C0" /></Defs>
@@ -165,27 +169,30 @@ const ART: Record<DecorId, Art> = {
     ),
   },
   etoiles: {
-    top: PLAIN_TOP, line: '#B85CE8', lineEnds: [106, 448], textColor: Colors.onAccent, text: [190, 364],
-    draw: () => (
+    top: PLAIN_TOP, line: '#B85CE8', lineEnds: [106, 448], textColor: Colors.onAccent, text: [190, 364], tightText: [163, 392],
+    draw: (tight) => (
       <>
         <Path d={hex(114, 441, 30, 27)} fill="#6C22BC" stroke="#C65EF2" strokeWidth={4} strokeLinejoin="round" />
-        <Path d={star(169, MID, 16)} fill={Colors.onAccent} />
-        <Path d={star(385, MID, 16)} fill={Colors.onAccent} />
+        <Path d={star(tight ? 150 : 169, MID, tight ? 11 : 16)} fill={Colors.onAccent} />
+        <Path d={star(tight ? 405 : 385, MID, tight ? 11 : 16)} fill={Colors.onAccent} />
       </>
     ),
   },
   lauriers: {
-    top: PLAIN_TOP, line: '#E62E92', lineEnds: [106, 449], textColor: Colors.onAccent, text: [190, 364],
-    draw: () => (
-      <>
-        <Path d={hex(113, 441, 30, 27)} fill="#A50A5A" stroke="#F0349A" strokeWidth={4} strokeLinejoin="round" />
-        <WhiteLaurel x={138} />
-        <Mirror><WhiteLaurel x={138} /></Mirror>
-      </>
-    ),
+    top: PLAIN_TOP, line: '#E62E92', lineEnds: [106, 449], textColor: Colors.onAccent, text: [190, 364], tightText: [152, 402],
+    draw: (tight) => {
+      const laurel = tight ? <WhiteLaurel x={131} scale={0.7} /> : <WhiteLaurel x={138} />;
+      return (
+        <>
+          <Path d={hex(113, 441, 30, 27)} fill="#A50A5A" stroke="#F0349A" strokeWidth={4} strokeLinejoin="round" />
+          {laurel}
+          <Mirror>{laurel}</Mirror>
+        </>
+      );
+    },
   },
   'couronne-or': {
-    top: 8, line: '#F2B51D', lineEnds: [115, 441], textColor: INK, text: [176, 378],
+    top: 8, line: '#F2B51D', lineEnds: [115, 441], textColor: INK, text: [168, 386],
     draw: () => {
       const tail = <Path d={`M113 ${MID - 13} H180 V${MID + 26} H116 L128 ${MID + 7} Z`} fill="#F2A900" />;
       return (
@@ -210,7 +217,7 @@ const ART: Record<DecorId, Art> = {
     ),
   },
   ailes: {
-    top: PLAIN_TOP, line: '#B85CE8', lineEnds: [97, 459], textColor: Colors.onAccent, text: [176, 378],
+    top: PLAIN_TOP, line: '#B85CE8', lineEnds: [97, 459], textColor: Colors.onAccent, text: [158, 397],
     draw: () => (
       <>
         <Wings color="#B458F2" shift={13} />
@@ -219,7 +226,7 @@ const ART: Record<DecorId, Art> = {
     ),
   },
   diamant: {
-    top: 6, line: '#F5C518', lineEnds: [102, 456], textColor: '#FFD21F', text: [180, 374],
+    top: 6, line: '#F5C518', lineEnds: [102, 456], textColor: '#FFD21F', text: [162, 392],
     draw: () => (
       <>
         <Wings color="#F5C518" shift={21} />
@@ -239,19 +246,22 @@ export function TitleDecor({ decor, label, width }: { decor: DecorId; label: str
   const scale = w / VIEW_WIDTH;
   const viewHeight = 104 - art.top;
   const [lineLeft, lineRight] = art.lineEnds;
-  const textWidth = (art.text[1] - art.text[0]) * scale;
   // Calculé plutôt que confié à adjustsFontSizeToFit, qui n'existe pas sur le site.
-  const fontSize = Math.max(8, Math.min(13, textWidth / (label.length * 0.6)));
+  const fontSizeIn = ([start, end]: [number, number]) => ((end - start) * scale) / (label.length * 0.6);
+  const tight = !!art.tightText && fontSizeIn(art.text) < MIN_ROOMY_FONT;
+  const zone = tight ? art.tightText! : art.text;
+  const textWidth = (zone[1] - zone[0]) * scale;
+  const fontSize = Math.max(8, Math.min(13, fontSizeIn(zone)));
   return (
     <View style={{ width: w, height: viewHeight * scale }} accessibilityRole="text" accessibilityLabel={`Titre : ${label}`}>
       <Svg width={w} height={viewHeight * scale} viewBox={`0 ${art.top} ${VIEW_WIDTH} ${viewHeight}`}>
         <Rect x={0} y={MID - LINE_HEIGHT / 2} width={lineLeft} height={LINE_HEIGHT} fill={art.line} />
         <Rect x={lineRight} y={MID - LINE_HEIGHT / 2} width={VIEW_WIDTH - lineRight} height={LINE_HEIGHT} fill={art.line} />
-        {art.draw()}
+        {art.draw(tight)}
       </Svg>
       <View
         pointerEvents="none"
-        style={{ position: 'absolute', left: art.text[0] * scale, width: textWidth, top: (MID - art.top - 26) * scale, height: 52 * scale, alignItems: 'center', justifyContent: 'center' }}>
+        style={{ position: 'absolute', left: zone[0] * scale, width: textWidth, top: (MID - art.top - 26) * scale, height: 52 * scale, alignItems: 'center', justifyContent: 'center' }}>
         <AppText color={art.textColor} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ fontSize, lineHeight: 18, fontWeight: '700' }}>
           {label}
         </AppText>
