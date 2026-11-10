@@ -4,6 +4,7 @@ import { EXTRA_QUESTIONS } from './extra-questions';
 import { GENERATED_QUESTIONS } from './generated-questions';
 import { FOOTBALL_QUESTIONS } from './football-questions';
 import { FAN_QUESTIONS } from './fan-questions';
+import { TOPUP_QUESTIONS } from './topup-questions';
 
 /**
  * Premier jeu de questions, rédigé pour Qu1z (prototype).
@@ -203,6 +204,7 @@ const GENERATED_THEME_IDS = new Set(GENERATED_QUESTIONS.map((question) => questi
 export const QUESTIONS: Question[] = [
   ...GENERATED_QUESTIONS,
   ...LEGACY_QUESTIONS.filter((question) => !GENERATED_THEME_IDS.has(question.themeId)),
+  ...TOPUP_QUESTIONS,
 ];
 
 export function registerThemeQuestions(themeId: string, questions: Question[]): void {
