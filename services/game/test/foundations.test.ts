@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { migrate, openDatabase, type Database } from '../src/db/database';
+import { lockPublicSchema, migrate, openDatabase, type Database } from '../src/db/database';
 import { hashToken } from '../src/game';
 import { importLegacy } from '../src/import-json';
 import { RateLimiter } from '../src/rate-limit';
@@ -42,6 +42,26 @@ afterEach(async () => {
 });
 
 describe('base de données', () => {
+  it('API publique de Supabase fermée : sécurité par ligne partout, aucun droit pour anon et authenticated', async () => {
+    db = await openDatabase();
+    await db.query('CREATE ROLE anon NOLOGIN');
+    await db.query('CREATE ROLE authenticated NOLOGIN');
+    await db.query('GRANT USAGE ON SCHEMA public TO anon, authenticated');
+    await db.query('GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated');
+    await db.query('CREATE TABLE public.ajout_futur (id int)');
+    await lockPublicSchema(db);
+    const open = await db.query<{ relname: string }>(
+      "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity",
+    );
+    expect(open).toEqual([]);
+    const granted = await db.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM information_schema.role_table_grants WHERE table_schema = 'public' AND grantee IN ('anon', 'authenticated')",
+    );
+    expect(granted[0].n).toBe(0);
+    // Le serveur, propriétaire des tables, lit toujours normalement.
+    expect((await db.query<{ n: number }>('SELECT count(*)::int AS n FROM users'))[0].n).toBeGreaterThanOrEqual(0);
+  });
+
   it('les migrations ne s’appliquent qu’une fois', async () => {
     db = await openDatabase();
     expect(await migrate(db)).toEqual([]);

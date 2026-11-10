@@ -85,7 +85,41 @@ export async function migrate(db: Database): Promise<string[]> {
     });
     applied.push(file);
   }
+  await lockPublicSchema(db);
   return applied;
+}
+
+/**
+ * Supabase publie le schéma `public` par son API REST (rôles `anon` et `authenticated`). Seul le serveur de jeu doit
+ * lire la base : on active la sécurité par ligne, sans aucune règle, sur toutes ses tables (le serveur, propriétaire
+ * des tables, n'est pas concerné) et on retire tout droit à ces deux rôles, y compris sur les tables futures.
+ * Relancé à chaque démarrage, donc aussi pour les tables ajoutées par les prochaines migrations.
+ */
+export async function lockPublicSchema(db: Database): Promise<void> {
+  await db.query(`DO $$
+DECLARE
+  t record;
+  r text;
+BEGIN
+  FOR t IN SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relrowsecurity
+      AND pg_get_userbyid(c.relowner) = current_user
+  LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t.relname);
+  END LOOP;
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+      BEGIN
+        EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA public FROM %I', r);
+        EXECUTE format('REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM %I', r);
+        EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM %I', r);
+        EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM %I', r);
+      EXCEPTION WHEN insufficient_privilege THEN
+        RAISE WARNING 'droits de % non retirés : %', r, SQLERRM;
+      END;
+    END IF;
+  END LOOP;
+END $$`);
 }
 
 /** Ouvre la base selon l'environnement et applique les migrations. */
