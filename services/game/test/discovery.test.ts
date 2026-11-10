@@ -95,7 +95,7 @@ describe('recherche globale', () => {
   it('thèmes par nom ou catégorie, sans tenir compte des accents', async () => {
     const me = await user('Moi');
     expect((await search(me, 'geographie')).themes.map((t) => t.id).sort()).toEqual(['geo-capitales', 'geo-drapeaux']);
-    expect((await search(me, 'olymp')).themes.map((t) => t.id)).toEqual(['sports-jo']);
+    expect((await search(me, 'olymp')).themes.map((t) => t.id)).toEqual(['sports-jo', 'club-om', 'club-ol']);
   });
 
   it('requête vide ou caractères spéciaux : sans erreur ni joker', async () => {

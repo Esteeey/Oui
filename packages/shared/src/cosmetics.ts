@@ -42,6 +42,19 @@ const THEME_TITLES: Record<string, ThemeTitles> = {
   'musique-one-direction': ['Auditeur', 'Fan', 'Directioner', 'Mentor', 'Légende de 1D'],
   'series-game-of-thrones': ['Écuyer', 'Chevalier', 'Seigneur', 'Main du roi', 'Roi des Sept Couronnes'],
   'logos-marques': ['Zappeur de pubs', 'Graphiste', 'Œil de lynx', 'Directeur artistique', 'Roi des Logos'],
+  'club-psg': ['Visiteur du Parc', 'Abonné d’Auteuil', 'Titi parisien', 'Capitaine parisien', 'Légende de Paris'],
+  'club-om': ['Visiteur du Vélodrome', 'Minot', 'Ultra du Virage', 'Capitaine phocéen', 'Légende de Marseille'],
+  'club-ol': ['Visiteur de Gerland', 'Gone', 'Supporter des Gones', 'Capitaine lyonnais', 'Légende de Lyon'],
+  'club-real-madrid': ['Visiteur du Bernabéu', 'Madridista', 'Galactique', 'Capitaine merengue', 'Légende de Madrid'],
+  'club-barcelone': ['Visiteur du Camp Nou', 'Culer', 'Élève de la Masia', 'Capitaine blaugrana', 'Légende du Barça'],
+  'club-man-united': ['Visiteur d’Old Trafford', 'Habitué du Stretford End', 'Red Devil', 'Capitaine mancunien', 'Légende de United'],
+  'club-man-city': ['Visiteur de l’Etihad', 'Citizen', 'Sky Blue', 'Capitaine citizen', 'Légende de City'],
+  'club-liverpool': ['Visiteur d’Anfield', 'Habitué du Kop', 'Red', 'Capitaine des Reds', 'Légende de Liverpool'],
+  'club-arsenal': ['Visiteur de l’Emirates', 'Gooner', 'Gunner', 'Invincible', 'Légende d’Arsenal'],
+  'club-chelsea': ['Visiteur du Bridge', 'Blue', 'Habitué du Shed End', 'Capitaine des Blues', 'Légende de Chelsea'],
+  'club-bayern': ['Visiteur de l’Allianz', 'Bavarois', 'Habitué de la Südkurve', 'Capitaine du Bayern', 'Légende du Bayern'],
+  'club-juventus': ['Visiteur de Turin', 'Juventino', 'Bianconero', 'Capitaine de la Vieille Dame', 'Légende de la Juve'],
+  'monde-arabo-musulman': ['Voyageur', 'Lettré', 'Calligraphe', 'Savant de Bagdad', 'Gardien de la Sagesse'],
 };
 
 export function themeTitles(themeId: string): ThemeTitles {

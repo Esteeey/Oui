@@ -4,6 +4,7 @@ export type CategoryId =
   | 'series'
   | 'jeux-video'
   | 'sports'
+  | 'clubs'
   | 'musique'
   | 'histoire'
   | 'geographie'

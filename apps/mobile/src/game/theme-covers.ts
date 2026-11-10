@@ -24,6 +24,7 @@ const CATEGORY_COVERS: Record<CategoryId, number> = {
   series: require('@/assets/covers/cine-grands-films.jpg'),
   'jeux-video': require('@/assets/covers/gaming-cult.png'),
   sports: require('@/assets/covers/sports-jo.jpg'),
+  clubs: require('@/assets/covers/sports-jo.jpg'),
   musique: require('@/assets/covers/music-hits.png'),
   histoire: require('@/assets/covers/cg-melange.jpg'),
   geographie: require('@/assets/covers/geo-capitales.jpg'),

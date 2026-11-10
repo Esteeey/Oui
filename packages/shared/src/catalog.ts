@@ -6,6 +6,7 @@ export const CATEGORIES: Category[] = [
   { id: 'series', name: 'Séries TV', icon: '📺', color: '#B66DFF' },
   { id: 'jeux-video', name: 'Jeux vidéo', icon: '🎮', color: '#5B8CFF' },
   { id: 'sports', name: 'Sports', icon: '🏅', color: '#2FCB7A' },
+  { id: 'clubs', name: 'Clubs de foot', icon: '⚽', color: '#3DBE5B' },
   { id: 'musique', name: 'Musique', icon: '🎵', color: '#FF4FB8' },
   { id: 'histoire', name: 'Histoire', icon: '🏛️', color: '#D9A35B' },
   { id: 'geographie', name: 'Géographie', icon: '🌍', color: '#2BB8D9' },
@@ -115,6 +116,19 @@ export const THEMES: Theme[] = [
   { id: "musique-one-direction", categoryId: "musique", name: "One Direction", description: "Albums, tubes, carrières solo et histoire du groupe.", questionCount: 100 },
   { id: "series-game-of-thrones", categoryId: "series", name: "Game of Thrones", description: "Maisons, personnages et grands moments de la série.", questionCount: 100 },
   { id: "logos-marques", categoryId: "marques", name: "Logos des marques", description: "Reconnais une marque à son logo.", questionCount: 100 },
+  { id: "club-psg", categoryId: "clubs", name: "Paris Saint-Germain", description: "Joueurs, trophées et grandes soirées du club parisien.", questionCount: 100 },
+  { id: "club-om", categoryId: "clubs", name: "Olympique de Marseille", description: "Légendes, Vélodrome et histoire du club phocéen.", questionCount: 100 },
+  { id: "club-ol", categoryId: "clubs", name: "Olympique lyonnais", description: "Les années de domination, les joueurs et l’histoire du club.", questionCount: 100 },
+  { id: "club-real-madrid", categoryId: "clubs", name: "Real Madrid", description: "Bernabéu, Galactiques et Ligues des champions.", questionCount: 100 },
+  { id: "club-barcelone", categoryId: "clubs", name: "FC Barcelone", description: "Camp Nou, La Masia et grandes époques du Barça.", questionCount: 100 },
+  { id: "club-man-united", categoryId: "clubs", name: "Manchester United", description: "Old Trafford, ses légendes et ses titres.", questionCount: 100 },
+  { id: "club-man-city", categoryId: "clubs", name: "Manchester City", description: "L’Etihad, les joueurs et la montée vers les sommets.", questionCount: 100 },
+  { id: "club-liverpool", categoryId: "clubs", name: "Liverpool", description: "Anfield, ses entraîneurs et ses soirées européennes.", questionCount: 100 },
+  { id: "club-arsenal", categoryId: "clubs", name: "Arsenal", description: "Highbury, Emirates et les Invincibles.", questionCount: 100 },
+  { id: "club-chelsea", categoryId: "clubs", name: "Chelsea", description: "Stamford Bridge, ses buteurs et ses trophées.", questionCount: 100 },
+  { id: "club-bayern", categoryId: "clubs", name: "Bayern Munich", description: "Le géant bavarois, ses records et ses légendes.", questionCount: 100 },
+  { id: "club-juventus", categoryId: "clubs", name: "Juventus", description: "Turin, ses champions et ses Scudetti.", questionCount: 100 },
+  { id: "monde-arabo-musulman", categoryId: "histoire", name: "Monde arabo-musulman", description: "Histoire, savants, villes et cultures du monde arabo-musulman.", questionCount: 100 },
 ];
 
 export function registerTheme(theme: Theme): void {
