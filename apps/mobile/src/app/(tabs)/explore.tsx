@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -72,6 +72,21 @@ export default function ExploreScreen() {
       )) : (
         <AppText muted style={styles.noResults}>Aucun thème trouvé pour « {query} ».</AppText>
       )}
+
+      <Tap
+        accessibilityRole="button"
+        accessibilityLabel={`Voir tous les thèmes, ${THEMES.length} thèmes`}
+        onPress={() => router.push('/all-themes' as Href)}
+        style={styles.allThemes}>
+        <View style={styles.allThemesIcon}>
+          <Ionicons name="grid" size={20} color="#FFFFFF" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <AppText style={styles.allThemesTitle}>Voir tous les thèmes</AppText>
+          <AppText muted style={styles.allThemesSub}>{THEMES.length} thèmes rangés par catégorie</AppText>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={Colors.accent} />
+      </Tap>
 
       {!q && recentDuels.length > 0 && <DuelHistory duels={recentDuels} />}
     </Screen>
@@ -186,6 +201,10 @@ const styles = StyleSheet.create({
   themeArtwork: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, ...Shadow },
   themeName: { minHeight: 28, width: '100%', color: Colors.text, fontSize: 11, lineHeight: 14, fontWeight: '600', textAlign: 'center' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginTop: 3 },
+  allThemes: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 6, padding: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.accent, ...Shadow },
+  allThemesIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accent },
+  allThemesTitle: { fontSize: 15, fontWeight: '800', color: Colors.text },
+  allThemesSub: { fontSize: 12 },
   historyCard: { marginTop: 6, padding: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, ...Shadow },
   historyTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   historyDivider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginTop: Spacing.xs },
