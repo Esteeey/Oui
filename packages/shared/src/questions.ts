@@ -3,6 +3,7 @@ import { RULES } from './rules';
 import { EXTRA_QUESTIONS } from './extra-questions';
 import { GENERATED_QUESTIONS } from './generated-questions';
 import { FOOTBALL_QUESTIONS } from './football-questions';
+import { FAN_QUESTIONS } from './fan-questions';
 
 /**
  * Premier jeu de questions, rédigé pour Qu1z (prototype).
@@ -195,6 +196,7 @@ const LEGACY_QUESTIONS: Question[] = [
   ...natureAnimaux,
   ...EXTRA_QUESTIONS,
   ...FOOTBALL_QUESTIONS,
+  ...FAN_QUESTIONS,
 ];
 
 const GENERATED_THEME_IDS = new Set(GENERATED_QUESTIONS.map((question) => question.themeId));

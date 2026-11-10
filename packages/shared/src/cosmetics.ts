@@ -39,6 +39,8 @@ const THEME_TITLES: Record<string, ThemeTitles> = {
   'mythes-religions': ['Simple mortel', 'Initié', 'Oracle', 'Demi-dieu', 'Divinité Suprême'],
   'sports-equipes': ['Remplaçant', 'Titulaire', 'Capitaine', 'Sélectionneur', 'Légende du Sport'],
   'sports-football': ['Supporter', 'Ailier', 'Buteur', 'Capitaine', 'Légende du Foot'],
+  'musique-one-direction': ['Auditeur', 'Fan', 'Directioner', 'Mentor', 'Légende de 1D'],
+  'series-game-of-thrones': ['Écuyer', 'Chevalier', 'Seigneur', 'Main du roi', 'Roi des Sept Couronnes'],
   'logos-marques': ['Zappeur de pubs', 'Graphiste', 'Œil de lynx', 'Directeur artistique', 'Roi des Logos'],
 };
 

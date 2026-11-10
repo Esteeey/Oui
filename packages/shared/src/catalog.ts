@@ -112,6 +112,8 @@ export const THEMES: Theme[] = [
   { id: "mythes-religions", categoryId: "histoire", name: "Mythes et religions", description: "Récits mythologiques et traditions religieuses.", questionCount: 50 },
   { id: "sports-equipes", categoryId: "sports", name: "Sports et équipes", description: "Compétitions, équipes et disciplines sportives.", questionCount: 50 },
   { id: "sports-football", categoryId: "sports", name: "Football", description: "Clubs, joueurs, records et grandes finales.", questionCount: 49 },
+  { id: "musique-one-direction", categoryId: "musique", name: "One Direction", description: "Albums, tubes, carrières solo et histoire du groupe.", questionCount: 50 },
+  { id: "series-game-of-thrones", categoryId: "series", name: "Game of Thrones", description: "Maisons, personnages et grands moments de la série.", questionCount: 50 },
   { id: "logos-marques", categoryId: "marques", name: "Logos des marques", description: "Reconnais une marque à son logo.", questionCount: 50 },
 ];
 
