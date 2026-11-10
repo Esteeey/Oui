@@ -46,7 +46,7 @@ function matches(item: FeedItem, filter: Filter, playerId: string | null | undef
     case 'friends':
       return item.kind === 'post' ? item.post.target.kind === 'profile' && item.post.author.id !== playerId : item.activity.user.id !== playerId;
     case 'results':
-      return item.kind === 'activity';
+      return item.kind === 'activity' || !!item.post.result;
   }
 }
 

@@ -147,6 +147,9 @@ export default function ResultsScreen() {
     opacity: 1 - Math.min(0.4, drag.get() / (height * 1.5)),
   }));
 
+  const [pinned, setPinned] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
   if (!duel || duel.phase !== 'finished' || !duel.result) return <Redirect href="/" />;
   const result = duel.result;
   const theme = getTheme(duel.themeId);
@@ -181,6 +184,16 @@ export default function ResultsScreen() {
         answers: record.player,
       }),
     }).catch(() => {});
+  const togglePin = () => {
+    if (pinBusy) return;
+    const next = !pinned;
+    setPinBusy(true);
+    setPinError(null);
+    api(next ? 'PUT' : 'DELETE', `/api/duels/${duel.duelId}/pin`)
+      .then(() => setPinned(next))
+      .catch((e) => setPinError(errorMessage(e)))
+      .finally(() => setPinBusy(false));
+  };
   const mySpeed = speedSummary(record.player);
   const theirSpeed = speedSummary(record.opponent);
 
@@ -287,7 +300,23 @@ export default function ResultsScreen() {
             <Tap accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} style={styles.secondaryButton}>
               <Ionicons name="share-social" size={28} color={R.text} />
             </Tap>
+            {result.outcome === 'win' && (
+              <Tap
+                accessibilityRole="button"
+                accessibilityLabel={pinned ? 'Retirer cette victoire de mon profil' : 'Épingler cette victoire sur mon profil'}
+                accessibilityState={{ selected: pinned }}
+                disabled={pinBusy}
+                onPress={togglePin}
+                style={styles.secondaryButton}>
+                <Ionicons name={pinned ? 'pin' : 'pin-outline'} size={28} color={pinned ? Colors.accent : R.text} />
+              </Tap>
+            )}
           </View>
+          {(pinned || pinError) && (
+            <AppText variant="caption" color={pinError ? Colors.wrong : R.muted} style={{ textAlign: 'center' }}>
+              {pinError ?? 'Victoire épinglée sur ton profil.'}
+            </AppText>
+          )}
 
           <Tap accessibilityRole="button" onPress={() => setDetails((d) => !d)} style={styles.detailsToggle}>
             <AppText variant="label" color={R.muted}>

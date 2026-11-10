@@ -124,6 +124,8 @@ export interface PostView {
   media: MediaView | null;
   /** Sticker du pack Qu1z (à la place d'une photo). */
   sticker: StickerId | null;
+  /** Victoire épinglée sur le profil par son auteur. */
+  result: { duelId: string; themeId: string; opponent: string; score: number; opponentScore: number } | null;
   createdAt: number;
   likes: number;
   likedByMe: boolean;
@@ -142,6 +144,7 @@ export interface CommentView {
   likes: number;
   likedByMe: boolean;
   media: MediaView | null;
+  sticker: StickerId | null;
 }
 
 export interface ActivityView {
@@ -150,7 +153,9 @@ export interface ActivityView {
   themeId: string;
   createdAt: number;
   event:
-    | { kind: 'win'; opponent: string; score: number; opponentScore: number }
+    /** Victoire ou défaite non épinglée : visible de son auteur seulement. */
+    | { kind: 'win'; duelId: string; opponent: string; score: number; opponentScore: number }
+    | { kind: 'loss'; opponent: string; score: number; opponentScore: number }
     | { kind: 'perfect' }
     | { kind: 'level'; level: number };
 }

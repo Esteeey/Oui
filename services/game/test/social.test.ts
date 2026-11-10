@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { CommentView, FeedItem, PostView, PublicProfile, UserSummary } from '@qu1z/shared';
@@ -241,6 +242,55 @@ describe('thèmes, publications, fils', () => {
     const items = (await ok(call<{ items: FeedItem[] }>(me, 'GET', '/api/feed'))).items;
     const texts = items.flatMap((i) => (i.kind === 'post' ? [i.post.text] : []));
     expect(texts.sort()).toEqual(['Dans un thème suivi', 'Mon mur', 'Mur du suivi']);
+  });
+
+  it('victoire : privée par défaut ; épinglée, elle devient une publication aimable et commentable (sticker compris)', async () => {
+    const me = await user('Gagnant');
+    const fan = await user('Abonne');
+    await ok(call(fan, 'POST', `/api/users/${me.id}/follow`));
+    const seed = async (outcome: 'win' | 'loss') => {
+      const id = randomUUID();
+      const mine = outcome === 'win' ? 20 : 10;
+      const record = {
+        themeId: 'sports-jo',
+        opponentName: 'Rival',
+        outcome,
+        xpBefore: 0,
+        xpGained: 0,
+        questions: [{}, {}],
+        player: [{ correct: true, points: mine }, { correct: false, points: 0 }],
+        opponent: [{ correct: true, points: 30 - mine }, { correct: false, points: 0 }],
+      };
+      await db.query("INSERT INTO duels (id, theme_id, mode, state, finished_at) VALUES ($1, 'sports-jo', 'pvp', '{}', now())", [id]);
+      await db.query('INSERT INTO duel_results (duel_id, user_id, result, xp_awarded) VALUES ($1, $2, $3, 0)', [id, me.id, JSON.stringify({ outcome, record })]);
+      return id;
+    };
+    const win = await seed('win');
+    const loss = await seed('loss');
+    const feed = async (u: U) => (await ok(call<{ items: FeedItem[] }>(u, 'GET', '/api/feed'))).items;
+    const kinds = async (u: U) => (await feed(u)).flatMap((i) => (i.kind === 'activity' ? [i.activity.event.kind] : [])).sort();
+    expect(await kinds(me)).toEqual(['loss', 'win']);
+    expect(await kinds(fan)).toEqual([]);
+
+    expect((await call(me, 'PUT', `/api/duels/${loss}/pin`)).status).toBe(400);
+    expect((await call(fan, 'PUT', `/api/duels/${win}/pin`)).status).toBe(404);
+    const pinned = await ok(call<PostView>(me, 'PUT', `/api/duels/${win}/pin`));
+    expect(pinned.result).toEqual({ duelId: win, themeId: 'sports-jo', opponent: 'Rival', score: 20, opponentScore: 10 });
+    expect((await ok(call<PostView>(me, 'PUT', `/api/duels/${win}/pin`))).id).toBe(pinned.id);
+    expect(await kinds(me)).toEqual(['loss']);
+    expect((await feed(fan)).some((i) => i.kind === 'post' && i.post.id === pinned.id)).toBe(true);
+    const wall = (await ok(call<{ posts: PostView[] }>(fan, 'GET', `/api/users/${me.id}/posts`))).posts;
+    expect(wall.map((w) => w.id)).toEqual([pinned.id]);
+
+    expect((await ok(call<PostView>(fan, 'PUT', `/api/posts/${pinned.id}/like`))).likes).toBe(1);
+    const c = await ok(call<CommentView>(fan, 'POST', `/api/posts/${pinned.id}/comments`, { text: '', stickerId: 'gg' }));
+    expect(c).toMatchObject({ sticker: 'gg', text: '', media: null });
+    expect((await call(fan, 'POST', `/api/posts/${pinned.id}/comments`, { text: '', stickerId: 'inconnu' })).status).toBe(400);
+    expect((await comments(me, pinned.id)).map((x) => x.sticker)).toEqual(['gg']);
+
+    await ok(call(me, 'DELETE', `/api/duels/${win}/pin`));
+    expect((await call(fan, 'GET', `/api/posts/${pinned.id}`)).status).toBe(404);
+    expect(await kinds(me)).toEqual(['loss', 'win']);
   });
 
   it('likes : un seul par joueur, retrait possible', async () => {

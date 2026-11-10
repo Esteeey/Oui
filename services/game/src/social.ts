@@ -570,15 +570,18 @@ export class Social {
         media_height: number | null;
         media_animated: boolean | null;
         sticker_id: string | null;
+        duel_id: string | null;
+        duel_result: DuelResult | null;
       }
     >(
-      `SELECT po.id AS post_id, po.target, po.theme_id, po.text, po.created_at, po.sticker_id, ${SUMMARY_COLUMNS},
+      `SELECT po.id AS post_id, po.target, po.theme_id, po.text, po.created_at, po.sticker_id, po.duel_id, dr.result AS duel_result, ${SUMMARY_COLUMNS},
          md.id AS media_id, md.storage_key AS media_key, md.width AS media_width, md.height AS media_height, md.animated AS media_animated,
          (SELECT count(*)::int FROM post_likes l WHERE l.post_id = po.id) AS likes,
          EXISTS (SELECT 1 FROM post_likes l WHERE l.post_id = po.id AND l.user_id = $1) AS liked,
          (SELECT count(*)::int FROM comments c WHERE c.post_id = po.id AND c.removed_at IS NULL AND ${notBlocked('c.author_id')}) AS comments
        FROM posts po JOIN users u ON u.id = po.author_id JOIN profiles p ON p.user_id = u.id
        LEFT JOIN media md ON md.id = po.media_id AND md.removed_by_moderation_at IS NULL
+       LEFT JOIN duel_results dr ON dr.duel_id = po.duel_id AND dr.user_id = po.author_id
        WHERE po.removed_at IS NULL AND u.status <> 'banned' AND ${canSee('po.author_id')} AND (${where})
          -- Fil d'un thème : réservé à ses abonnés (l'auteur et les personnes mentionnées voient toujours la publication).
          AND (po.target <> 'theme' OR po.author_id = $1
@@ -599,6 +602,7 @@ export class Social {
           ? mediaView({ id: r.media_id, storage_key: r.media_key, width: r.media_width!, height: r.media_height!, animated: !!r.media_animated })
           : null,
       sticker: isSticker(r.sticker_id) ? r.sticker_id : null,
+      result: duelSummary(r.duel_id, r.duel_result),
       createdAt: new Date(r.created_at).getTime(),
       likes: r.likes,
       likedByMe: r.liked,
@@ -656,10 +660,15 @@ export class Social {
       .slice(0, PAGE);
   }
 
-  /** Activité de jeu (victoires, sans-faute, niveaux) de moi et des personnes que je suis. */
+  /**
+   * Activité de jeu : niveaux et sans-faute de moi et des personnes que je suis. Mes victoires et défaites
+   * ne sont visibles que de moi, tant qu'une victoire n'est pas épinglée (elle devient alors une publication).
+   */
   async activity(viewer: string, before?: number): Promise<ActivityView[]> {
-    const rows = await this.db.query<SummaryRow & { duel_id: string; result: DuelResult; created_at: Date }>(
-      `SELECT r.duel_id, r.result, r.created_at, ${SUMMARY_COLUMNS} FROM duel_results r
+    const rows = await this.db.query<SummaryRow & { duel_id: string; result: DuelResult; created_at: Date; pinned: boolean }>(
+      `SELECT r.duel_id, r.result, r.created_at, ${SUMMARY_COLUMNS},
+         EXISTS (SELECT 1 FROM posts po WHERE po.duel_id = r.duel_id AND po.author_id = r.user_id AND po.removed_at IS NULL) AS pinned
+       FROM duel_results r
        JOIN users u ON u.id = r.user_id JOIN profiles p ON p.user_id = u.id
        WHERE (r.user_id = $1 OR r.user_id IN (SELECT followee_id FROM follows WHERE follower_id = $1))
          AND u.status <> 'banned' AND ${canSee('r.user_id')}
@@ -676,13 +685,44 @@ export class Social {
       if (after > levelBefore) out.push({ ...base, id: `${r.duel_id}:${r.id}:level`, event: { kind: 'level', level: after } });
       if (rec.player.length === rec.questions.length && rec.player.length > 0 && rec.player.every((a) => a.correct)) {
         out.push({ ...base, id: `${r.duel_id}:${r.id}:perfect`, event: { kind: 'perfect' } });
-      } else if (rec.outcome === 'win') {
+      } else if (r.id === viewer && !r.pinned && (rec.outcome === 'win' || rec.outcome === 'loss')) {
         const score = rec.player.reduce((t, a) => t + a.points, 0);
         const opponentScore = rec.opponent.reduce((t, a) => t + a.points, 0);
-        out.push({ ...base, id: `${r.duel_id}:${r.id}:win`, event: { kind: 'win', opponent: rec.opponentName, score, opponentScore } });
+        const detail = { opponent: rec.opponentName, score, opponentScore };
+        out.push({
+          ...base,
+          id: `${r.duel_id}:${r.id}:${rec.outcome}`,
+          event: rec.outcome === 'win' ? { kind: 'win', duelId: r.duel_id, ...detail } : { kind: 'loss', ...detail },
+        });
       }
     }
     return out;
+  }
+
+  /** Épingle une de mes victoires sur mon profil : elle devient une publication que l'on peut aimer et commenter. */
+  async pinDuel(viewer: string, duelId: string): Promise<PostView> {
+    const [row] = await this.db.query<{ result: DuelResult }>('SELECT result FROM duel_results WHERE duel_id = $1 AND user_id = $2', [duelId, viewer]);
+    if (!row?.result?.record) throw new SocialError(404, 'not_found');
+    if (row.result.record.outcome !== 'win') throw new SocialError(400, 'not_a_win');
+    const pinned = () =>
+      this.db.query<{ id: string }>('SELECT id FROM posts WHERE author_id = $1 AND duel_id = $2 AND removed_at IS NULL', [viewer, duelId]);
+    let [existing] = await pinned();
+    if (!existing) {
+      this.limit('post', viewer);
+      await this.db.query("INSERT INTO posts (id, author_id, target, text, duel_id) VALUES ($1, $2, 'profile', '', $3) ON CONFLICT DO NOTHING", [
+        randomUUID(),
+        viewer,
+        duelId,
+      ]);
+      [existing] = await pinned();
+    }
+    return this.post(viewer, existing.id);
+  }
+
+  /** Retire une victoire de mon profil : elle redevient visible de moi seul. */
+  async unpinDuel(viewer: string, duelId: string): Promise<{ pinned: false }> {
+    await this.db.query('UPDATE posts SET removed_at = now() WHERE author_id = $1 AND duel_id = $2 AND removed_at IS NULL', [viewer, duelId]);
+    return { pinned: false };
   }
 
   // ---- Likes et commentaires ---------------------------------------------------------------
@@ -719,9 +759,10 @@ export class Social {
         media_width: number | null;
         media_height: number | null;
         media_animated: boolean | null;
+        sticker_id: string | null;
       }
     >(
-      `SELECT c.id AS comment_id, c.parent_comment_id, c.text, c.created_at, ${SUMMARY_COLUMNS},
+      `SELECT c.id AS comment_id, c.parent_comment_id, c.text, c.created_at, c.sticker_id, ${SUMMARY_COLUMNS},
          md.id AS media_id, md.storage_key AS media_key, md.width AS media_width, md.height AS media_height, md.animated AS media_animated,
          (SELECT count(*)::int FROM comment_likes l WHERE l.comment_id = c.id) AS likes,
          EXISTS (SELECT 1 FROM comment_likes l WHERE l.comment_id = c.id AND l.user_id = $1) AS liked
@@ -745,6 +786,7 @@ export class Social {
       media: r.media_id
         ? mediaView({ id: r.media_id, storage_key: r.media_key!, width: r.media_width!, height: r.media_height!, animated: !!r.media_animated })
         : null,
+      sticker: isSticker(r.sticker_id) ? r.sticker_id : null,
     }));
   }
 
@@ -774,10 +816,12 @@ export class Social {
     return rows.map(summary);
   }
 
-  async addComment(viewer: string, postId: string, rawText: unknown, parentId?: string, mediaId?: string): Promise<CommentView> {
+  async addComment(viewer: string, postId: string, rawText: unknown, parentId?: string, mediaId?: string, stickerId?: unknown): Promise<CommentView> {
     const post = await this.post(viewer, postId);
     const text = String(rawText ?? '').trim();
-    if ((!text && !mediaId) || text.length > MAX_COMMENT_LENGTH) throw new SocialError(400, 'invalid_text');
+    const sticker = stickerId === undefined || stickerId === null ? null : stickerId;
+    if (sticker !== null && (!isSticker(sticker) || mediaId)) throw new SocialError(400, 'invalid_sticker');
+    if ((!text && !mediaId && !sticker) || text.length > MAX_COMMENT_LENGTH) throw new SocialError(400, 'invalid_text');
     if (mediaId && !this.media) throw new SocialError(503, 'media_unavailable');
     if (await this.isBlockedEitherWay(viewer, post.author.id)) throw new SocialError(403, 'blocked');
     this.limit('comment', viewer);
@@ -797,13 +841,14 @@ export class Social {
         parentId = parent.parent_comment_id ?? parentId;
       }
       const media = mediaId ? await this.media!.attach(tx, viewer, mediaId, 'post') : null;
-      await tx.query('INSERT INTO comments (id, post_id, author_id, parent_comment_id, text, media_id) VALUES ($1, $2, $3, $4, $5, $6)', [
+      await tx.query('INSERT INTO comments (id, post_id, author_id, parent_comment_id, text, media_id, sticker_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
         id,
         postId,
         viewer,
         parentId ?? null,
         text,
         media?.id ?? null,
+        sticker,
       ]);
       mentioned = await this.resolveMentions(viewer, text, tx);
       await this.saveMentions(tx, 'comment', id, viewer, mentioned);
@@ -878,4 +923,12 @@ export class Social {
     const top = Math.min(Math.max(1, limit), 100);
     return { rows: all.filter((r) => r.rank <= top), me: all.find((r) => r.isMe) ?? null };
   }
+}
+
+/** Résumé d'une victoire épinglée, du point de vue de son auteur. */
+function duelSummary(duelId: string | null, result: DuelResult | null): PostView['result'] {
+  const rec = result?.record;
+  if (!duelId || !rec) return null;
+  const total = (answers: { points: number }[]) => answers.reduce((t, a) => t + a.points, 0);
+  return { duelId, themeId: rec.themeId, opponent: rec.opponentName, score: total(rec.player), opponentScore: total(rec.opponent) };
 }

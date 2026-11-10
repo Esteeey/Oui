@@ -6,7 +6,7 @@ import { Share, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { getTheme, type PostView } from '@qu1z/shared';
 
 import { Photo } from '@/components/attachments';
-import { ChallengeBanner, FeedCardHeader, feedCard } from '@/components/feed-parts';
+import { ChallengeBanner, FeedCardHeader, ResultBanner, feedCard } from '@/components/feed-parts';
 import { MoreMenu, type MoreMenuItem } from '@/components/more-menu';
 import { ReportSheet } from '@/components/report-sheet';
 import { RichText } from '@/components/rich-text';
@@ -18,7 +18,8 @@ import { useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
 
 function sharePost(post: PostView): void {
-  Share.share({ message: `${post.author.pseudo} sur QuizX${post.text ? ` : « ${post.text} »` : ''}` }).catch(() => {});
+  const win = post.result ? ` a battu ${post.result.opponent} ${post.result.score} à ${post.result.opponentScore}` : '';
+  Share.share({ message: `${post.author.pseudo}${win} sur QuizX${post.text ? ` : « ${post.text} »` : ''}` }).catch(() => {});
 }
 
 /** Menu « trois points » d'une publication : partage, et signalement si elle n'est pas de moi. */
@@ -26,6 +27,10 @@ export function PostMenu({ post }: { post: PostView }) {
   const { playerId } = useGameServer();
   const [reporting, setReporting] = useState(false);
   const items: MoreMenuItem[] = [{ label: 'Partager', icon: 'arrow-redo-outline', onPress: () => sharePost(post) }];
+  const duelId = post.result?.duelId;
+  if (duelId && post.author.id === playerId) {
+    items.push({ label: 'Retirer de mon profil', icon: 'pin-outline', onPress: () => void api('DELETE', `/api/duels/${duelId}/pin`).catch(() => {}) });
+  }
   if (post.author.id !== playerId) items.push({ label: 'Signaler', icon: 'flag-outline', destructive: true, onPress: () => setReporting(true) });
   return (
     <>
@@ -59,6 +64,8 @@ export function PostCard({
   const likes = post.likes + (liked === null ? 0 : (liked ? 1 : 0) - (post.likedByMe ? 1 : 0));
   const theme = post.target.kind === 'theme' ? getTheme(post.target.themeId) : undefined;
   const openPost = () => router.push({ pathname: '/post/[id]', params: { id: post.id } });
+  const result = post.result;
+  const resultTheme = result ? getTheme(result.themeId) : undefined;
 
   const toggleLike = () => {
     const next = !isLiked;
@@ -70,6 +77,19 @@ export function PostCard({
     <View style={styles.card}>
       <FeedCardHeader user={post.author} createdAt={post.createdAt} right={!detail ? <PostMenu post={post} /> : undefined} />
 
+      {result && (
+        <>
+          <AppText color={Colors.text} style={styles.text}>
+            A battu {result.opponent} !
+          </AppText>
+          <ResultBanner
+            themeName={resultTheme?.name ?? 'Duel'}
+            value={`${result.score} – ${result.opponentScore}`}
+            pill="Victoire"
+            onPress={() => resultTheme && router.push({ pathname: '/theme/[id]', params: { id: resultTheme.id } })}
+          />
+        </>
+      )}
       {post.text ? <RichText text={post.text} mentions={post.mentions} style={styles.text} /> : null}
       {post.media && <Photo media={post.media} maxWidth={Math.min(width, MaxContentWidth) - 2 * screenMargin - 20} maxHeight={320} />}
       {post.sticker && <Sticker id={post.sticker} size={96} />}

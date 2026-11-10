@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { MAX_COMMENT_LENGTH, type CommentView, type MediaView, type PostView, type UserSummary } from '@qu1z/shared';
+import { MAX_COMMENT_LENGTH, STICKERS, type CommentView, type MediaView, type PostView, type StickerId, type UserSummary } from '@qu1z/shared';
 
 import { AppNavBar, useKeyboardVisible, useNavBarHeight } from '@/components/app-nav-bar';
 import { Photo } from '@/components/attachments';
@@ -15,6 +15,7 @@ import { PostCard, PostMenu } from '@/components/post-card';
 import { RankBadge, rankLabel } from '@/components/rank';
 import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
 import { RichText } from '@/components/rich-text';
+import { Sticker } from '@/components/sticker';
 import { AppText, Avatar, Button, LoadingState, Screen } from '@/components/ui';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -57,6 +58,7 @@ function CommentRow({ comment: c, isReply, onReply, onReport }: { comment: Comme
         </View>
         {c.text ? <RichText text={c.text} mentions={c.mentions} style={styles.commentText} /> : null}
         {c.media && <Photo media={c.media} maxWidth={200} maxHeight={220} />}
+        {c.sticker && <Sticker id={c.sticker} size={76} />}
         <View style={styles.commentActions}>
           <Tap accessibilityRole="button" accessibilityLabel={`J’aime, ${likes}`} accessibilityState={{ selected: isLiked }} hitSlop={8} onPress={toggleLike} style={styles.commentLike}>
             <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={15} color={isLiked ? Colors.accent : Colors.textMuted} />
@@ -89,6 +91,7 @@ export default function PostScreen() {
   const [replyTo, setReplyTo] = useState<CommentView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [stickersOpen, setStickersOpen] = useState(false);
   const [order, setOrder] = useState<'best' | 'recent'>('best');
   const [reporting, setReporting] = useState<ReportTarget | null>(null);
 
@@ -116,6 +119,22 @@ export default function PostScreen() {
       if (picked) setPhoto(picked);
     } catch (e) {
       setError(errorMessage(e));
+    }
+  };
+
+  /** Un sticker part tout de suite, seul, comme dans les messages privés. */
+  const sendSticker = async (stickerId: StickerId) => {
+    if (sending) return;
+    setError(null);
+    setSending(true);
+    setStickersOpen(false);
+    try {
+      await api('POST', `/api/posts/${id}/comments`, { text: '', stickerId, ...(replyTo ? { parentId: replyTo.id } : {}) });
+      setReplyTo(null);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -233,6 +252,15 @@ export default function PostScreen() {
                 </Tap>
               </View>
             )}
+            {stickersOpen && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={styles.stickers}>
+                {STICKERS.map((s) => (
+                  <Tap key={s.id} accessibilityRole="button" accessibilityLabel={`Envoyer le sticker ${s.label}`} onPress={() => void sendSticker(s.id)} style={styles.stickerCell}>
+                    <Sticker id={s.id} size={52} />
+                  </Tap>
+                ))}
+              </ScrollView>
+            )}
             <View style={styles.inputRow}>
               <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} uri={profile?.avatar} size={36} />
               <View style={styles.field}>
@@ -246,6 +274,14 @@ export default function PostScreen() {
                   accessibilityLabel="Écrire un commentaire"
                   style={styles.fieldInput}
                 />
+                <Tap
+                  accessibilityRole="button"
+                  accessibilityLabel="Envoyer un sticker"
+                  accessibilityState={{ expanded: stickersOpen }}
+                  hitSlop={8}
+                  onPress={() => setStickersOpen((open) => !open)}>
+                  <Ionicons name={stickersOpen ? 'happy' : 'happy-outline'} size={22} color={Colors.accent} />
+                </Tap>
                 <Tap accessibilityRole="button" accessibilityLabel="Ajouter une image" hitSlop={8} onPress={choosePhoto}>
                   <Ionicons name="image-outline" size={22} color={Colors.accent} />
                 </Tap>
@@ -287,6 +323,8 @@ const styles = StyleSheet.create({
   inputBar: { alignItems: 'center', paddingVertical: Spacing.sm },
   inputColumn: { width: '100%', maxWidth: MaxContentWidth, paddingHorizontal: Spacing.md, gap: Spacing.xs + 2 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  stickers: { gap: 6, paddingVertical: 2 },
+  stickerCell: { padding: 4, borderRadius: Radius.sm, backgroundColor: Colors.background },
   field: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border, paddingHorizontal: Spacing.sm + 4, minHeight: 42 },
   fieldInput: { flex: 1, color: Colors.text, fontSize: 14, fontFamily: Fonts.regular, paddingVertical: 8, maxHeight: 96 },
   send: { width: 40, height: 40, borderRadius: Radius.sm, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
