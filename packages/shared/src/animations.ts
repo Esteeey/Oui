@@ -63,7 +63,7 @@ export const DUEL_INVITE_DEFAULTS: DuelInviteAnimation = {
   backdropStart: '#4A1FB8',
   backdropMiddle: '#7B2FFF',
   backdropEnd: '#C81FB0',
-  edgeTop: '#FF007A',
+  edgeTop: '#FC0266',
   edgeBottom: '#7B2FFF',
   paper: '#FFFFFF',
 };
