@@ -1,0 +1,66 @@
+import type { Difficulty, Question } from './types';
+
+/** Numéro d'origine de la question, énoncé, bonne réponse, trois leurres, difficulté. */
+type Row = [number, string, string, string, string, string, Difficulty];
+
+const THEME_ID = 'sports-football';
+
+const ROWS: Row[] = [
+  [51, "Quel joueur a remporté le Ballon d'Or 2025 ?", "Ousmane Dembélé", "Lamine Yamal", "Vitinha", "Kylian Mbappé", 2],
+  [52, "Quel club a remporté la Ligue des champions 2025 ?", "Paris Saint-Germain", "Inter Milan", "Arsenal", "Real Madrid", 1],
+  [53, "Quel club a remporté la Coupe du monde des clubs 2025 ?", "Chelsea", "Paris Saint-Germain", "Real Madrid", "Manchester City", 2],
+  [54, "Quel pays a gagné la finale de la CAN 2025 sur le terrain ?", "Sénégal", "Maroc", "Côte d'Ivoire", "Nigeria", 2],
+  [55, "Qui a marqué l'unique but de la finale de la CAN 2025 sur le terrain ?", "Pape Gueye", "Sadio Mané", "Iliman Ndiaye", "Ismaïla Sarr", 3],
+  [56, "Combien de Ballons d'Or Ousmane Dembélé a-t-il remportés ?", "1", "2", "3", "4", 1],
+  [57, "Quel entraîneur a mené le PSG à sa première Ligue des champions en 2025 ?", "Luis Enrique", "Mauricio Pochettino", "Christophe Galtier", "Unai Emery", 2],
+  [58, "Qui a été élu meilleur joueur de la finale de la Ligue des champions 2025 ?", "Désiré Doué", "Ousmane Dembélé", "Achraf Hakimi", "Vitinha", 3],
+  [59, "Quelle équipe a remporté la Ligue Europa 2025 ?", "Tottenham", "Manchester United", "Ajax", "AS Roma", 2],
+  [61, "Quel club a remporté la Liga 2024-25 ?", "FC Barcelone", "Real Madrid", "Atlético Madrid", "Athletic Bilbao", 2],
+  [62, "Quel joueur a remporté le Soulier d'Or européen 2024-25 ?", "Kylian Mbappé", "Robert Lewandowski", "Ousmane Dembélé", "Harry Kane", 2],
+  [63, "Quel club a remporté la Serie A 2024-25 ?", "Naples", "Inter Milan", "AC Milan", "Juventus", 2],
+  [64, "Quel club a remporté la Premier League 2024-25 ?", "Liverpool", "Arsenal", "Manchester City", "Chelsea", 1],
+  [65, "Quel club a remporté la Bundesliga 2024-25 ?", "Bayern Munich", "Bayer Leverkusen", "Borussia Dortmund", "RB Leipzig", 1],
+  [66, "Quel joueur a été élu meilleur joueur de Premier League 2024-25 ?", "Mohamed Salah", "Erling Haaland", "Bukayo Saka", "Cole Palmer", 2],
+  [67, "Quelle joueuse a remporté le Ballon d'Or féminin 2025 ?", "Aitana Bonmatí", "Alexia Putellas", "Ada Hegerberg", "Sam Kerr", 2],
+  [68, "Quelle équipe a remporté l'Euro féminin 2025 ?", "Angleterre", "Espagne", "Allemagne", "France", 2],
+  [69, "Quels pays ont accueilli la Coupe du monde 2026 ?", "USA, Canada, Mexique", "Japon, Corée du Sud", "Argentine, Uruguay", "Espagne, Portugal, Maroc", 1],
+  [70, "Combien d'équipes ont participé à la Coupe du monde 2026 ?", "48", "32", "40", "64", 2],
+  [71, "Quel joueur détient le record de buts en une saison de Ligue 1 ?", "Josip Skoblar", "Zlatan Ibrahimović", "Kylian Mbappé", "Edinson Cavani", 3],
+  [72, "Quel club a remporté le plus de Coupes de France ?", "Paris Saint-Germain", "Marseille", "AS Saint-Étienne", "Lille", 2],
+  [73, "Quel joueur a marqué le plus de buts en une saison de Premier League ?", "Erling Haaland", "Alan Shearer", "Mohamed Salah", "Harry Kane", 2],
+  [74, "Quel entraîneur a remporté le plus de Coupes du monde ?", "Vittorio Pozzo", "Carlos Bilardo", "Mario Zagallo", "Helmut Schön", 3],
+  [75, "Quel club est surnommé « El Submarino Amarillo » ?", "Villarreal", "Valence", "Séville", "Betis", 2],
+  [76, "Quel pays a remporté la Copa América 2021 ?", "Argentine", "Brésil", "Uruguay", "Colombie", 1],
+  [77, "Qui a marqué l'unique but de la finale de la Copa América 2021 ?", "Ángel Di María", "Lionel Messi", "Lautaro Martínez", "Rodrigo De Paul", 2],
+  [78, "Quel club a remporté la Ligue des champions 2023 ?", "Manchester City", "Inter Milan", "Real Madrid", "Bayern Munich", 1],
+  [79, "Qui a marqué l'unique but de la finale de la Ligue des champions 2023 ?", "Rodri", "Erling Haaland", "Kevin De Bruyne", "İlkay Gündoğan", 2],
+  [80, "Quel club a remporté la Ligue Europa 2023 ?", "Séville", "AS Roma", "Juventus", "Bayer Leverkusen", 2],
+  [81, "Qui est le meilleur buteur de l'histoire de la Ligue des champions ?", "Cristiano Ronaldo", "Lionel Messi", "Robert Lewandowski", "Karim Benzema", 1],
+  [82, "Qui est le meilleur buteur de l'histoire de la Premier League ?", "Alan Shearer", "Harry Kane", "Wayne Rooney", "Sergio Agüero", 2],
+  [83, "Qui a été le plus souvent meilleur buteur de Serie A ?", "Gunnar Nordahl", "Giuseppe Meazza", "Silvio Piola", "Francesco Totti", 3],
+  [84, "Quel club détient le record de titres en Bundesliga ?", "Bayern Munich", "Borussia Dortmund", "Hambourg", "Werder Brême", 1],
+  [85, "Quel gardien a été élu meilleur gardien IFFHS en 2017 ?", "Gianluigi Buffon", "Manuel Neuer", "Iker Casillas", "Petr Čech", 3],
+  [86, "Qui a été élu Joueur africain de l'année de 2003 à 2005 ?", "Samuel Eto'o", "Yaya Touré", "Didier Drogba", "Riyad Mahrez", 3],
+  [87, "Quel club a remporté la première Coupe d'Europe des vainqueurs de coupe ?", "Fiorentina", "Atlético Madrid", "Tottenham", "Rangers", 3],
+  [88, "Quel pays a remporté la première CAN en 1957 ?", "Égypte", "Soudan", "Éthiopie", "Afrique du Sud", 3],
+  [89, "Qui a marqué le but le plus rapide de l'histoire de la Premier League ?", "Shane Long", "Ledley King", "Alan Shearer", "Sadio Mané", 3],
+  [90, "Quel club détient le record de points sur une saison de Premier League ?", "Manchester City", "Liverpool", "Arsenal", "Manchester United", 2],
+  [91, "Quel joueur a remporté le plus de titres de meilleur buteur de Ligue 1 ?", "Kylian Mbappé", "Delio Onnis", "Jean-Pierre Papin", "Zlatan Ibrahimović", 2],
+  [92, "Quel entraîneur a remporté le plus de titres de Premier League ?", "Sir Alex Ferguson", "Arsène Wenger", "José Mourinho", "Pep Guardiola", 1],
+  [93, "Quel club a remporté la Coupe d'Europe des clubs champions en 1967 ?", "Celtic", "Inter Milan", "Ajax", "Benfica", 3],
+  [94, "Quel joueur a remporté le Ballon d'Or en 1966 ?", "Bobby Charlton", "Eusébio", "Franz Beckenbauer", "Denis Law", 3],
+  [95, "Qui a remporté la première Coupe du monde des clubs en 2000 ?", "Corinthians", "Vasco da Gama", "Real Madrid", "Manchester United", 3],
+  [96, "Quel joueur est le meilleur buteur de l'histoire de l'équipe de France ?", "Kylian Mbappé", "Thierry Henry", "Olivier Giroud", "Karim Benzema", 2],
+  [97, "Quel joueur est le meilleur buteur de l'histoire de l'équipe d'Allemagne ?", "Miroslav Klose", "Gerd Müller", "Thomas Müller", "Lukas Podolski", 2],
+  [98, "Quel club a remporté le plus de Coupes d'Angleterre (FA Cup) ?", "Arsenal", "Manchester United", "Liverpool", "Chelsea", 2],
+  [99, "Quel joueur du Shakhtar a marqué 5 buts contre le BATE en 2014 ?", "Luiz Adriano", "Alex Teixeira", "Douglas Costa", "Taison", 3],
+  [100, "Quel pays a remporté la première Coupe du monde féminine en 1991 ?", "États-Unis", "Norvège", "Allemagne", "Suède", 2],
+];
+
+export const FOOTBALL_QUESTIONS: Question[] = ROWS.map(([numero, text, answer, wrong1, wrong2, wrong3, difficulty]) => ({
+  id: `${THEME_ID}-${numero}`,
+  themeId: THEME_ID,
+  text,
+  choices: [answer, wrong1, wrong2, wrong3],
+  difficulty,
+}));

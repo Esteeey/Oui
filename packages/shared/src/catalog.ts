@@ -111,6 +111,7 @@ export const THEMES: Theme[] = [
   { id: "personnalites", categoryId: "culture-pop", name: "Personnalités", description: "Figures connues et parcours remarquables.", questionCount: 50 },
   { id: "mythes-religions", categoryId: "histoire", name: "Mythes et religions", description: "Récits mythologiques et traditions religieuses.", questionCount: 50 },
   { id: "sports-equipes", categoryId: "sports", name: "Sports et équipes", description: "Compétitions, équipes et disciplines sportives.", questionCount: 50 },
+  { id: "sports-football", categoryId: "sports", name: "Football", description: "Clubs, joueurs, records et grandes finales.", questionCount: 49 },
   { id: "logos-marques", categoryId: "marques", name: "Logos des marques", description: "Reconnais une marque à son logo.", questionCount: 50 },
 ];
 

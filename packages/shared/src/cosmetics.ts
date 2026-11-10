@@ -38,6 +38,7 @@ const THEME_TITLES: Record<string, ThemeTitles> = {
   personnalites: ['Commère', 'Confident', 'Biographe', 'Éminence grise', 'Légende vivante'],
   'mythes-religions': ['Simple mortel', 'Initié', 'Oracle', 'Demi-dieu', 'Divinité Suprême'],
   'sports-equipes': ['Remplaçant', 'Titulaire', 'Capitaine', 'Sélectionneur', 'Légende du Sport'],
+  'sports-football': ['Supporter', 'Ailier', 'Buteur', 'Capitaine', 'Légende du Foot'],
   'logos-marques': ['Zappeur de pubs', 'Graphiste', 'Œil de lynx', 'Directeur artistique', 'Roi des Logos'],
 };
 
