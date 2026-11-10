@@ -128,6 +128,11 @@ export const THEMES: Theme[] = [
   { id: "club-chelsea", categoryId: "clubs", name: "Chelsea", description: "Stamford Bridge, ses buteurs et ses trophées.", questionCount: 100 },
   { id: "club-bayern", categoryId: "clubs", name: "Bayern Munich", description: "Le géant bavarois, ses records et ses légendes.", questionCount: 100 },
   { id: "club-juventus", categoryId: "clubs", name: "Juventus", description: "Turin, ses champions et ses Scudetti.", questionCount: 100 },
+  { id: "manga-anime", categoryId: "litterature-bd", name: "Manga et animé", description: "Auteurs, héros et grandes séries japonaises.", questionCount: 100 },
+  { id: "series-cultes", categoryId: "series", name: "Séries cultes", description: "Les séries qui ont marqué plusieurs générations.", questionCount: 100 },
+  { id: "rap-francais", categoryId: "musique", name: "Rap français", description: "Rappeurs, albums et tubes du rap français.", questionCount: 100 },
+  { id: "auto-f1", categoryId: "automobile", name: "Automobile et F1", description: "Constructeurs, modèles, pilotes et grandes courses.", questionCount: 100 },
+  { id: "marvel-dc", categoryId: "culture-pop", name: "Marvel et DC", description: "Super-héros, films et bandes dessinées.", questionCount: 100 },
   { id: "monde-arabo-musulman", categoryId: "histoire", name: "Monde arabo-musulman", description: "Histoire, savants, villes et cultures du monde arabo-musulman.", questionCount: 100 },
 ];
 

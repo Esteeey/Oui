@@ -17,7 +17,7 @@ import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
 import { Tap } from '@/components/tap';
 
-type Filter = 'all' | 'challenges' | 'friends' | 'results';
+type Filter = 'all' | 'friends' | 'results';
 
 /** Marge du fil de chaque côté de l'écran. */
 const FEED_MARGIN = 7;
@@ -31,7 +31,6 @@ const HEADER_HIT = { top: 8, bottom: 8 };
 
 const FILTERS: { value: Filter; label: string; icon: (selected: boolean) => ReactNode }[] = [
   { value: 'all', label: 'Tout', icon: (selected) => <Ionicons name="home-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
-  { value: 'challenges', label: 'Défis', icon: () => <AppText style={{ fontSize: 12, lineHeight: 16 }}>🔥</AppText> },
   { value: 'friends', label: 'Amis', icon: (selected) => <Ionicons name="people-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
   { value: 'results', label: 'Résultats', icon: (selected) => <Ionicons name="trophy-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
 ];
@@ -41,8 +40,6 @@ function matches(item: FeedItem, filter: Filter, playerId: string | null | undef
   switch (filter) {
     case 'all':
       return true;
-    case 'challenges':
-      return item.kind === 'post' && item.post.target.kind === 'theme';
     case 'friends':
       return item.kind === 'post' ? item.post.target.kind === 'profile' && item.post.author.id !== playerId : item.activity.user.id !== playerId;
     case 'results':
@@ -146,7 +143,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: FEED_MARGIN, paddingTop: 12, gap: 10 },
   // La zone tactile fait 44 px de haut sans changer la taille visible des filtres.
   filterScroll: { flexGrow: 0, marginVertical: -9 },
-  filters: { gap: 5, paddingHorizontal: 12, flexGrow: 1, justifyContent: 'space-between' },
+  filters: { gap: 8, paddingHorizontal: 12, flexGrow: 1 },
   filterHit: { paddingVertical: 9 },
   filter: {
     flexDirection: 'row',

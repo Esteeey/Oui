@@ -2,14 +2,13 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { NEARBY_KM, countryFlag, countryName, type LeaderboardPeriod, type LeaderboardRow, type LeaderboardScope, type PublicProfile } from '@qu1z/shared';
+import { countryFlag, countryName, type LeaderboardPeriod, type LeaderboardRow, type LeaderboardScope, type PublicProfile } from '@qu1z/shared';
 
 import { useCountdown } from '@/components/challenge-card';
 import { Chip, DivisionBadge, Segmented } from '@/components/social';
 import { AppText, Avatar, LoadingState } from '@/components/ui';
 import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useApi } from '@/net/api';
-import { shareApproxLocation } from '@/net/location';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { Tap } from '@/components/tap';
@@ -18,15 +17,13 @@ type Board = { rows: LeaderboardRow[]; me: LeaderboardRow | null; season?: { nam
 
 /**
  * Classement réel, général si `themeId` est absent : XP gagnée cette semaine (remise à zéro le lundi à 00:00 UTC),
- * XP de la saison (le mois en cours) ou cote. Filtres : Amis, Pays, Région, À proximité, Monde.
+ * XP de la saison (le mois en cours) ou cote. Filtres : Amis, Pays, Monde.
  * Ma position est toujours affichée, même hors du haut du classement. `limit` réduit la liste (aperçu d'un thème).
  */
 export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?: number }) {
   const { playerId } = useGameServer();
   const [scope, setScope] = useState<LeaderboardScope>('world');
   const [period, setPeriod] = useState<LeaderboardPeriod>('week');
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
   const me = useApi<PublicProfile>(playerId ? `/api/users/${playerId}` : null);
   const board = useApi<Board>(
     playerId ? `/api/leaderboard?scope=${scope}&period=${period}${themeId ? `&theme=${themeId}` : ''}${limit ? `&limit=${limit}` : ''}` : null,
@@ -35,26 +32,10 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
   const rows = board.data?.rows ?? [];
   const myRow = board.data?.me ?? null;
   const country = me.data?.country ?? null;
-  const region = me.data?.region ?? null;
   const xpPeriod = period !== 'rating';
 
-  // Filtre impossible tant que le joueur n'a pas choisi son pays, sa région ou partagé sa position.
-  const missing =
-    me.data && scope === 'country' && !country
-      ? 'country'
-      : me.data && scope === 'region' && !region
-        ? 'region'
-        : me.data && scope === 'nearby' && !me.data.hasLocation
-          ? 'location'
-          : null;
-
-  const locate = async () => {
-    setLocating(true);
-    setLocationError(await shareApproxLocation());
-    setLocating(false);
-    me.refresh();
-    board.refresh();
-  };
+  // Filtre impossible tant que le joueur n'a pas choisi son pays.
+  const missing = !!me.data && scope === 'country' && !country;
 
   return (
     <View style={{ gap: 5 }}>
@@ -83,34 +64,16 @@ export function LeaderboardPanel({ themeId, limit }: { themeId?: string; limit?:
           [
             ['following', 'Amis'],
             ['country', country ? `${countryFlag(country)} Pays` : 'Pays'],
-            ['region', 'Région'],
-            ['nearby', 'À proximité'],
             ['world', 'Monde'],
           ] as [LeaderboardScope, string][]
         ).map(([value, label]) => (
           <Chip key={value} label={label} active={scope === value} onPress={() => setScope(value)} style={styles.compactChip} />
         ))}
       </ScrollView>
-      {missing === 'location' ? (
-        <View style={styles.notice}>
-          <View style={{ flex: 1, gap: 4 }}>
-            <AppText muted>
-              Partage ta position approximative (à 10 km près, jamais exacte) pour voir les joueurs à moins de {NEARBY_KM} km.
-            </AppText>
-            {locationError && <AppText color={Colors.wrong}>{locationError}</AppText>}
-          </View>
-          <Tap accessibilityRole="button" disabled={locating} onPress={locate}>
-            <AppText variant="label" color={Colors.accentInk}>
-              {locating ? '…' : 'Activer ›'}
-            </AppText>
-          </Tap>
-        </View>
-      ) : missing ? (
+      {missing ? (
         <Tap accessibilityRole="button" onPress={() => router.push('/settings/profile')} style={styles.notice}>
           <AppText muted style={{ flex: 1 }}>
-            {missing === 'country'
-              ? 'Choisis ton pays (facultatif) pour comparer ton score aux joueurs de ton pays.'
-              : 'Choisis ta région (facultatif) pour comparer ton score aux joueurs de ta région.'}
+            Choisis ton pays (facultatif) pour comparer ton score aux joueurs de ton pays.
           </AppText>
           <AppText variant="label" color={Colors.accentInk}>
             Choisir ›

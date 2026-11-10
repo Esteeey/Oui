@@ -11,6 +11,7 @@ import { Colors } from '@/constants/theme';
 import { listenToPushTaps } from '@/net/push';
 import { BannedScreen } from '@/components/banned-screen';
 import { LoginScreen } from '@/components/login-screen';
+import { OnboardingGate } from '@/components/theme-onboarding';
 import { GameServerProvider, useGameServer } from '@/state/game-server';
 import { appBlurTarget } from '@/state/app-blur-target';
 import { OverlayPortalProvider } from '@/components/overlay-portal';
@@ -106,5 +107,5 @@ export default function RootLayout() {
 function BannedGate({ children }: { children: ReactNode }) {
   const { banned, signedOut } = useGameServer();
   if (signedOut) return <LoginScreen />;
-  return banned ? <BannedScreen /> : children;
+  return banned ? <BannedScreen /> : <OnboardingGate>{children}</OnboardingGate>;
 }

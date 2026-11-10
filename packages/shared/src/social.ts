@@ -160,6 +160,9 @@ export interface ActivityView {
     | { kind: 'level'; level: number };
 }
 
+/** Niveaux de thème annoncés dans le fil : seuls les paliers marquants, pour ne pas le noyer. */
+export const FEED_LEVEL_MILESTONES = [5, 10, 25, 50, 100] as const;
+
 export type FeedItem = { kind: 'post'; at: number; post: PostView } | { kind: 'activity'; at: number; activity: ActivityView };
 
 /** Amis (joueurs suivis et soi-même), joueurs du même pays, ou tout le monde. */

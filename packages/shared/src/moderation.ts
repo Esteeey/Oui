@@ -18,6 +18,29 @@ export const REPORT_REASONS: { id: ReportReason; label: string }[] = [
 ];
 export const MAX_REPORT_DETAILS = 500;
 
+/** Signalement d'une question du jeu (erreur de contenu), distinct de la modération des joueurs. */
+export type QuestionReportReason = 'wrong_answer' | 'several_answers' | 'wording' | 'outdated' | 'other';
+export const QUESTION_REPORT_REASONS: { id: QuestionReportReason; label: string }[] = [
+  { id: 'wrong_answer', label: 'La bonne réponse est fausse' },
+  { id: 'several_answers', label: 'Plusieurs réponses sont possibles' },
+  { id: 'wording', label: 'Faute ou question mal formulée' },
+  { id: 'outdated', label: 'La question n’est plus à jour' },
+  { id: 'other', label: 'Autre' },
+];
+export const MAX_QUESTION_REPORT_DETAILS = 300;
+
+/** Question signalée, vue par un administrateur : tous les signalements ouverts regroupés. */
+export interface QuestionReportView {
+  questionId: string;
+  themeId: string;
+  text: string;
+  answer: string;
+  count: number;
+  reasons: { id: string; count: number }[];
+  details: string[];
+  lastAt: number;
+}
+
 export const reasonLabel = (r: string) => REPORT_REASONS.find((x) => x.id === r)?.label ?? r;
 
 export type SanctionLevel = 'warning' | 'suspension' | 'ban';

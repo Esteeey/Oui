@@ -19,6 +19,7 @@ export default function AdminScreenHome() {
   const reports = useApi<{ reports: ReportSummary[] }>(admin ? '/api/mod/reports?status=open' : null);
   const appeals = useApi<{ appeals: AppealSummary[] }>(admin ? '/api/mod/appeals' : null);
   const sounds = useApi<{ sounds: SoundOverride[] }>(admin ? '/api/admin/sounds' : null);
+  const flagged = useApi<{ questions: unknown[] }>(admin ? '/api/admin/question-reports' : null);
 
   if (me.data && !admin) {
     return (
@@ -40,6 +41,14 @@ export default function AdminScreenHome() {
         <View style={styles.pair}>
           <Counter value={open?.length} label={open?.length === 1 ? 'Signalement' : 'Signalements'} hint={priority ? `${priority} prioritaire${priority > 1 ? 's' : ''}` : 'Ouverts'} href={moderation('reports')} />
           <Counter value={pending?.length} label={pending?.length === 1 ? 'Appel' : 'Appels'} hint="En attente" href={moderation('appeals')} />
+        </View>
+        <View style={styles.pair}>
+          <Counter
+            value={flagged.data?.questions.length}
+            label={flagged.data?.questions.length === 1 ? 'Question signalée' : 'Questions signalées'}
+            hint="Erreurs à vérifier"
+            href={'/admin/question-reports' as Href}
+          />
         </View>
       </View>
 

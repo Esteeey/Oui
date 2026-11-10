@@ -54,6 +54,11 @@ const THEME_TITLES: Record<string, ThemeTitles> = {
   'club-chelsea': ['Visiteur du Bridge', 'Blue', 'Habitué du Shed End', 'Capitaine des Blues', 'Légende de Chelsea'],
   'club-bayern': ['Visiteur de l’Allianz', 'Bavarois', 'Habitué de la Südkurve', 'Capitaine du Bayern', 'Légende du Bayern'],
   'club-juventus': ['Visiteur de Turin', 'Juventino', 'Bianconero', 'Capitaine de la Vieille Dame', 'Légende de la Juve'],
+  'manga-anime': ['Lecteur du dimanche', 'Otaku', 'Mangaka en herbe', 'Sensei', 'Dieu du Manga'],
+  'series-cultes': ['Zappeur', 'Binge-watcher', 'Critique de séries', 'Showrunner', 'Roi du Petit Écran'],
+  'rap-francais': ['Auditeur', 'Beatmaker', 'Freestyler', 'Disque de Platine', 'Légende du Rap'],
+  'auto-f1': ['Spectateur', 'Mécano', 'Pilote de course', 'Poleman', 'Champion du Monde'],
+  'marvel-dc': ['Civil', 'Sidekick', 'Justicier', 'Super-héros', 'Légende des Comics'],
   'monde-arabo-musulman': ['Voyageur', 'Lettré', 'Calligraphe', 'Savant de Bagdad', 'Gardien de la Sagesse'],
 };
 

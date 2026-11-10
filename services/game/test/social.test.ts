@@ -293,6 +293,46 @@ describe('thèmes, publications, fils', () => {
     expect(await kinds(me)).toEqual(['loss', 'win']);
   });
 
+  it('question signalée : un signalement par joueur, liste réservée aux administrateurs, clôture', async () => {
+    const a = await user('Signaleur');
+    const b = await user('Autre');
+    const admin = await user('Chef');
+    await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [admin.id]);
+    const report = (u: U, reason: string, details?: string) =>
+      call(u, 'POST', '/api/question-reports', { themeId: 'club-psg', questionId: 'club-psg-001', reason, details });
+    expect((await report(a, 'wrong_answer', 'C’est 1970 ?')).status).toBe(200);
+    expect((await report(a, 'wording')).status).toBe(200);
+    expect((await report(b, 'wording')).status).toBe(200);
+    expect((await report(a, 'inconnu')).status).toBe(400);
+    expect((await call(a, 'POST', '/api/question-reports', { themeId: 'club-psg', questionId: 'absente', reason: 'other' })).status).toBe(404);
+    expect((await call(a, 'GET', '/api/admin/question-reports')).status).toBe(403);
+    const list = (await ok(call<{ questions: { questionId: string; count: number; reasons: { id: string; count: number }[]; answer: string }[] }>(admin, 'GET', '/api/admin/question-reports'))).questions;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ questionId: 'club-psg-001', count: 2, answer: '1970', reasons: [{ id: 'wording', count: 2 }] });
+    await ok(call(admin, 'POST', '/api/admin/question-reports/resolve', { questionId: 'club-psg-001' }));
+    expect((await ok(call<{ questions: unknown[] }>(admin, 'GET', '/api/admin/question-reports'))).questions).toHaveLength(0);
+  });
+
+  it('page de thème : met en avant un abonné suivi, sinon un profil public, jamais un profil privé inconnu', async () => {
+    const me = await user('Moi');
+    const pub = await user('Public');
+    const friend = await user('Ami');
+    const hidden = await user('Discret');
+    await db.query('UPDATE profiles SET is_private = true WHERE user_id = $1', [hidden.id]);
+    const featured = () => ok(call<{ subscribers: number; follower: { id: string } | null }>(me, 'GET', '/api/themes/sports-jo/featured-follower'));
+    expect(await featured()).toEqual({ subscribers: 0, follower: null });
+    await ok(call(hidden, 'PUT', '/api/themes/sports-jo/subscription'));
+    expect((await featured()).follower).toBeNull();
+    await ok(call(pub, 'PUT', '/api/themes/sports-jo/subscription'));
+    await ok(call(friend, 'PUT', '/api/themes/sports-jo/subscription'));
+    await ok(call(me, 'PUT', '/api/themes/sports-jo/subscription'));
+    await db.query('INSERT INTO follows (follower_id, followee_id) VALUES ($1, $2)', [me.id, friend.id]);
+    const f = await featured();
+    expect(f.subscribers).toBe(4);
+    expect(f.follower?.id).toBe(friend.id);
+    expect((await call(me, 'GET', '/api/themes/inconnu/featured-follower')).status).toBe(404);
+  });
+
   it('likes : un seul par joueur, retrait possible', async () => {
     const a = await user('Thomas');
     const b = await user('Paul');

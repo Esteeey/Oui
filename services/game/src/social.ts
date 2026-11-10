@@ -6,7 +6,12 @@ import {
   MAX_POST_LENGTH,
   PSEUDO_PATTERN,
   extractMentions,
+  FEED_LEVEL_MILESTONES,
+  MAX_QUESTION_REPORT_DETAILS,
+  QUESTION_REPORT_REASONS,
   getTheme,
+  questionsOf,
+  type QuestionReportView,
   isCountryCode,
   isSticker,
   levelFromXp,
@@ -477,6 +482,23 @@ export class Social {
     return themeIds.map((id) => ({ themeId: id, subscribers: byId.get(id)?.n ?? 0, subscribed: byId.get(id)?.mine ?? false }));
   }
 
+  /** Abonné mis en avant sur la page d'un thème : d'abord un joueur que l'on suit, sinon un profil public, le plus avancé dans le thème. */
+  async themeFeaturedFollower(viewer: string, themeId: string): Promise<{ subscribers: number; follower: UserSummary | null }> {
+    if (!getTheme(themeId)) throw new SocialError(404, 'unknown_theme');
+    const rows = await this.db.query<SummaryRow>(
+      `SELECT ${SUMMARY_COLUMNS} FROM theme_subscriptions ts
+       JOIN users u ON u.id = ts.user_id JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN theme_stats st ON st.user_id = u.id AND st.theme_id = ts.theme_id
+       WHERE ts.theme_id = $2 AND u.id <> $1 AND u.status <> 'banned' AND ${notBlocked('u.id')}
+         AND (NOT p.is_private OR EXISTS (SELECT 1 FROM follows fo WHERE fo.follower_id = $1 AND fo.followee_id = u.id))
+       ORDER BY EXISTS (SELECT 1 FROM follows fo WHERE fo.follower_id = $1 AND fo.followee_id = u.id) DESC, coalesce(st.xp, 0) DESC, ts.created_at
+       LIMIT 1`,
+      [viewer, themeId],
+    );
+    const [count] = await this.db.query<{ n: number }>('SELECT count(*)::int AS n FROM theme_subscriptions WHERE theme_id = $1', [themeId]);
+    return { subscribers: count?.n ?? 0, follower: rows[0] ? summary(rows[0]) : null };
+  }
+
   async setThemeSubscription(viewer: string, themeId: string, subscribed: boolean): Promise<ThemeInfo> {
     if (!getTheme(themeId)) throw new SocialError(404, 'unknown_theme');
     if (subscribed) {
@@ -682,7 +704,8 @@ export class Social {
       const base = { user: summary(r), themeId: rec.themeId, createdAt: new Date(r.created_at).getTime() };
       const levelBefore = levelFromXp(rec.xpBefore).level;
       const after = levelFromXp(rec.xpBefore + rec.xpGained).level;
-      if (after > levelBefore) out.push({ ...base, id: `${r.duel_id}:${r.id}:level`, event: { kind: 'level', level: after } });
+      const milestone = [...FEED_LEVEL_MILESTONES].reverse().find((m) => levelBefore < m && m <= after);
+      if (milestone) out.push({ ...base, id: `${r.duel_id}:${r.id}:level`, event: { kind: 'level', level: milestone } });
       if (rec.player.length === rec.questions.length && rec.player.length > 0 && rec.player.every((a) => a.correct)) {
         out.push({ ...base, id: `${r.duel_id}:${r.id}:perfect`, event: { kind: 'perfect' } });
       } else if (r.id === viewer && !r.pinned && (rec.outcome === 'win' || rec.outcome === 'loss')) {
@@ -723,6 +746,56 @@ export class Social {
   async unpinDuel(viewer: string, duelId: string): Promise<{ pinned: false }> {
     await this.db.query('UPDATE posts SET removed_at = now() WHERE author_id = $1 AND duel_id = $2 AND removed_at IS NULL', [viewer, duelId]);
     return { pinned: false };
+  }
+
+  // ---- Questions signalées ------------------------------------------------------------------
+
+  /** Un joueur signale une erreur dans une question. Un nouveau signalement de la même question remplace le sien. */
+  async reportQuestion(viewer: string, themeId: unknown, questionId: unknown, reason: unknown, rawDetails: unknown): Promise<{ ok: true }> {
+    const question = questionsOf(String(themeId ?? '')).find((q) => q.id === String(questionId ?? ''));
+    if (!question) throw new SocialError(404, 'not_found');
+    if (!QUESTION_REPORT_REASONS.some((r) => r.id === reason)) throw new SocialError(400, 'invalid_reason');
+    const details = String(rawDetails ?? '').trim().slice(0, MAX_QUESTION_REPORT_DETAILS) || null;
+    this.limit('report', viewer);
+    await this.db.query(
+      `INSERT INTO question_reports (reporter_id, question_id, theme_id, reason, details, question_text, correct_answer)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (reporter_id, question_id) DO UPDATE
+         SET reason = EXCLUDED.reason, details = EXCLUDED.details, created_at = now(), resolved_at = NULL`,
+      [viewer, question.id, question.themeId, reason, details, question.text, question.choices[0]],
+    );
+    return { ok: true };
+  }
+
+  private async requireAdmin(viewer: string): Promise<void> {
+    const [user] = await this.db.query<{ role: string }>('SELECT role FROM users WHERE id = $1', [viewer]);
+    if (user?.role !== 'admin') throw new SocialError(403, 'forbidden');
+  }
+
+  /** Questions signalées et pas encore traitées, les plus signalées d'abord (administrateurs). */
+  async questionReports(viewer: string): Promise<QuestionReportView[]> {
+    await this.requireAdmin(viewer);
+    const rows = await this.db.query<{ question_id: string; theme_id: string; reason: string; details: string | null; question_text: string; correct_answer: string; created_at: Date }>(
+      'SELECT question_id, theme_id, reason, details, question_text, correct_answer, created_at FROM question_reports WHERE resolved_at IS NULL ORDER BY created_at DESC',
+    );
+    const byQuestion = new Map<string, QuestionReportView>();
+    for (const r of rows) {
+      const at = new Date(r.created_at).getTime();
+      const view = byQuestion.get(r.question_id) ?? { questionId: r.question_id, themeId: r.theme_id, text: r.question_text, answer: r.correct_answer, count: 0, reasons: [], details: [], lastAt: at };
+      view.count += 1;
+      const reason = view.reasons.find((x) => x.id === r.reason);
+      if (reason) reason.count += 1;
+      else view.reasons.push({ id: r.reason, count: 1 });
+      if (r.details) view.details.push(r.details);
+      byQuestion.set(r.question_id, view);
+    }
+    return [...byQuestion.values()].sort((a, b) => b.count - a.count || b.lastAt - a.lastAt);
+  }
+
+  async resolveQuestionReports(viewer: string, questionId: unknown): Promise<{ ok: true }> {
+    await this.requireAdmin(viewer);
+    await this.db.query('UPDATE question_reports SET resolved_at = now() WHERE question_id = $1 AND resolved_at IS NULL', [String(questionId ?? '')]);
+    return { ok: true };
   }
 
   // ---- Likes et commentaires ---------------------------------------------------------------

@@ -17,6 +17,7 @@ import {
   type ChallengeView,
   type PostView,
   type ThemeInfo,
+  type UserSummary,
 } from '@qu1z/shared';
 
 import { Composer } from '@/components/composer';
@@ -26,8 +27,10 @@ import { UserRow } from '@/components/player-row';
 import { PostCard } from '@/components/post-card';
 import { OutcomeBar } from '@/components/profile-view';
 import { DivisionBadge } from '@/components/social';
-import { AppText, Button, Card, LoadingState, ProgressBar, Stat } from '@/components/ui';
+import { AppText, Avatar, Button, Card, LoadingState, ProgressBar, Stat } from '@/components/ui';
+import { avatarColor } from '@/utils/avatar';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { ThemeIcon } from '@/components/theme-icon';
 import { themeCover } from '@/game/theme-covers';
 import { mediaUri } from '@/net/media';
 import { api, apiBase, errorMessage, TOKEN_KEY, useApi } from '@/net/api';
@@ -45,11 +48,12 @@ const Page = {
   pink: Colors.accent,
   navy: '#0B1630',
   play: [Colors.accent, Colors.accent],
+  purple: '#7B2FFF',
 } as const;
 
 /** Hauteur du haut sombre (sous la barre d'état), jusque sous les boutons. */
-const HERO_HEIGHT = 450;
-const ICON_SIZE = 112;
+const HERO_HEIGHT = 290;
+const ICON_SIZE = 96;
 
 type Tab = 'feed' | 'quiz' | 'challenges' | 'ranking';
 const TABS: { value: Tab; label: string }[] = [
@@ -72,6 +76,11 @@ export default function ThemeScreen() {
   const info = useApi<{ themes: ThemeInfo[] }>('/api/themes');
   const themeInfo = info.data?.themes.find((t) => t.themeId === theme?.id);
   const subscribed = themeInfo?.subscribed ?? false;
+  const featured = useApi<{ subscribers: number; follower: UserSummary | null }>(theme ? '/api/themes/' + theme.id + '/featured-follower' : null);
+  const featuredFollower = featured.data?.follower ?? null;
+  const subscriberCount = featured.data?.subscribers ?? themeInfo?.subscribers ?? 0;
+  const followersOthers = Math.max(0, subscriberCount - 1 - (subscribed ? 1 : 0));
+  const themeLevel = levelFromXp(stats.xp).level;
   // Le fil n'est chargé (et visible) qu'une fois le thème suivi.
   const posts = useApi<{ posts: PostView[] }>(theme && subscribed ? `/api/themes/${theme.id}/posts` : null);
   const [tab, setTab] = useState<Tab>('feed');
@@ -141,47 +150,86 @@ export default function ThemeScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }} showsVerticalScrollIndicator={false}>
         <HeroBackground themeId={theme.id} height={HERO_HEIGHT + insets.top} />
-        <View style={[styles.column, { paddingTop: insets.top + 120 }]}>
+        <View style={[styles.column, { paddingTop: insets.top + Spacing.md }]}>
           <View style={styles.hero}>
             <View style={[styles.icon, { backgroundColor: category.color }]}>
-              <LinearGradient colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0)']} style={StyleSheet.absoluteFill} />
-              {theme.iconUrl ? <Image source={{ uri: mediaUri(theme.iconUrl) ?? theme.iconUrl }} contentFit="cover" style={StyleSheet.absoluteFill} /> : <AppText style={styles.iconEmoji}>{category.icon}</AppText>}
+              {theme.iconUrl ? <Image source={{ uri: mediaUri(theme.iconUrl) ?? theme.iconUrl }} contentFit="cover" style={StyleSheet.absoluteFill} /> : <ThemeIcon themeId={theme.id} size={ICON_SIZE} style={{ borderRadius: 0 }} />}
             </View>
-            <AppText style={styles.name}>{theme.name}</AppText>
+            <OutlinedTitle text={theme.name} />
             <AppText style={styles.tagline}>{theme.description}</AppText>
 
-            <View style={styles.actions}>
-              <Tap accessibilityRole="button" accessibilityLabel="Ouvrir le menu de jeu" onPress={() => setPlayMenuOpen(true)} style={styles.playWrap}>
-                <LinearGradient colors={Page.play} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.play}>
-                  <Ionicons name="play" size={20} color="#FFFFFF" />
-                  <AppText style={styles.playLabel}>Jouer</AppText>
-                </LinearGradient>
-              </Tap>
-              <SoftButton icon={<Ionicons name="trophy-outline" size={21} color={Colors.text} />} label="Classement" onPress={() => setTab('ranking')} grow={1.15} />
-              <SoftButton
-                icon={<Ionicons name={subscribed ? 'checkmark' : 'add'} size={22} color={Colors.text} />}
-                label={subscribed ? 'Suivi' : 'Suivre'}
-                onPress={toggleSubscription}
-                grow={0.9}
-              />
+            <View style={styles.followRow}>
+              <View style={styles.followBy}>
+                <Ionicons name="people-outline" size={24} color="#FF7FAE" />
+                <AppText style={styles.followByLabel}>Suivi par</AppText>
+              </View>
+              <View style={styles.followDivider} />
+              {featuredFollower ? (
+                <Tap
+                  accessibilityRole="link"
+                  accessibilityLabel={featuredFollower.pseudo + ' suit ce thème'}
+                  onPress={() => router.push({ pathname: '/player/[id]', params: { id: featuredFollower.id } })}
+                  style={styles.follower}>
+                  <Avatar name={featuredFollower.pseudo} color={avatarColor(featuredFollower.id)} uri={featuredFollower.avatar} size={40} />
+                  <View style={styles.followerText}>
+                    <AppText style={styles.followerName} numberOfLines={1}>{featuredFollower.pseudo}</AppText>
+                    <AppText style={styles.followerSub} numberOfLines={1}>
+                      {followersOthers > 0 ? 'et ' + formatCount(followersOthers) + (followersOthers > 1 ? ' autres' : ' autre') : 'suit ce thème'}
+                    </AppText>
+                  </View>
+                </Tap>
+              ) : (
+                <View style={styles.follower}>
+                  <View style={styles.followerText}>
+                    <AppText style={styles.followerName} numberOfLines={1}>
+                      {subscriberCount === 0 ? 'Personne' : formatCount(subscriberCount) + (subscriberCount > 1 ? ' joueurs' : ' joueur')}
+                    </AppText>
+                    <AppText style={styles.followerSub} numberOfLines={1}>{subscriberCount === 0 ? 'Sois le premier !' : subscriberCount > 1 ? 'suivent ce thème' : 'suit ce thème'}</AppText>
+                  </View>
+                </View>
+              )}
+              <View style={styles.followDivider} />
+              <View style={styles.levelBox} accessible accessibilityLabel={'Ton niveau dans ce thème : ' + themeLevel}>
+                <AppText style={styles.levelLabel}>Niveau</AppText>
+                <AppText style={styles.levelValue}>{themeLevel}</AppText>
+              </View>
             </View>
 
             <View style={styles.questionProgress}>
               <View style={styles.questionProgressHeading}>
                 <View style={styles.questionProgressLabel}>
-                  <Ionicons name="help-circle-outline" size={20} color={Page.pink} />
+                  <Ionicons name="help-circle-outline" size={24} color={Page.pink} />
                   <AppText style={styles.questionLabel}>Questions rencontrées</AppText>
                 </View>
                 <AppText style={styles.questionCount}>
-                  {questionCoverage.data ? formatCount(seenQuestions) : '–'} / {formatCount(totalQuestions)}
+                  {(questionCoverage.data ? formatCount(seenQuestions) : '–') + ' / ' + formatCount(totalQuestions)}
+                  <AppText style={styles.questionDot}>{'  •  '}</AppText>
+                  {Math.round(questionProgress * 100) + ' %'}
                 </AppText>
               </View>
               <View
                 style={styles.questionTrack}
                 accessible
-                accessibilityLabel={`${seenQuestions} questions distinctes rencontrées sur ${totalQuestions} questions disponibles`}>
+                accessibilityLabel={seenQuestions + ' questions distinctes rencontrées sur ' + totalQuestions + ' questions disponibles'}>
                 <View style={[styles.questionFill, { width: (Math.round(questionProgress * 100) + '%') }]} />
               </View>
+            </View>
+
+            <View style={styles.actions}>
+              <SoftButton
+                icon={<Ionicons name="game-controller-outline" size={24} color={Page.pink} />}
+                label="Jouer"
+                color={Page.pink}
+                accessibilityLabel="Ouvrir le menu de jeu"
+                onPress={() => setPlayMenuOpen(true)}
+              />
+              <SoftButton icon={<Ionicons name="trophy-outline" size={22} color={Page.purple} />} label="Classement" color={Page.purple} grow={1.25} onPress={() => setTab('ranking')} />
+              <SoftButton
+                icon={<Ionicons name={subscribed ? 'checkmark' : 'add'} size={24} color={Colors.text} />}
+                label={subscribed ? 'Suivi' : 'Suivre'}
+                color={Colors.text}
+                onPress={toggleSubscription}
+              />
             </View>
           </View>
 
@@ -333,21 +381,36 @@ function HeroBackground({ themeId, height }: { themeId: string; height: number }
     <View pointerEvents="none" style={[styles.heroBg, { height }]}>
       {coverSource !== null && <Image source={coverSource} contentFit="cover" style={StyleSheet.absoluteFill} accessibilityIgnoresInvertColors />}
       <LinearGradient
-        colors={['rgba(5,10,24,0.18)', 'rgba(5,10,24,0.34)', Page.background]}
-        locations={[0, 0.58, 1]}
+        colors={['rgba(5,10,24,0.12)', 'rgba(5,10,24,0.22)', Page.background]}
+        locations={[0, 0.72, 1]}
         style={StyleSheet.absoluteFill}
       />
     </View>
   );
 }
-function SoftButton({ icon, label, onPress, grow }: { icon: ReactNode; label: string; onPress: () => void; grow: number }) {
+function SoftButton({ icon, label, color, onPress, accessibilityLabel, grow = 1 }: { icon: ReactNode; label: string; color: string; onPress: () => void; accessibilityLabel?: string; grow?: number }) {
   return (
-    <Tap accessibilityRole="button" onPress={onPress} style={[styles.soft, { flex: grow }]}>
+    <Tap accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={[styles.soft, { flex: grow }]}>
       {icon}
-      <AppText style={styles.softLabel} numberOfLines={1}>
+      <AppText style={[styles.softLabel, { color }]} numberOfLines={1}>
         {label}
       </AppText>
     </Tap>
+  );
+}
+
+/** Nom du thème en blanc cerné de noir (copies décalées derrière : rendu identique sur le web et sur mobile). */
+const OUTLINE_OFFSETS = [[-2, 0], [2, 0], [0, -2], [0, 2], [-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5], [0, 3]] as const;
+function OutlinedTitle({ text }: { text: string }) {
+  return (
+    <View style={styles.titleWrap} accessible accessibilityRole="header" accessibilityLabel={text}>
+      {OUTLINE_OFFSETS.map(([x, y], i) => (
+        <AppText key={i} importantForAccessibility="no" style={[styles.name, styles.nameOutline, { transform: [{ translateX: x }, { translateY: y }] }]}>
+          {text}
+        </AppText>
+      ))}
+      <AppText style={styles.name}>{text}</AppText>
+    </View>
   );
 }
 
@@ -495,42 +558,44 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     boxShadow: '0 8px 22px rgba(0, 0, 0, 0.35)',
   },
-  iconEmoji: { fontSize: 60, lineHeight: 72 },
-  name: { marginTop: Spacing.md, paddingTop: 2, fontSize: 30, lineHeight: 40, fontWeight: '800', letterSpacing: -0.6, color: '#FFFFFF', textAlign: 'center' },
-  tagline: { marginTop: Spacing.xs, fontSize: 17, color: 'rgba(255,255,255,0.88)', textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.md, alignSelf: 'stretch' },
-  playWrap: { flex: 1.1, borderRadius: 26, boxShadow: '0 8px 18px rgba(252, 2, 102, 0.38)' },
-  play: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, height: 40, borderRadius: 22 },
+  titleWrap: { marginTop: Spacing.md, alignSelf: 'stretch' },
+  name: { paddingTop: 2, fontSize: 32, lineHeight: 42, fontWeight: '900', letterSpacing: -0.6, color: '#FFFFFF', textAlign: 'center' },
+  nameOutline: { position: 'absolute', left: 0, right: 0, top: 0, color: '#111116' },
+  tagline: { marginTop: 2, fontSize: 16, fontWeight: '600', color: '#FFFFFF', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 4 },
+  followRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginTop: Spacing.lg, gap: Spacing.sm },
+  followBy: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  followByLabel: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
+  followDivider: { width: 1.5, height: 30, backgroundColor: 'rgba(255,255,255,0.75)' },
+  follower: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  followerText: { flex: 1, minWidth: 0 },
+  followerName: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
+  followerSub: { fontSize: 13, color: 'rgba(255,255,255,0.88)' },
+  levelBox: { alignItems: 'center', minWidth: 58 },
+  levelLabel: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  levelValue: { fontSize: 24, lineHeight: 28, fontWeight: '900', color: '#FFFFFF' },
+  actions: { flexDirection: 'row', gap: Spacing.xs + 2, marginTop: Spacing.md, alignSelf: 'stretch' },
   playLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   soft: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    height: 40,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: 26,
-    backgroundColor: Page.soft,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
-    boxShadow: '0 4px 12px rgba(18, 26, 51, 0.12)',
-  },
-  softLabel: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  questionProgress: {
-    alignSelf: 'stretch',
-    marginTop: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
     gap: Spacing.xs,
+    flex: 1,
+    minWidth: 0,
+    height: 44,
+    paddingHorizontal: Spacing.xs,
+    borderRadius: 16,
     backgroundColor: Page.surface,
-    borderRadius: Radius.md,
-    boxShadow: '0 4px 16px rgba(18, 26, 51, 0.08)',
+    boxShadow: '0 4px 14px rgba(18, 26, 51, 0.12)',
   },
+  softLabel: { fontSize: 14, fontWeight: '900', flexShrink: 1 },
+  questionProgress: { alignSelf: 'stretch', marginTop: Spacing.lg, paddingHorizontal: Spacing.xs, gap: Spacing.sm },
   questionProgressHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   questionProgressLabel: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  questionLabel: { fontSize: 14, color: Colors.text, fontWeight: '700' },
-  questionCount: { fontSize: 15, color: Colors.text, fontWeight: '800' },
-  questionTrack: { height: 4, borderRadius: Radius.pill, overflow: 'hidden', backgroundColor: '#E8E7EC' },
+  questionLabel: { fontSize: 15, color: Colors.text, fontWeight: '800' },
+  questionCount: { fontSize: 15, color: Colors.text, fontWeight: '900' },
+  questionDot: { fontSize: 15, color: '#A6A3AD', fontWeight: '900' },
+  questionTrack: { height: 8, borderRadius: Radius.pill, overflow: 'hidden', backgroundColor: '#E8E7EC' },
   questionFill: { height: '100%', borderRadius: Radius.pill, backgroundColor: Page.pink },
   tabs: {
     flexDirection: 'row',

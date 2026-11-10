@@ -39,6 +39,7 @@ import { Tap } from '@/components/tap';
 import { XpProgress } from '@/components/xp-progress';
 import { haptic } from '@/utils/haptics';
 import { DuelChat } from '@/components/duel-chat';
+import { QuestionReportSheet, type ReportedQuestion } from '@/components/question-report-sheet';
 
 const R = {
   bg: '#000000',
@@ -67,6 +68,7 @@ export default function ResultsScreen() {
   const game = useGameServer();
   const duel = game.duel;
   const [details, setDetails] = useState(false);
+  const [reportedQuestion, setReportedQuestion] = useState<ReportedQuestion | null>(null);
   const [rematch, setRematch] = useState<string | null>(null);
   const [rematchBusy, setRematchBusy] = useState(false);
 
@@ -318,6 +320,7 @@ export default function ResultsScreen() {
             </AppText>
           )}
 
+          <QuestionReportSheet question={reportedQuestion} onClose={() => setReportedQuestion(null)} />
           <Tap accessibilityRole="button" onPress={() => setDetails((d) => !d)} style={styles.detailsToggle}>
             <AppText variant="label" color={R.muted}>
               {details ? 'Masquer le détail des questions' : 'Voir le détail des questions'}
@@ -337,6 +340,17 @@ export default function ResultsScreen() {
                     <AppText variant="caption" color={R.muted} style={{ flex: 1 }}>
                       {i + 1}. {q.text}
                     </AppText>
+                    <Tap
+                      accessibilityRole="button"
+                      accessibilityLabel={`Signaler la question ${i + 1}`}
+                      hitSlop={10}
+                      onPress={() => setReportedQuestion({ id: q.id, themeId: duel.themeId, text: q.text })}
+                      style={styles.flag}>
+                      <Ionicons name="flag-outline" size={16} color={R.muted} />
+                      <AppText variant="caption" color={R.muted}>
+                        Signaler
+                      </AppText>
+                    </Tap>
                   </View>
                   <AppText variant="label" color={R.win}>
                     {q.choices[q.correctIndex]}
@@ -497,6 +511,7 @@ const styles = StyleSheet.create({
   secondary: { flexDirection: 'row', gap: 12 },
   secondaryButton: { flex: 1, height: 54, borderRadius: 10, backgroundColor: '#111113', alignItems: 'center', justifyContent: 'center' },
   detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Spacing.sm },
+  flag: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 30 },
   detail: { borderTopWidth: 1, borderTopColor: R.line, paddingTop: Spacing.sm, gap: 6 },
   thumb: { width: 54, height: 36, borderRadius: 6 },
   pill: { flex: 1, flexDirection: 'row', gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },

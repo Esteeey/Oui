@@ -299,7 +299,14 @@ export function createApi(
     ['PUT', /^\/api\/admin\/themes\/([^/]+)\/(icon|cover)$/, async ({ userId, params, raw }) => themeCatalog.setAsset(userId, params[0], params[1] as 'icon' | 'cover', await raw(MEDIA_MAX_BYTES))],
     ['POST', /^\/api\/admin\/themes\/([^/]+)\/publish$/, async ({ userId, params }) => ({ theme: await themeCatalog.publish(userId, params[0]) })],
     // Thèmes
+    ['POST', /^\/api\/question-reports$/, async ({ userId, body }) => {
+      const b = await body();
+      return social.reportQuestion(userId, b.themeId, b.questionId, b.reason, b.details);
+    }],
+    ['GET', /^\/api\/admin\/question-reports$/, async ({ userId }) => ({ questions: await social.questionReports(userId) })],
+    ['POST', /^\/api\/admin\/question-reports\/resolve$/, async ({ userId, body }) => social.resolveQuestionReports(userId, (await body()).questionId)],
     ['GET', /^\/api\/themes$/, async ({ userId }) => ({ themes: await social.themeInfo(userId, THEMES.map((t) => t.id)) })],
+    ['GET', /^\/api\/themes\/([^/]+)\/featured-follower$/, async ({ userId, params }) => social.themeFeaturedFollower(userId, params[0])],
     ['PUT', /^\/api\/themes\/([^/]+)\/subscription$/, async ({ userId, params }) => social.setThemeSubscription(userId, params[0], true)],
     ['DELETE', /^\/api\/themes\/([^/]+)\/subscription$/, async ({ userId, params }) => social.setThemeSubscription(userId, params[0], false)],
 
