@@ -42,9 +42,9 @@ const Page = {
   background: '#F6F5F8',
   surface: '#FFFFFF',
   soft: '#F7F3F5',
-  pink: '#E8146C',
+  pink: Colors.accent,
   navy: '#0B1630',
-  play: ['#F52A7E', '#E0105E'],
+  play: [Colors.accent, Colors.accent],
 } as const;
 
 /** Hauteur du haut sombre (sous la barre d'état), jusque sous les boutons. */
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
   name: { marginTop: Spacing.md, paddingTop: 2, fontSize: 30, lineHeight: 40, fontWeight: '800', letterSpacing: -0.6, color: '#FFFFFF', textAlign: 'center' },
   tagline: { marginTop: Spacing.xs, fontSize: 17, color: 'rgba(255,255,255,0.88)', textAlign: 'center' },
   actions: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.md, alignSelf: 'stretch' },
-  playWrap: { flex: 1.1, borderRadius: 26, boxShadow: '0 8px 18px rgba(232, 20, 108, 0.38)' },
+  playWrap: { flex: 1.1, borderRadius: 26, boxShadow: '0 8px 18px rgba(252, 2, 102, 0.38)' },
   play: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, height: 40, borderRadius: 22 },
   playLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   soft: {
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
   },
   lockIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDE7F0' },
   lockedTitle: { fontSize: 19, fontWeight: '800', color: '#0F0F14', textAlign: 'center' },
-  lockedButton: { alignSelf: 'stretch', marginTop: Spacing.sm, borderRadius: 26, boxShadow: '0 8px 18px rgba(232, 20, 108, 0.3)' },
+  lockedButton: { alignSelf: 'stretch', marginTop: Spacing.sm, borderRadius: 26, boxShadow: '0 8px 18px rgba(252, 2, 102, 0.3)' },
   lockedButtonFill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, height: 52, borderRadius: 26 },
   topBar: { position: 'absolute', left: Spacing.md, right: Spacing.md, flexDirection: 'row', justifyContent: 'space-between' },
   topButton: {

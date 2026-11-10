@@ -136,9 +136,9 @@ export function AppNavBar() {
         accessibilityState={{ selected: active === 'versus' }}
         onPress={() => router.navigate('/play' as Href)}
         style={({ pressed }) => [styles.vs, { bottom: bottom - 3 }, pressed && { transform: [{ scale: 0.95 }] }]}>
-        <LinearGradient colors={['#FD40A6', '#F41180', '#D70963']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.vsFill}>
+        <View style={styles.vsFill}>
           <Logo size={34} color={Colors.onAccent} />
-        </LinearGradient>
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     borderRadius: VS_SIZE / 2,
     boxShadow: '0 4px 7px rgba(150, 0, 80, 0.38)',
   },
-  vsFill: { flex: 1, borderRadius: VS_SIZE / 2, alignItems: 'center', justifyContent: 'center' },
+  vsFill: { flex: 1, borderRadius: VS_SIZE / 2, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
   badge: {
     position: 'absolute',
     top: -5,

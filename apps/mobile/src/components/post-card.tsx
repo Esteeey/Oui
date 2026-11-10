@@ -80,7 +80,7 @@ export function PostCard({
       <View style={styles.actions}>
         <View style={styles.actionSlot}>
           <Tap accessibilityRole="button" accessibilityLabel={`J’aime, ${likes}`} accessibilityState={{ selected: isLiked }} onPress={toggleLike} style={styles.action}>
-            <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={21} color="#FF2E93" />
+            <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={21} color={Colors.accent} />
             <AppText color={Colors.ink} style={styles.count}>
               {likes}
             </AppText>

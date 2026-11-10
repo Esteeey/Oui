@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Colors } from '@/constants/theme';
 import { StyleSheet, View } from 'react-native';
 import Animated, { ZoomIn, useReducedMotion } from 'react-native-reanimated';
 
@@ -18,7 +19,7 @@ export function xpSegments(r: Rewards): XpSegment[] {
     { label: 'Score', value: r.scorePoints ?? 0, color: '#3B82F6' },
     { label: 'Bonus fin', value: r.finishBonus, color: '#22C55E' },
     { label: 'Bonus victoire', value: r.victoryBonus, color: '#F5B700' },
-    { label: 'Bonus boost', value: r.boostBonus, color: '#FF3B83' },
+    { label: 'Bonus boost', value: r.boostBonus, color: Colors.accent },
   ].filter((s) => s.value > 0);
 }
 

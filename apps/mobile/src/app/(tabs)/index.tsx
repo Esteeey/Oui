@@ -25,7 +25,7 @@ const FEED_MARGIN = 7;
 /** Texte et icônes des filtres non sélectionnés : gris sombre neutre. */
 const FILTER_INK = '#3D3B47';
 /** Rose vif et clair du filtre sélectionné. */
-const FILTER_ACTIVE = '#FF2E93';
+const FILTER_ACTIVE = Colors.accent;
 /** Agrandit vers le haut et le bas la zone tactile des petits contrôles du header (44 px). */
 const HEADER_HIT = { top: 8, bottom: 8 };
 

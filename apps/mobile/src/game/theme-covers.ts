@@ -39,6 +39,24 @@ const CATEGORY_COVERS: Record<CategoryId, number> = {
   marques: require('@/assets/covers/tech-inventions.png'),
 };
 
+const STADIUM = require('@/assets/covers/category-stadium.jpg');
+
+/** Image du haut de la page d'une catégorie. */
+export function categoryHero(categoryId: CategoryId): number {
+  return categoryId === 'sports' || categoryId === 'clubs' ? STADIUM : CATEGORY_COVERS[categoryId];
+}
+
+/** Vignettes illustrées des cartes de la page d'une catégorie. */
+const CARD_ART: Record<string, number> = {
+  'sports-football': require('@/assets/covers/card-sports-football.jpg'),
+  'sports-jo': require('@/assets/covers/card-sports-jo.jpg'),
+  'sports-equipes': require('@/assets/covers/card-sports-equipes.jpg'),
+};
+
+export function themeCardArt(themeId: string): number | undefined {
+  return CARD_ART[themeId];
+}
+
 export function themeCover(themeId: string): number | string | null {
   const theme = getTheme(themeId);
   return theme?.coverUrl ?? COVERS[themeId] ?? (theme ? CATEGORY_COVERS[theme.categoryId] : null);

@@ -22,11 +22,11 @@ export const Colors = {
   /** Texte et icônes posés sur l'accent ou une couleur vive. */
   onAccent: '#FFFFFF',
   /** Rose vif : actions principales et éléments actifs. */
-  accent: '#FF007A',
-  /** Rose vif assombri pour les petits textes sur fond blanc (contraste). */
-  accentInk: '#D6006A',
-  /** Rose des fonds pleins portant du texte blanc (contraste 4,7:1). */
-  accentFill: '#E2006C',
+  accent: '#FC0266',
+  /** Même rose pour les textes posés sur fond clair. */
+  accentInk: '#FC0266',
+  /** Même rose pour les fonds pleins. */
+  accentFill: '#FC0266',
   /** Violet : rangs et visuels de duel. */
   secondary: '#7B2FFF',
   /** Turquoise : informations positives, version lisible en texte. */

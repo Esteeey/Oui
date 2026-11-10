@@ -21,6 +21,7 @@ export type CategoryId =
 export interface Category {
   id: CategoryId;
   name: string;
+  description: string;
   /** Pictogramme provisoire, en attendant les illustrations originales. */
   icon: string;
   color: string;

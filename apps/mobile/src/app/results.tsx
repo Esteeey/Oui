@@ -55,7 +55,7 @@ const R = {
 };
 
 /** Accent rose de l'identité Qu1z (plus d'orange). */
-const PINK = '#FF3B83';
+const PINK = Colors.accent;
 
 const BANNER: Record<DuelOutcome, { text: string; color: string; dark: string }> = {
   win: { text: 'VICTOIRE !', color: R.win, dark: R.winDark },

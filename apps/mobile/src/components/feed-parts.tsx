@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   challenge: { height: 94, borderRadius: 13, overflow: 'hidden', backgroundColor: BANNER_PURPLE, alignItems: 'center', justifyContent: 'center', gap: 6 },
   tiles: { flexDirection: 'row', gap: 9 },
   tile: { width: 78, height: 46, borderRadius: 8, borderWidth: 1.5, borderColor: '#9B6BC4', alignItems: 'center', justifyContent: 'center' },
-  challengeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: 165, height: 28, borderRadius: Radius.pill, backgroundColor: '#FF1493' },
+  challengeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: 165, height: 28, borderRadius: Radius.pill, backgroundColor: Colors.accent },
   challengeLabel: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   result: { height: 60, borderRadius: 12, overflow: 'hidden', backgroundColor: BANNER_PURPLE, flexDirection: 'row', alignItems: 'center', paddingLeft: 10, paddingRight: 10 },
   trophy: { flexDirection: 'row', alignItems: 'center' },
@@ -138,6 +138,6 @@ const styles = StyleSheet.create({
   resultTheme: { flex: 1, fontSize: 17, lineHeight: 24, fontWeight: '800' },
   resultScore: { alignItems: 'center', gap: 1 },
   resultValue: { fontSize: 22, lineHeight: 28, fontWeight: '800' },
-  resultPill: { minWidth: 82, height: 18, paddingHorizontal: 8, borderRadius: 6, backgroundColor: '#FF1493', alignItems: 'center', justifyContent: 'center' },
+  resultPill: { minWidth: 82, height: 18, paddingHorizontal: 8, borderRadius: 6, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
   resultPillText: { fontSize: 11, lineHeight: 15, fontWeight: '600' },
 });

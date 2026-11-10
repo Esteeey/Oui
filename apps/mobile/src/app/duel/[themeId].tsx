@@ -248,7 +248,7 @@ function Waiting({ opponent }: { themeId: string; opponent: ParticipantView | nu
         </AppText>
         {!opponent && (
           <View style={{ gap: Spacing.sm, alignSelf: 'stretch', paddingHorizontal: Spacing.xl }}>
-            {game.status === 'offline' && <Button label="Réessayer" color="#FF3B83" textColor={D.onButton} onPress={game.retry} />}
+            {game.status === 'offline' && <Button label="Réessayer" color={Colors.accent} textColor={D.onButton} onPress={game.retry} />}
             <Button
               label="Annuler"
               variant="outline"
@@ -695,7 +695,7 @@ function Choice({
   const fg = state === 'idle' ? D.buttonText : '#FFFFFF';
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.choiceRow}>
-      <View style={styles.markerSlot}>{selected && <Triangle direction="right" color="#FF3B83" label="Ta réponse" />}</View>
+      <View style={styles.markerSlot}>{selected && <Triangle direction="right" color={Colors.accent} label="Ta réponse" />}</View>
       <Animated.View style={[{ flex: 1 }, shakeStyle]}>
       <Pressable
         accessibilityRole="button"
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 48,
   },
-  selected: { borderWidth: 3, borderColor: '#FF3B83' },
+  selected: { borderWidth: 3, borderColor: Colors.accent },
   choiceText: { fontSize: 21, fontWeight: '800', textAlign: 'center' },
   choiceIcon: { position: 'absolute', right: 14 },
   footer: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },
