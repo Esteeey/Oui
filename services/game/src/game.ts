@@ -75,6 +75,8 @@ export class Game {
   /** Réserve brièvement les deux comptes pendant la préparation d'un duel invité. */
   private readonly inviteReservations = new Set<string>();
   private readonly online = new Set<string>();
+  /** Comptes admin connus (vus à la connexion) : eux seuls reçoivent la bonne réponse du mode triche. */
+  private readonly admins = new Set<string>();
   private readonly queue = new Map<string, { playerId: string; since: number; timer: ReturnType<typeof setTimeout> }>();
   /** Écritures d'un duel, enchaînées pour garder leur ordre. */
   private readonly writes = new Map<string, Promise<void>>();
@@ -110,6 +112,8 @@ export class Game {
     const user = token ? await this.repo.userByTokenHash(hashToken(token)) : null;
     if (!user || !token) return { error: 'unauthenticated' };
     if (user.status === 'banned') return { error: 'banned' };
+    if (user.role === 'admin') this.admins.add(user.id);
+    else this.admins.delete(user.id);
     return { user, token };
   }
 
@@ -380,7 +384,14 @@ export class Game {
 
   async snapshotFor(playerId: string, duel: Duel): Promise<DuelSnapshot> {
     const result = duel.isFinished ? await this.repo.result(duel.id, playerId) : null;
-    return { ...duel.snapshotFor(playerId), result };
+    return { ...this.cheat(playerId, duel), result };
+  }
+
+  /** Vue du duel, plus la bonne réponse pendant la question pour un admin (mode triche, réservé aux tests). */
+  private cheat(playerId: string, duel: Duel): Omit<DuelSnapshot, 'result'> {
+    const snap = duel.snapshotFor(playerId);
+    if (!this.admins.has(playerId) || snap.phase !== 'answering') return snap;
+    return { ...snap, cheatIndex: duel.state.questions[duel.state.index].correctIndex };
   }
 
   private async pushTo(playerId: string, duel: Duel): Promise<void> {
@@ -401,7 +412,7 @@ export class Game {
     // Les résultats d'un duel terminé partent après le versement des récompenses (`finished`).
     if (duel.isFinished) return;
     for (const p of duel.state.participants) {
-      if (!p.isBot && !p.ghost) this.send(p.playerId, { type: 'duel', snapshot: { ...duel.snapshotFor(p.playerId), result: null } });
+      if (!p.isBot && !p.ghost) this.send(p.playerId, { type: 'duel', snapshot: { ...this.cheat(p.playerId, duel), result: null } });
     }
   }
 

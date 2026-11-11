@@ -15,9 +15,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { ClipPath, Defs, Ellipse, G, Image as SvgImage, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
+import Svg, { ClipPath, Defs, G, Image as SvgImage, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
-import { getCategory, getTheme, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
+import { countryFlag, countryName, getCategory, getTheme, levelFromXp, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
 
 import { Avatar } from '@/components/ui';
 import { Colors } from '@/constants/theme';
@@ -40,7 +40,6 @@ function tornEdge(offset: number, seed: number): P[] {
   return [...points, [100, 100], [0, 100]];
 }
 const WHITE_EDGE = tornEdge(-1.3, 7);
-const WARM_EDGE = tornEdge(0, 11);
 /** Points du repère 100 × 100 convertis en pixels (les photos ne doivent pas être déformées). */
 const toPixels = (points: P[], w: number, h: number) => points.map(([x, y]) => `${((x * w) / 100).toFixed(1)},${((y * h) / 100).toFixed(1)}`).join(' ');
 
@@ -66,7 +65,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
   const reduceMotion = useReducedMotion();
   const theme = getTheme(duel.themeId);
   const category = theme ? getCategory(theme.categoryId) : undefined;
-  const size = Math.round(Math.min(176, height * 0.2));
+  const size = Math.round(Math.min(96, width * 0.2));
   const myCover = mediaUri(duel.me.cover);
   const theirCover = mediaUri(duel.opponent.cover);
   const myProfile = useApi<PublicProfile>(`/api/users/${duel.me.id}`);
@@ -142,7 +141,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
             <ColdLandscape />
           )}
           <View style={[styles.half, styles.topHalf]}>
-            <Player player={duel.me} size={size} color={Colors.player} bannerRank={myThemeRank} themeName={theme?.name} />
+            <Player player={duel.me} profile={myProfile.data} size={size} color={Colors.player} bannerRank={myThemeRank} themeName={theme?.name} side="top" />
           </View>
         </Animated.View>
 
@@ -151,26 +150,23 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
           <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
             <Defs>
               <LinearGradient id="warm" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0.42" stopColor="#3B2A55" />
-                <Stop offset="0.6" stopColor="#D9572B" />
-                <Stop offset="0.7" stopColor="#F2902E" />
+                <Stop offset="0.72" stopColor="#F2902E" />
                 <Stop offset="0.78" stopColor="#B4471C" />
                 <Stop offset="1" stopColor="#5A1E0B" />
               </LinearGradient>
               <ClipPath id="warmClip">
-                <Polygon points={toPixels(WARM_EDGE, width, height)} />
+                <Rect x={0} y={height * 0.72} width={width} height={height * 0.28} />
               </ClipPath>
             </Defs>
-            <Polygon points={toPixels(WHITE_EDGE, width, height)} fill="#FFFFFF" />
+            <Polygon points={toPixels(WHITE_EDGE, width, height)} fill="#F4F2F8" />
             <G clipPath="url(#warmClip)">
               {theirCover ? (
-                <SvgImage href={theirCover} x={0} y={height * 0.4} width={width} height={height * 0.6} preserveAspectRatio="xMidYMid slice" />
+                <SvgImage href={theirCover} x={0} y={height * 0.72} width={width} height={height * 0.28} preserveAspectRatio="xMidYMid slice" />
               ) : (
                 <>
-                  <Rect x={0} y={height * 0.43} width={width} height={height * 0.57} fill="url(#warm)" />
+                  <Rect x={0} y={height * 0.72} width={width} height={height * 0.28} fill="url(#warm)" />
                   <G transform={`scale(${width / 100} ${height / 100})`}>
-                    <Ellipse cx="90" cy="70" rx="3.2" ry="1.5" fill="#FFF4D6" />
-                    <Path d="M0 74 Q20 70 40 73 T80 72 T100 73 V100 H0 Z" fill="#C2541F" opacity={0.75} />
+                            <Path d="M0 74 Q20 70 40 73 T80 72 T100 73 V100 H0 Z" fill="#C2541F" opacity={0.75} />
                     <Path d="M0 82 Q25 76 50 81 T100 79 V100 H0 Z" fill="#A9431A" opacity={0.85} />
                     <Path d="M0 92 Q30 86 60 91 T100 88 V100 H0 Z" fill="#8A3412" />
                   </G>
@@ -179,7 +175,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
             </G>
           </Svg>
           <View style={[styles.half, styles.bottomHalf]}>
-            <Player player={duel.opponent} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} />
+            <Player player={duel.opponent} profile={theirProfile.data} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} side="bottom" />
           </View>
           <Animated.View entering={FadeIn.delay(CLASH_MS + 300)} style={[styles.theme, { paddingBottom: insets.bottom + 24 }]}>
             {theme && <ThemeIcon themeId={theme.id} size={26} />}
@@ -228,23 +224,84 @@ function ColdLandscape() {
   );
 }
 
-function Player({ player, size, color, bannerRank, themeName }: { player: ParticipantView; size: number; color: string; bannerRank: number | null; themeName?: string }) {
-  return (
-    <>
-      <View style={styles.photo}>
-        <Avatar name={player.name} color={color} uri={player.avatar} size={size} borderColor="#FFFFFF" />
-      </View>
-      <Text style={styles.name} numberOfLines={1}>
+/** Bloc joueur de la maquette : photo, trait vertical, puis pseudo, niveau, pays et classement ; miroir pour l'adversaire. */
+function Player({
+  player,
+  profile,
+  size,
+  color,
+  bannerRank,
+  themeName,
+  side,
+}: {
+  player: ParticipantView;
+  profile?: PublicProfile | null;
+  size: number;
+  color: string;
+  bannerRank: number | null;
+  themeName?: string;
+  side: 'top' | 'bottom';
+}) {
+  const dark = side === 'bottom';
+  const ink = dark ? '#1E1240' : '#FFFFFF';
+  const level = profile ? levelFromXp(profile.xp).level : null;
+  const country = profile?.country ?? null;
+  const photo = (
+    <View style={styles.photo}>
+      <Avatar name={player.name} color={color} uri={player.avatar} size={size} borderColor="#FFFFFF" />
+    </View>
+  );
+  const info = (
+    <View style={[styles.info, { alignItems: dark ? 'flex-end' : 'flex-start' }]}>
+      <Text style={[styles.name, { color: ink }, !dark && shadow]} numberOfLines={1}>
         {player.name}
       </Text>
-      {bannerRank && themeName ? (
-        <View style={styles.rankBanner} accessible accessibilityLabel={`${bannerRank === 1 ? '1er' : `${bannerRank}e`} en ${themeName}`}>
-          <Ionicons name="trophy" size={13} color="#FFD34D" />
-          <Text style={styles.rankBannerText} numberOfLines={1}>{bannerRank === 1 ? '1er' : `${bannerRank}e`} en {themeName}</Text>
+      {level != null && (
+        <View style={[styles.levelPill, { borderColor: ink }]}>
+          <Text style={[styles.levelText, { color: ink }]}>Niveau {level}</Text>
+        </View>
+      )}
+      {country ? (
+        <View style={styles.countryRow} accessible accessibilityLabel={countryName(country) ?? country}>
+          <View style={styles.flagRound}>
+            <Text style={styles.flagEmoji}>{countryFlag(country)}</Text>
+          </View>
+          <Text style={[styles.countryText, { color: ink }]} numberOfLines={1}>
+            {countryName(country)}
+          </Text>
         </View>
       ) : null}
-      {player.isBot && <Text style={styles.bot}>Réponses simulées (bot)</Text>}
-    </>
+      {bannerRank && themeName ? (
+        <View style={styles.rankBanner} accessible accessibilityLabel={`${bannerRank === 1 ? '1er' : `${bannerRank}e`} en ${themeName}`}>
+          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 10" preserveAspectRatio="none">
+            <Polygon points="0,0 100,0 95,5 100,10 0,10" fill="#F5B82E" />
+          </Svg>
+          <Ionicons name="trophy" size={14} color="#1E1240" />
+          <Text style={styles.rankBannerText} numberOfLines={1}>
+            {bannerRank === 1 ? '1er' : `${bannerRank}e`} en {themeName}
+          </Text>
+        </View>
+      ) : null}
+      {player.isBot && <Text style={[styles.bot, { color: ink }]}>Réponses simulées (bot)</Text>}
+    </View>
+  );
+  const rule = <View style={[styles.rule, { backgroundColor: ink, height: size * 0.95 }]} />;
+  return (
+    <View style={styles.playerRow}>
+      {dark ? (
+        <>
+          {info}
+          {rule}
+          {photo}
+        </>
+      ) : (
+        <>
+          {photo}
+          {rule}
+          {info}
+        </>
+      )}
+    </View>
   );
 }
 
@@ -263,12 +320,21 @@ const styles = StyleSheet.create({
   topHalf: { top: 0, justifyContent: 'flex-end', paddingBottom: VS_GAP },
   bottomHalf: { bottom: 0, justifyContent: 'flex-start', paddingTop: VS_GAP },
   photo: { borderRadius: 999, boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' },
-  name: { color: '#FFFFFF', fontSize: 34, fontWeight: '900', letterSpacing: -0.5, maxWidth: 320, ...shadow },
-  bot: { color: 'rgba(255, 255, 255, 0.8)', fontSize: 13, fontWeight: '600', ...shadow },
-  rankBanner: { maxWidth: '92%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 1, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, borderWidth: 1, borderColor: 'rgba(255,211,77,0.78)', backgroundColor: 'rgba(20,17,28,0.76)' },
-  rankBannerText: { color: '#FFE28A', fontSize: 12, lineHeight: 15, fontWeight: '800', textAlign: 'center', flexShrink: 1 },
+  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: '100%' },
+  info: { gap: 7, flexShrink: 1 },
+  rule: { width: 2, borderRadius: 1 },
+  name: { fontSize: 24, fontWeight: '900', letterSpacing: -0.3 },
+  levelPill: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 2 },
+  levelText: { fontSize: 12, fontWeight: '800' },
+  countryRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  flagRound: { width: 20, height: 20, borderRadius: 10, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
+  flagEmoji: { fontSize: 26, lineHeight: 30, textAlign: 'center' },
+  countryText: { fontSize: 12, fontWeight: '700' },
+  bot: { fontSize: 12, fontWeight: '600', opacity: 0.8 },
+  rankBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 8, paddingRight: 20, paddingVertical: 4, borderRadius: 3 },
+  rankBannerText: { color: '#1E1240', fontSize: 12, lineHeight: 15, fontWeight: '800', flexShrink: 1 },
   vsBox: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   flash: { backgroundColor: '#FFFFFF' },
   theme: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 24 },
-  themeText: { color: 'rgba(255, 255, 255, 0.9)', fontSize: 15, fontWeight: '800', ...shadow },
+  themeText: { color: '#1E1240', fontSize: 15, fontWeight: '800' },
 });

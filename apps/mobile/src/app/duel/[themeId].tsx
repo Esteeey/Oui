@@ -31,6 +31,8 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
+import { useApi } from '@/net/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { haptic } from '@/utils/haptics';
 
 /** Couleurs de l'écran de duel (fond noir, boutons clairs). */
@@ -367,6 +369,56 @@ function useDuelSounds(duel: DuelSnapshot, clockOffset: number) {
   }, [duel.phase, duel.index, duel.myChoice]);
 }
 
+type CheatMode = 'off' | 'show' | 'auto';
+const CHEAT_KEY = 'qu1z.cheatMode';
+let cheatMemo: CheatMode = 'off';
+
+/** Mode triche des comptes admin (le serveur n'envoie la bonne réponse qu'à eux) : afficher ou répondre tout seul. */
+function useCheatMode(): [CheatMode, (m: CheatMode) => void] {
+  const [mode, setMode] = useState<CheatMode>(cheatMemo);
+  useEffect(() => {
+    AsyncStorage.getItem(CHEAT_KEY)
+      .then((v) => {
+        if (v === 'off' || v === 'show' || v === 'auto') setMode((cheatMemo = v));
+      })
+      .catch(() => {});
+  }, []);
+  const set = (next: CheatMode) => {
+    cheatMemo = next;
+    setMode(next);
+    AsyncStorage.setItem(CHEAT_KEY, next).catch(() => {});
+  };
+  return [mode, set];
+}
+
+/** Petit menu admin du mode triche, ouvert en tapant 5 fois sur le chrono. */
+function CheatMenu({ mode, onChange, onClose }: { mode: CheatMode; onChange: (m: CheatMode) => void; onClose: () => void }) {
+  const on = mode !== 'off';
+  const pick = mode === 'auto' ? 'auto' : 'show';
+  return (
+    <View style={styles.cheatMenu}>
+      <View style={styles.cheatRow}>
+        <Ionicons name="flash" size={16} color="#00E5AB" />
+        <AppText style={styles.cheatTitle}>Mode triche</AppText>
+        <Tap accessibilityRole="switch" accessibilityState={{ checked: on }} onPress={() => onChange(on ? 'off' : pick)} style={[styles.cheatSwitch, on && styles.cheatSwitchOn]}>
+          <View style={[styles.cheatKnob, on && { alignSelf: 'flex-end' }]} />
+        </Tap>
+        <Tap accessibilityRole="button" accessibilityLabel="Fermer" hitSlop={8} onPress={onClose}>
+          <Ionicons name="close" size={18} color={D.muted} />
+        </Tap>
+      </View>
+      <View style={[styles.cheatRow, !on && { opacity: 0.4 }]}>
+        {(['show', 'auto'] as const).map((m) => (
+          <Tap key={m} accessibilityRole="button" disabled={!on} onPress={() => onChange(m)} style={[styles.cheatOption, on && pick === m && styles.cheatOptionOn]}>
+            <Ionicons name={m === 'show' ? 'eye' : 'flash'} size={14} color={on && pick === m ? '#0E0F2B' : D.text} />
+            <AppText style={[styles.cheatOptionText, on && pick === m && { color: '#0E0F2B' }]}>{m === 'show' ? 'Réponse en vert' : 'Automatique'}</AppText>
+          </Tap>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function DuelView({ duel }: { duel: DuelSnapshot }) {
   const game = useGameServer();
   const theme = getTheme(duel.themeId);
@@ -376,6 +428,28 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   useNow(duel.phase === 'answering' || duel.phase === 'reading');
   useDuelSounds(duel, game.clockOffset);
   const card = useRoundCard(duel, game.clockOffset);
+  const [cheat, setCheat] = useCheatMode();
+  const me = useApi<{ role: string }>('/api/me');
+  const isAdmin = me.data?.role === 'admin';
+  const [cheatMenu, setCheatMenu] = useState(false);
+  const taps = useRef<number[]>([]);
+  const onTimerTap = () => {
+    if (!isAdmin) return;
+    const now = Date.now();
+    taps.current = [...taps.current.filter((t) => now - t < 2000), now];
+    if (taps.current.length >= 5) {
+      taps.current = [];
+      setCheatMenu(true);
+    }
+  };
+  const cheatIndex = duel.phase === 'answering' ? (duel.cheatIndex ?? null) : null;
+  const canAutoAnswer = isAdmin && cheat === 'auto' && cheatIndex !== null && duel.myChoice === null && !card.showing && game.status === 'online';
+  useEffect(() => {
+    if (!canAutoAnswer || cheatIndex === null) return;
+    const t = setTimeout(() => game.answer(cheatIndex), 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAutoAnswer, cheatIndex, duel.index]);
   const [stageTop, setStageTop] = useState(0);
 
   const left = remainingMs(duel, game.clockOffset);
@@ -444,11 +518,11 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
       <View style={styles.content}>
         <View style={styles.header}>
           <PlayerHead player={duel.me} side="left" />
-          <View style={[styles.timerBox, danger && { borderColor: D.wrong }]}>
+          <Tap accessible={false} onPress={onTimerTap} style={[styles.timerBox, danger && { borderColor: D.wrong }]}>
             <AppText variant="heading" color={danger ? D.wrong : D.text} style={{ fontVariant: ['tabular-nums'] }}>
               {seconds}
             </AppText>
-          </View>
+          </Tap>
           <PlayerHead player={duel.opponent} side="right" later={duel.challenge?.leg === 1} />
         </View>
         {!online && (
@@ -486,9 +560,10 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
             ) : (
               q?.choices.map((choice, i) => {
                 const state = !judgedNow ? 'idle' : i === duel.correctIndex ? 'correct' : duel.myChoice === i ? 'wrong' : 'idle';
+                const hinted = isAdmin && cheat === 'show' && cheatIndex === i && duel.myChoice === null;
                 return (
+                  <View key={`${duel.index}-${i}`} style={hinted ? styles.cheatHint : undefined}>
                   <Choice
-                    key={`${duel.index}-${i}`}
                     index={i}
                     label={choice}
                     state={state}
@@ -502,6 +577,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
                       game.answer(i);
                     }}
                   />
+                  </View>
                 );
               })
             )}
@@ -523,6 +599,7 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
           {reveal && <Animated.View key={`out-${duel.index}`} entering={FADE_TO_BLACK} style={styles.fade} />}
         </View>
 
+        {isAdmin && cheatMenu && <CheatMenu mode={cheat} onChange={setCheat} onClose={() => setCheatMenu(false)} />}
         <Tap accessibilityRole="button" onPress={() => setConfirmQuit(true)} style={styles.quit}>
           <AppText variant="caption" color={D.muted}>
             Abandonner
@@ -745,6 +822,16 @@ function Triangle({ direction, color, label }: { direction: 'left' | 'right'; co
 }
 
 const styles = StyleSheet.create({
+  cheatHint: { borderRadius: 18, borderWidth: 3, borderColor: '#00E5AB', margin: -3 },
+  cheatMenu: { position: 'absolute', left: 16, right: 16, top: 70, zIndex: 20, gap: 10, padding: 12, borderRadius: 16, backgroundColor: 'rgba(14,15,43,0.96)', borderWidth: 1, borderColor: 'rgba(0,229,171,0.4)', boxShadow: '0 10px 30px rgba(0,0,0,0.45)' },
+  cheatRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cheatTitle: { flex: 1, color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  cheatSwitch: { width: 44, height: 26, borderRadius: 13, padding: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
+  cheatSwitchOn: { backgroundColor: '#00E5AB' },
+  cheatKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF' },
+  cheatOption: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+  cheatOptionOn: { backgroundColor: '#00E5AB', borderColor: '#00E5AB' },
+  cheatOptionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   screen: { flex: 1, backgroundColor: D.bg },
   center: { justifyContent: 'center', alignItems: 'center', gap: Spacing.lg, padding: Spacing.lg },
   content: { flex: 1, width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 20, paddingTop: Spacing.sm, gap: Spacing.md },

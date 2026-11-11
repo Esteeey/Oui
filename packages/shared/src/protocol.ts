@@ -95,6 +95,8 @@ export interface DuelSnapshot {
   /** Énoncé en cours ; `choices` vide pendant la lecture. */
   question: { id: string; text: string; image?: string; choices: string[] } | null;
   correctIndex: number | null;
+  /** Mode triche (comptes admin seulement) : bonne réponse envoyée pendant la question. */
+  cheatIndex?: number | null;
   myChoice: number | null;
   /**
    * Mon temps de réponse (ms), mesuré par le serveur, une fois ma réponse enregistrée (ou le temps écoulé) :

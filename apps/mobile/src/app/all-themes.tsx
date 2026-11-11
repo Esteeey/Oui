@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { CATEGORIES, levelFromXp, themesOf } from '@qu1z/shared';
 
@@ -71,7 +71,7 @@ export default function AllThemesScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
           </Tap>
-          <View style={styles.grid}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.grid}>
             {themes.map((theme) => {
               const level = levelFromXp(stats[theme.id]?.xp ?? 0).level;
               const played = (stats[theme.id]?.xp ?? 0) > 0;
@@ -82,13 +82,13 @@ export default function AllThemesScreen() {
                   accessibilityLabel={`${theme.name}${played ? `, niveau ${level}` : ''}`}
                   onPress={() => router.push({ pathname: '/theme/[id]', params: { id: theme.id } })}
                   style={styles.tile}>
-                  <ThemeIcon themeId={theme.id} size={56} />
+                  <ThemeIcon themeId={theme.id} size={48} />
                   <AppText numberOfLines={2} style={styles.tileName}>{theme.name}</AppText>
                   {played && <AppText style={styles.tileLevel}>Niv. {level}</AppText>}
                 </Tap>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
       ))}
     </Screen>
@@ -109,15 +109,15 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: Colors.text, fontSize: 14, paddingVertical: 6 },
   count: { fontSize: 13, textAlign: 'center' },
   empty: { paddingVertical: Spacing.lg, textAlign: 'center' },
-  section: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.sm, gap: Spacing.sm, ...Shadow },
+  section: { backgroundColor: Colors.surface, borderRadius: Radius.md, paddingVertical: 6, paddingHorizontal: Spacing.sm, gap: 6, ...Shadow },
   heading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  badge: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  badgeEmoji: { fontSize: 20, lineHeight: 26 },
+  badge: { width: 28, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  badgeEmoji: { fontSize: 16, lineHeight: 20 },
   headingText: { flex: 1, minWidth: 0 },
-  categoryName: { fontSize: 16, fontWeight: '800', color: Colors.text },
+  categoryName: { fontSize: 15, fontWeight: '800', color: Colors.text },
   categoryCount: { fontSize: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: Spacing.sm },
-  tile: { width: '25%', alignItems: 'center', gap: 3, paddingHorizontal: 2 },
-  tileName: { width: '100%', minHeight: 28, fontSize: 11, lineHeight: 14, fontWeight: '600', textAlign: 'center', color: Colors.text },
+  grid: { flexDirection: 'row', gap: 4 },
+  tile: { width: 68, alignItems: 'center', gap: 3, paddingHorizontal: 2 },
+  tileName: { width: '100%', minHeight: 26, fontSize: 10.5, lineHeight: 13, fontWeight: '600', textAlign: 'center', color: Colors.text },
   tileLevel: { fontSize: 10, fontWeight: '800', color: Colors.accentInk },
 });
