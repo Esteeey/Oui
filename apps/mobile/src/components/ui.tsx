@@ -18,7 +18,9 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GradientHeader, HeaderBack, Logo } from '@/components/header';
-import { Colors, Fonts, MaxContentWidth, NavBarHeight, Radius, Shadow, Spacing, fontForWeight } from '@/constants/theme';
+import { Colors, Fonts, MaxContentWidth, NavBarHeight, Radius, Shadow, Spacing, fontForWeight, isArena } from '@/constants/theme';
+
+const ARENA = isArena();
 import { mediaUri } from '@/net/media';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'score';
@@ -180,6 +182,7 @@ export function Button({
           small && styles.buttonSmall,
           compact && styles.buttonCompact,
           solid ? { backgroundColor: !color || color === Colors.accent ? Colors.accentFill : color } : { borderColor: color ?? Colors.accent, borderWidth: 2 },
+          ARENA && solid && styles.buttonArena,
           disabled && { opacity: 0.4 },
           animated,
         ]}>
@@ -312,6 +315,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     overflow: 'hidden',
   },
+  // Thème Arène : bouton « de jeu » en relief (contour et ombre franche).
+  buttonArena: { borderWidth: 2, borderColor: '#0B3C5D', boxShadow: '0 4px 0 #0B3C5D', overflow: 'visible' },
   buttonSmall: { minHeight: 38, paddingHorizontal: Spacing.md, borderRadius: Radius.xs },
   buttonCompact: { minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radius.xs },
   track: { width: '100%', backgroundColor: Colors.surfaceRaised, overflow: 'hidden' },

@@ -71,18 +71,20 @@ const LAGON: Partial<Palette> = {
   navy: '#0B3C5D',
 };
 
-export type AppThemeId = 'classic' | 'lagon';
+export type AppThemeId = 'classic' | 'lagon' | 'arene';
 export const APP_THEME_KEY = 'qu1z.appTheme';
 let currentTheme: AppThemeId = 'classic';
 export const appThemeId = () => currentTheme;
+/** Thème « Arène » : palette Lagon + touches de jeu (relief, barre d'XP, titres Lilita One). */
+export const isArena = () => currentTheme === 'arene';
 
 /** Couleurs de l'app (hors profil et duel). Modifiées une seule fois, au démarrage, par `applyAppTheme`. */
 export const Colors: Palette = { ...CLASSIC };
 
 /** Applique la palette enregistrée ; à appeler avant le chargement des écrans (voir `index.js`). */
 export function applyAppTheme(id: string | null | undefined): void {
-  currentTheme = id === 'lagon' ? 'lagon' : 'classic';
-  Object.assign(Colors, CLASSIC, currentTheme === 'lagon' ? LAGON : {});
+  currentTheme = id === 'lagon' || id === 'arene' ? id : 'classic';
+  Object.assign(Colors, CLASSIC, currentTheme === 'classic' ? {} : LAGON);
 }
 
 /** Dégradés (du début à la fin) : réservés aux visuels de duel. */
@@ -125,6 +127,8 @@ export const Fonts = {
   semiBold: 'Poppins_600SemiBold',
   bold: 'Poppins_700Bold',
   extraBold: 'Poppins_800ExtraBold',
+  /** Titres du thème Arène (Lilita One, licence OFL). */
+  display: 'LilitaOne_400Regular',
 } as const;
 
 /** Famille Poppins correspondant à une graisse (Android n'applique pas `fontWeight` à une police embarquée). */

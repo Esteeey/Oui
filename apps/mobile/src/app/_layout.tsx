@@ -39,6 +39,7 @@ export default function RootLayout() {
     Poppins_600SemiBold: require('../../assets/fonts/Poppins_600SemiBold.ttf'),
     Poppins_700Bold: require('../../assets/fonts/Poppins_700Bold.ttf'),
     Poppins_800ExtraBold: require('../../assets/fonts/Poppins_800ExtraBold.ttf'),
+    LilitaOne_400Regular: require('../../assets/fonts/LilitaOne_400Regular.ttf'),
   });
   const ready = fontsLoaded || !!fontError;
 

@@ -9,7 +9,7 @@ import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-nati
 
 import { Logo } from '@/components/header';
 import type { IconName } from '@/components/social';
-import { Colors, Fonts, NavBarHeight, NavBarLift } from '@/constants/theme';
+import { Colors, Fonts, NavBarHeight, NavBarLift, isArena } from '@/constants/theme';
 import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { navLift } from '@/state/nav-lift';
@@ -144,6 +144,8 @@ export function AppNavBar() {
   );
 }
 
+const ARENA = isArena();
+
 const styles = StyleSheet.create({
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   wave: { position: 'absolute', top: 0, left: 0, right: 0 },
@@ -159,9 +161,11 @@ const styles = StyleSheet.create({
     width: VS_SIZE,
     height: VS_SIZE,
     borderRadius: VS_SIZE / 2,
-    boxShadow: '0 4px 7px rgba(150, 0, 80, 0.38)',
+    boxShadow: ARENA ? 'none' : '0 4px 7px rgba(150, 0, 80, 0.38)',
   },
-  vsFill: { flex: 1, borderRadius: VS_SIZE / 2, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
+  vsFill: ARENA
+    ? { flex: 1, borderRadius: 18, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#0B3C5D', boxShadow: '0 4px 0 #0B3C5D', transform: [{ rotate: '-6deg' }] }
+    : { flex: 1, borderRadius: VS_SIZE / 2, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
   badge: {
     position: 'absolute',
     top: -5,

@@ -118,6 +118,7 @@ const styles = StyleSheet.create({
 const APP_THEMES: { id: AppThemeId; label: string; colors: string[] }[] = [
   { id: 'classic', label: 'Classique', colors: ['#F7F5FB', '#FC0266', '#7B2FFF'] },
   { id: 'lagon', label: 'Lagon', colors: ['#7FD1D9', '#0B3C5D', '#FF2E88'] },
+  { id: 'arene', label: 'Arène', colors: ['#7FD1D9', '#FFD166', '#FF2E88'] },
 ];
 
 /** Palette de l'app (hors profil et duel), enregistrée sur cet appareil et appliquée au prochain démarrage. */

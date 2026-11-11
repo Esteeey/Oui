@@ -6,7 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import type { IconName } from '@/components/social';
-import { Colors, Fonts, LogoColors, Spacing } from '@/constants/theme';
+import { levelFromXp } from '@qu1z/shared';
+
+import { Colors, Fonts, LogoColors, Spacing, isArena } from '@/constants/theme';
+import { useGameServer } from '@/state/game-server';
+
+const ARENA = isArena();
 
 /** En-tête clair commun aux écrans classiques : posé sur le fond pastel, sans bandeau coloré. */
 export function GradientHeader({
@@ -44,8 +49,33 @@ export function GradientHeader({
             title
           )}
         </View>
+        {ARENA && alignLeft && <LevelPill />}
         <View style={[styles.side, styles.right, compact && styles.sideCompact]}>{right}</View>
       </View>
+      {ARENA && alignLeft && <XpStrip />}
+    </View>
+  );
+}
+
+/** Thème Arène : pastille de niveau dans l'en-tête des onglets. */
+function LevelPill() {
+  const { profile } = useGameServer();
+  if (!profile) return null;
+  return (
+    <View style={styles.levelPill} accessible accessibilityLabel={`Niveau ${levelFromXp(profile.xp).level}`}>
+      <Text style={styles.levelPillText}>Niv. {levelFromXp(profile.xp).level}</Text>
+    </View>
+  );
+}
+
+/** Thème Arène : fine barre d'XP sous l'en-tête des onglets. */
+function XpStrip() {
+  const { profile } = useGameServer();
+  if (!profile) return null;
+  const { progress } = levelFromXp(profile.xp);
+  return (
+    <View style={styles.xpTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
+      <View style={[styles.xpFill, { width: `${Math.round(progress * 100)}%` }]} />
     </View>
   );
 }
@@ -104,8 +134,12 @@ const styles = StyleSheet.create({
   right: { justifyContent: 'flex-end' },
   title: { flex: 1, alignItems: 'center' },
   titleLeft: { alignItems: 'flex-start' },
-  titleText: { color: Colors.text, fontSize: 20, fontFamily: Fonts.extraBold },
-  titleTextLeft: { color: Colors.ink, fontSize: 20 },
+  titleText: { color: Colors.text, fontSize: 20, fontFamily: ARENA ? Fonts.display : Fonts.extraBold },
+  titleTextLeft: { color: Colors.ink, fontSize: ARENA ? 24 : 20 },
+  levelPill: { backgroundColor: '#FFD166', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginRight: 6 },
+  levelPillText: { color: '#0B3C5D', fontSize: 12, fontFamily: Fonts.extraBold },
+  xpTrack: { height: 4, backgroundColor: '#D3EEF0', marginTop: 6 },
+  xpFill: { height: '100%', backgroundColor: '#FFD166' },
   titleTextCompact: { fontSize: 17 },
   titleTextSmall: { fontSize: 16 },
   button: { padding: 4 },
