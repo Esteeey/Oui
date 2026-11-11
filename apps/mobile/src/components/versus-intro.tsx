@@ -74,6 +74,11 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
   const theirThemeRank = theirProfile.data?.best?.themeId === duel.themeId && theirProfile.data.best.rank <= 3 ? theirProfile.data.best.rank : null;
   // L'image a une large marge pour l'ombre noire : les lettres occupent environ un quart de la largeur de l'écran.
   const vsWidth = Math.min(305, width * 0.48);
+  // Tout est placé en pixels autour du milieu : la mise en page ne dépend plus de la hauteur de l'écran.
+  const middle = height / 2;
+  const [bottomBlock, setBottomBlock] = useState(size);
+  // La photo de l'adversaire commence juste sous son bloc, comme sur la maquette, quelle que soit la hauteur de l'écran.
+  const coverTop = Math.min(height - 80, middle + VS_GAP + bottomBlock + 28);
 
   const top = useSharedValue(reduceMotion ? 0 : -height);
   const bottom = useSharedValue(reduceMotion ? 0 : height);
@@ -140,7 +145,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
           ) : (
             <ColdLandscape />
           )}
-          <View style={[styles.half, styles.topHalf]}>
+          <View style={[styles.half, { bottom: height - middle + VS_GAP }]}>
             <Player player={duel.me} profile={myProfile.data} size={size} color={Colors.player} bannerRank={myThemeRank} themeName={theme?.name} side="top" />
           </View>
         </Animated.View>
@@ -155,16 +160,16 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
                 <Stop offset="1" stopColor="#5A1E0B" />
               </LinearGradient>
               <ClipPath id="warmClip">
-                <Rect x={0} y={height * 0.72} width={width} height={height * 0.28} />
+                <Rect x={0} y={coverTop} width={width} height={height - coverTop} />
               </ClipPath>
             </Defs>
             <Polygon points={toPixels(WHITE_EDGE, width, height)} fill="#F4F2F8" />
             <G clipPath="url(#warmClip)">
               {theirCover ? (
-                <SvgImage href={theirCover} x={0} y={height * 0.72} width={width} height={height * 0.28} preserveAspectRatio="xMidYMid slice" />
+                <SvgImage href={theirCover} x={0} y={coverTop} width={width} height={height - coverTop} preserveAspectRatio="xMidYMid slice" />
               ) : (
                 <>
-                  <Rect x={0} y={height * 0.72} width={width} height={height * 0.28} fill="url(#warm)" />
+                  <Rect x={0} y={coverTop} width={width} height={height - coverTop} fill="url(#warm)" />
                   <G transform={`scale(${width / 100} ${height / 100})`}>
                             <Path d="M0 74 Q20 70 40 73 T80 72 T100 73 V100 H0 Z" fill="#C2541F" opacity={0.75} />
                     <Path d="M0 82 Q25 76 50 81 T100 79 V100 H0 Z" fill="#A9431A" opacity={0.85} />
@@ -174,7 +179,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
               )}
             </G>
           </Svg>
-          <View style={[styles.half, styles.bottomHalf]}>
+          <View style={[styles.half, { top: middle + VS_GAP }]} onLayout={(e) => setBottomBlock(e.nativeEvent.layout.height)}>
             <Player player={duel.opponent} profile={theirProfile.data} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} side="bottom" />
           </View>
           <Animated.View entering={FadeIn.delay(CLASH_MS + 300)} style={[styles.theme, { paddingBottom: insets.bottom + 24 }]}>
@@ -316,9 +321,7 @@ const styles = StyleSheet.create({
   round: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(20, 24, 32, 0.6)', alignItems: 'center', justifyContent: 'center' },
   topCover: { position: 'absolute', left: 0, right: 0, top: 0, height: '62%' },
   topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 140 },
-  half: { position: 'absolute', left: 0, right: 0, height: '50%', alignItems: 'center', gap: 6, paddingHorizontal: 24 },
-  topHalf: { top: 0, justifyContent: 'flex-end', paddingBottom: VS_GAP },
-  bottomHalf: { bottom: 0, justifyContent: 'flex-start', paddingTop: VS_GAP },
+  half: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 6, paddingHorizontal: 24 },
   photo: { borderRadius: 999, boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' },
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: '100%' },
   info: { gap: 7, flexShrink: 1 },
