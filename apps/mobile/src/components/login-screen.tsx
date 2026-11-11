@@ -3,13 +3,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PSEUDO_PATTERN } from '@qu1z/shared';
 
+import { FloatingThemeIcons } from '@/components/floating-theme-icons';
 import { Logo } from '@/components/header';
 import { AppText, Button } from '@/components/ui';
-import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Colors, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
 import { ApiError, authRequest, errorMessage, TOKEN_KEY } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
@@ -61,23 +63,27 @@ export function LoginScreen() {
 
   return (
     <View style={styles.screen}>
-      <LinearGradient colors={Gradients.banner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#0E0F2B', '#2A1470', '#4A1FB8']} locations={[0, 0.55, 1]} start={{ x: 0.3, y: 0 }} end={{ x: 0.7, y: 1 }} style={StyleSheet.absoluteFill} />
+      {/* Icônes de thème qui arrivent des bords puis flottent derrière le logo. */}
+      <FloatingThemeIcons />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView style={styles.flex}>
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.brand}>
-              <View style={styles.logoTile}>
+              <Animated.View entering={ZoomIn.delay(850).springify()} style={styles.logoTile}>
                 <Logo size={68} />
-              </View>
+              </Animated.View>
+              <Animated.View entering={FadeInDown.delay(1150).springify()} style={styles.brandText}>
               <AppText variant="display" color={Colors.onAccent} style={styles.brandName}>
-                Qu1z
+                QuizX
               </AppText>
               <AppText color="rgba(255,255,255,0.78)" style={styles.center}>
                 Affronte des joueurs du monde entier sur tes thèmes préférés.
               </AppText>
+              </Animated.View>
             </View>
 
-            <View style={styles.sheet}>
+            <Animated.View entering={FadeInDown.delay(1350).springify()} style={styles.sheet}>
               <View style={styles.tabs} accessibilityRole="tablist">
                 {(['login', 'register'] as const).map((m) => (
                   <Tap
@@ -165,7 +171,7 @@ export function LoginScreen() {
                   </AppText>
                 </AppText>
               </Tap>
-            </View>
+            </Animated.View>
           </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>
@@ -189,8 +195,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.navy },
   flex: { flex: 1 },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: Spacing.md, gap: Spacing.lg, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
-  brand: { alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.lg },
+  brand: { alignItems: 'center', gap: Spacing.sm, paddingTop: 150 },
   brandName: { marginTop: Spacing.xs },
+  brandText: { alignItems: 'center', gap: Spacing.sm, alignSelf: 'stretch' },
   center: { textAlign: 'center' },
   sheet: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.md, ...Shadow },
   tabs: { flexDirection: 'row', backgroundColor: Colors.surfaceRaised, borderRadius: Radius.pill, padding: 4 },

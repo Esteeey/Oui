@@ -1,13 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
 import { Redirect, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   FadeInDown,
   ZoomIn,
   runOnJS,
+  useReducedMotion,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -19,24 +19,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   formatSeconds,
   getTheme,
+  THEMES,
   levelFromXp,
   shareResultText,
   speedSummary,
-  type DuelOutcome,
-  type ParticipantView,
   type SpeedSummary,
 } from '@qu1z/shared';
 
 import { XP_SOUND_MS, playMusic, playSound } from '@/audio/sounds';
-import { Celebration, Crown, GOLD, ReplayButton, ResultBanner } from '@/components/results-art';
+import { GOLD } from '@/components/results-art';
+import { OutcomeBanner, QuestionReview, RC, ScoreChart, XpRing } from '@/components/results-sections';
+import { ThemeIcon } from '@/components/theme-icon';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
-import { Colors, Fonts, Spacing } from '@/constants/theme';
-import { questionImageSource } from '@/game/question-images';
+import { Colors, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
-import { XpProgress } from '@/components/xp-progress';
 import { haptic } from '@/utils/haptics';
 import { DuelChat } from '@/components/duel-chat';
 import { QuestionReportSheet, type ReportedQuestion } from '@/components/question-report-sheet';
@@ -55,19 +54,9 @@ const R = {
   line: '#2E2E33',
 };
 
-/** Accent rose de l'identité Qu1z (plus d'orange). */
-const PINK = Colors.accent;
-
-const BANNER: Record<DuelOutcome, { text: string; color: string; dark: string }> = {
-  win: { text: 'VICTOIRE !', color: R.win, dark: R.winDark },
-  loss: { text: 'DÉFAITE !', color: R.loss, dark: R.lossDark },
-  draw: { text: 'ÉGALITÉ !', color: R.draw, dark: '#B45309' },
-};
-
 export default function ResultsScreen() {
   const game = useGameServer();
   const duel = game.duel;
-  const [details, setDetails] = useState(false);
   const [reportedQuestion, setReportedQuestion] = useState<ReportedQuestion | null>(null);
   const [rematch, setRematch] = useState<string | null>(null);
   const [rematchBusy, setRematchBusy] = useState(false);
@@ -114,7 +103,10 @@ export default function ResultsScreen() {
   // Glisser vers le bas (depuis le haut de la page) pour quitter : la page suit le doigt,
   // puis part vers le bas si le geste est assez long ou rapide, sinon elle revient en place.
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
+  const reducedMotion = useReducedMotion();
+  const scroller = useRef<Animated.ScrollView>(null);
+  const statsY = useRef(0);
   const scrollY = useSharedValue(0);
   const drag = useSharedValue(0);
   const base = useSharedValue(0);
@@ -155,11 +147,20 @@ export default function ResultsScreen() {
   if (!duel || duel.phase !== 'finished' || !duel.result) return <Redirect href="/" />;
   const result = duel.result;
   const theme = getTheme(duel.themeId);
-  const banner = BANNER[result.outcome];
   const record = result.record;
 
+  const replayOther = () => {
+    const others = THEMES.filter((t) => t.id !== duel.themeId);
+    const next = others[Math.floor(Math.random() * others.length)] ?? theme;
+    if (!next) return;
+    router.replace({ pathname: '/duel/[themeId]', params: { themeId: next.id, mode: duel.opponent.isBot ? 'bot' : 'pvp' } });
+  };
   const replay = async () => {
-    if (!duel.challenge || rematchBusy) return;
+    if (rematchBusy) return;
+    if (!duel.challenge) {
+      router.replace({ pathname: '/duel/[themeId]', params: { themeId: duel.themeId, mode: duel.opponent.isBot ? 'bot' : 'pvp' } });
+      return;
+    }
     setRematchBusy(true);
     setRematch(null);
     try {
@@ -199,63 +200,99 @@ export default function ResultsScreen() {
   const mySpeed = speedSummary(record.player);
   const theirSpeed = speedSummary(record.opponent);
 
+  const meView = { name: duel.me.name, color: duel.me.color ?? Colors.player, avatar: duel.me.avatar };
+  const oppView = { name: duel.opponent.name, color: duel.opponent.color ?? Colors.opponent, avatar: duel.opponent.avatar };
+  const contentWidth = Math.min(width, 480) - 40;
+  const coverHeight = Math.round(height * 0.24);
+  const scrollToStats = () => scroller.current?.scrollTo({ y: statsY.current, animated: !reducedMotion });
+  const scrollToTop = () => scroller.current?.scrollTo({ y: 0, animated: !reducedMotion });
+
   return (
     <GestureHandlerRootView style={styles.backdrop}>
     <GestureDetector gesture={pullDown}>
     <Animated.View style={[styles.screen, dragStyle]}>
       <GestureDetector gesture={scrollGesture}>
-      <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: Spacing.xl }} showsVerticalScrollIndicator={false}>
-        <ThemeCover themeId={duel.themeId} height={300} fadeTo={R.bg}>
-          <View style={[styles.coverContent, { paddingTop: insets.top }]}>
-            <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={close} style={[styles.close, { top: insets.top + 12 }]}>
-              <Ionicons name="close" size={26} color={R.text} />
+      <Animated.ScrollView ref={scroller} onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }} showsVerticalScrollIndicator={false}>
+        {/* Premier écran : tout tient dans la hauteur de l'appareil. */}
+        <View style={{ minHeight: height }}>
+          <ThemeCover themeId={duel.themeId} height={coverHeight + insets.top} fadeTo={R.bg} dim={false}>
+            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+              <Tap accessibilityRole="button" accessibilityLabel="Retour" onPress={close} hitSlop={10} style={styles.headerButton}>
+                <Ionicons name="arrow-back" size={30} color={R.text} />
+              </Tap>
+              <View style={styles.headerCenter}>
+                <ThemeIcon themeId={duel.themeId} size={58} />
+                <View style={{ flexShrink: 1 }}>
+                  <AppText style={styles.title}>RÉSULTATS</AppText>
+                  <AppText style={styles.subtitle} numberOfLines={1}>{theme?.name}</AppText>
+                </View>
+              </View>
+              <Tap accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} hitSlop={10} style={styles.headerButton}>
+                <Ionicons name="share-social" size={28} color={R.text} />
+              </Tap>
+            </View>
+          </ThemeCover>
+
+          <View style={styles.body}>
+            <Animated.View entering={reducedMotion ? undefined : ZoomIn.springify()} style={{ marginTop: -Math.round(contentWidth * 0.12) }}>
+              <OutcomeBanner outcome={result.outcome} width={contentWidth + 20} />
+            </Animated.View>
+
+            {/* Le joueur connecté est TOUJOURS à gauche : le serveur l'envoie comme « me ». */}
+            <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(120).springify()} style={styles.players}>
+              <PlayerSlot player={meView} points={duel.me.points} state={result.outcome === 'win' ? 'win' : result.outcome === 'loss' ? 'loss' : 'draw'} />
+              <PlayerSlot player={oppView} points={duel.opponent.points} state={result.outcome === 'win' ? 'loss' : result.outcome === 'loss' ? 'win' : 'draw'} />
+            </Animated.View>
+
+            {!result.finished && !result.forfeited && (
+              <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
+                Tu n’étais plus connecté à la fin du duel : pas de bonus de fin.
+              </AppText>
+            )}
+            {result.forfeited && (
+              <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
+                Duel abandonné : aucun XP.
+              </AppText>
+            )}
+
+            <View style={styles.buttons}>
+              <Tap accessibilityRole="button" accessibilityLabel="Rejouer" disabled={rematchBusy} onPress={replay} style={[styles.bigButton, { backgroundColor: RC.pink }]}>
+                <Ionicons name="play" size={26} color="#FFFFFF" style={styles.bigIcon} />
+                <View style={[styles.bigDivider, { backgroundColor: 'rgba(255,255,255,0.7)' }]} />
+                <AppText style={[styles.bigLabel, { color: '#FFFFFF' }]}>Rejouer</AppText>
+              </Tap>
+              <Tap accessibilityRole="button" accessibilityLabel="Rejouer dans un autre thème" onPress={replayOther} style={[styles.bigButton, { backgroundColor: '#FFFFFF' }]}>
+                <Ionicons name="shuffle" size={26} color={RC.purpleIcon} style={styles.bigIcon} />
+                <View style={[styles.bigDivider, { backgroundColor: RC.purple }]} />
+                <AppText style={[styles.bigLabel, styles.bigLabelSmall, { color: RC.purple }]} numberOfLines={1} adjustsFontSizeToFit>
+                  Rejouer dans un autre thème
+                </AppText>
+              </Tap>
+              {rematch && (
+                <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
+                  {rematch}
+                </AppText>
+              )}
+            </View>
+
+            <XpRing xpAfter={record.xpBefore + result.rewards.total} gained={result.rewards.total} />
+
+            <Tap accessibilityRole="button" accessibilityLabel="Voir les statistiques et les questions" onPress={scrollToStats} hitSlop={16} style={styles.chevron}>
+              <Ionicons name="chevron-down" size={44} color={RC.chevron} />
             </Tap>
-            <View style={styles.titles}>
-              <AppText style={styles.title}>RÉSULTATS</AppText>
-              <AppText style={styles.subtitle}>{theme?.name}</AppText>
-            </View>
           </View>
-        </ThemeCover>
+        </View>
 
-        <View style={styles.body}>
-          <Animated.View entering={ZoomIn.springify()} style={{ gap: Spacing.sm, marginTop: -Spacing.lg }}>
-            <Celebration color={result.outcome === 'loss' ? '#71717A' : GOLD} />
-            <ResultBanner {...banner} />
-          </Animated.View>
+        {/* Suite de la page : statistiques puis questions. */}
+        <View style={styles.body} onLayout={(e) => (statsY.current = e.nativeEvent.layout.y)}>
+          <SectionTitle text="STATISTIQUES" />
+          <View style={styles.legendRow}>
+            <LegendDot color={RC.win} label={duel.me.name} />
+            <LegendDot color={RC.lose} label={duel.opponent.name} />
+          </View>
+          <ScoreChart record={record} myName={duel.me.name} />
 
-          {/* Le joueur connecté est TOUJOURS à gauche : le serveur l'envoie comme « me ». */}
-          <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.players}>
-            <PlayerCard player={duel.me} outcome={result.outcome} self />
-            <View style={styles.vs}>
-              <AppText style={styles.vsText}>VS</AppText>
-            </View>
-            <PlayerCard player={duel.opponent} outcome={result.outcome === 'win' ? 'loss' : result.outcome === 'loss' ? 'win' : 'draw'} />
-          </Animated.View>
-
-          {!result.finished && !result.forfeited && (
-            <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
-              Tu n’étais plus connecté à la fin du duel : pas de bonus de fin.
-            </AppText>
-          )}
-          {result.forfeited && (
-            <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
-              Duel abandonné : aucun XP.
-            </AppText>
-          )}
-
-          <Animated.View entering={FadeInDown.delay(220).springify()} style={styles.table}>
-            <BonusRow icon="ribbon" label="Score" value={result.rewards.scorePoints ?? 0} />
-            <BonusRow icon="trophy" label="Bonus fin" value={result.rewards.finishBonus} />
-            <BonusRow icon="star" label="Bonus victoire" value={result.rewards.victoryBonus} />
-            <BonusRow icon="flash" label="Bonus boost" value={result.rewards.boostBonus} />
-            <View style={[styles.row, styles.totalRow]}>
-              <Ionicons name="layers" size={24} color={GOLD} style={styles.rowIcon} />
-              <AppText style={[styles.rowLabel, { color: GOLD, fontWeight: '800' }]}>XP total</AppText>
-              <AppText style={[styles.rowValue, { color: GOLD, fontSize: 26 }]}>{result.rewards.total}</AppText>
-            </View>
-          </Animated.View>
-
-          <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.speed}>
+          <View style={styles.speed}>
             <AppText style={styles.speedTitle}>Rapidité</AppText>
             <View style={styles.speedHead}>
               <AppText style={[styles.speedName, { textAlign: 'left' }]} numberOfLines={1}>
@@ -272,21 +309,32 @@ export default function ResultsScreen() {
             <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
               Temps calculés sur les bonnes réponses.
             </AppText>
-          </Animated.View>
+          </View>
 
-          {/* XP du thème joué (le niveau est calculé par thème), remplie segment par segment. */}
-          <XpProgress xpBefore={record.xpBefore} rewards={result.rewards} delayMs={1500} durationMs={XP_SOUND_MS} />
+          <View style={styles.table}>
+            <BonusRow icon="ribbon" label="Score" value={result.rewards.scorePoints ?? 0} />
+            <BonusRow icon="trophy" label="Bonus fin" value={result.rewards.finishBonus} />
+            <BonusRow icon="star" label="Bonus victoire" value={result.rewards.victoryBonus} />
+            <BonusRow icon="flash" label="Bonus boost" value={result.rewards.boostBonus} />
+            <View style={[styles.row, styles.totalRow]}>
+              <Ionicons name="layers" size={24} color={GOLD} style={styles.rowIcon} />
+              <AppText style={[styles.rowLabel, { color: GOLD, fontWeight: '800' }]}>XP total</AppText>
+              <AppText style={[styles.rowValue, { color: GOLD, fontSize: 26 }]}>{result.rewards.total}</AppText>
+            </View>
+          </View>
 
-          {duel.challenge && (
-            <>
-              <ReplayButton onPress={replay} />
-              {rematch && (
-                <AppText variant="caption" color={R.muted} style={{ textAlign: 'center' }}>
-                  {rematch}
-                </AppText>
-              )}
-            </>
-          )}
+          <SectionTitle text="QUESTIONS" />
+          <QuestionReview
+            record={record}
+            me={meView}
+            opponent={oppView}
+            width={contentWidth}
+            onShare={share}
+            onReport={(i) => {
+              const q = record.questions[i];
+              if (q) setReportedQuestion({ id: q.id, themeId: duel.themeId, text: q.text });
+            }}
+          />
 
           {!duel.opponent.isBot && !duel.challenge && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
 
@@ -297,10 +345,7 @@ export default function ResultsScreen() {
               disabled={duel.opponent.isBot}
               onPress={() => router.push({ pathname: '/messages/new', params: { userId: duel.opponent.id } })}
               style={styles.secondaryButton}>
-              <Ionicons name="chatbubble-ellipses" size={28} color={duel.opponent.isBot ? '#52525B' : R.text} />
-            </Tap>
-            <Tap accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} style={styles.secondaryButton}>
-              <Ionicons name="share-social" size={28} color={R.text} />
+              <Ionicons name="chatbubble-ellipses" size={26} color={duel.opponent.isBot ? '#52525B' : R.text} />
             </Tap>
             {result.outcome === 'win' && (
               <Tap
@@ -310,7 +355,7 @@ export default function ResultsScreen() {
                 disabled={pinBusy}
                 onPress={togglePin}
                 style={styles.secondaryButton}>
-                <Ionicons name={pinned ? 'pin' : 'pin-outline'} size={28} color={pinned ? Colors.accent : R.text} />
+                <Ionicons name={pinned ? 'pin' : 'pin-outline'} size={26} color={pinned ? Colors.accent : R.text} />
               </Tap>
             )}
           </View>
@@ -320,72 +365,48 @@ export default function ResultsScreen() {
             </AppText>
           )}
 
-          <QuestionReportSheet question={reportedQuestion} onClose={() => setReportedQuestion(null)} />
-          <Tap accessibilityRole="button" onPress={() => setDetails((d) => !d)} style={styles.detailsToggle}>
-            <AppText variant="label" color={R.muted}>
-              {details ? 'Masquer le détail des questions' : 'Voir le détail des questions'}
-            </AppText>
-            <Ionicons name={details ? 'chevron-up' : 'chevron-down'} size={18} color={R.muted} />
+          <Tap accessibilityRole="button" accessibilityLabel="Remonter en haut des résultats" onPress={scrollToTop} hitSlop={12} style={styles.toTop}>
+            <Ionicons name="chevron-up" size={36} color={RC.chevron} />
+            <AppText style={styles.toTopText}>RÉSULTATS</AppText>
           </Tap>
-          {details &&
-            record.questions.map((q, i) => {
-              const mine = record.player[i];
-              const theirs = record.opponent[i];
-              return (
-                <View key={q.id} style={styles.detail}>
-                  <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
-                    {questionImageSource(q.image) !== null && (
-                      <Image source={questionImageSource(q.image)!} contentFit="cover" style={styles.thumb} accessibilityLabel="Illustration" />
-                    )}
-                    <AppText variant="caption" color={R.muted} style={{ flex: 1 }}>
-                      {i + 1}. {q.text}
-                    </AppText>
-                    <Tap
-                      accessibilityRole="button"
-                      accessibilityLabel={`Signaler la question ${i + 1}`}
-                      hitSlop={10}
-                      onPress={() => setReportedQuestion({ id: q.id, themeId: duel.themeId, text: q.text })}
-                      style={styles.flag}>
-                      <Ionicons name="flag-outline" size={16} color={R.muted} />
-                      <AppText variant="caption" color={R.muted}>
-                        Signaler
-                      </AppText>
-                    </Tap>
-                  </View>
-                  <AppText variant="label" color={R.win}>
-                    {q.choices[q.correctIndex]}
-                  </AppText>
-                  <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-                    <Pill label="Toi" correct={mine.correct} points={mine.points} ms={mine.responseMs} answered={mine.choice !== null} />
-                    <Pill label={record.opponentName} correct={theirs.correct} points={theirs.points} ms={theirs.responseMs} answered={theirs.choice !== null} />
-                  </View>
-                </View>
-              );
-            })}
         </View>
       </Animated.ScrollView>
       </GestureDetector>
+      <QuestionReportSheet question={reportedQuestion} onClose={() => setReportedQuestion(null)} />
     </Animated.View>
     </GestureDetector>
     </GestureHandlerRootView>
   );
 }
 
-function PlayerCard({ player, outcome, self }: { player: ParticipantView; outcome: DuelOutcome; self?: boolean }) {
-  const color = outcome === 'win' ? R.win : outcome === 'loss' ? R.loss : R.draw;
-  const bg = outcome === 'win' ? R.winBg : outcome === 'loss' ? R.lossBg : '#141006';
+function SectionTitle({ text }: { text: string }) {
   return (
-    <View style={styles.cardSlot}>
-      <View style={styles.crown}>{outcome === 'win' && <Crown />}</View>
-      <View style={[styles.card, { borderColor: color, backgroundColor: bg }]}>
-        <AppText style={styles.cardName} numberOfLines={1}>
-          {player.name}
-        </AppText>
-        <View style={[styles.ring, { borderColor: color }]}>
-          <Avatar name={player.name} color={self ? Colors.player : (player.color ?? Colors.opponent)} size={76} borderColor="#251F44" />
-        </View>
-        <AppText style={[styles.cardScore, { color }]}>{player.points}</AppText>
-      </View>
+    <AppText accessibilityRole="header" style={styles.sectionTitle}>
+      {text}
+    </AppText>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <AppText style={styles.legendLabel} numberOfLines={1}>{label}</AppText>
+    </View>
+  );
+}
+
+/** Photo ronde cerclée (vert gagnant, rouge perdant), nom, puis score en grand. */
+function PlayerSlot({ player, points, state }: { player: { name: string; color: string; avatar: string | null }; points: number; state: 'win' | 'loss' | 'draw' }) {
+  const ring = state === 'win' ? RC.win : state === 'loss' ? '#E0101E' : RC.draw;
+  const scoreColor = state === 'win' ? RC.win : state === 'loss' ? RC.lose : RC.draw;
+  return (
+    <View style={styles.slot} accessible accessibilityLabel={`${player.name} : ${points} points${state === 'win' ? ', gagnant' : ''}`}>
+      <Avatar name={player.name} color={player.color} uri={player.avatar} size={88} borderColor={ring} />
+      <AppText style={styles.slotName} numberOfLines={1}>
+        {player.name}
+      </AppText>
+      <AppText style={[styles.slotScore, { color: scoreColor }]}>{points}</AppText>
     </View>
   );
 }
@@ -428,91 +449,47 @@ function BonusRow({ icon, label, value }: { icon: 'ribbon' | 'trophy' | 'star' |
   );
 }
 
-function Pill({ label, correct, points, ms, answered }: { label: string; correct: boolean; points: number; ms: number; answered: boolean }) {
-  return (
-    <View style={[styles.pill, { borderColor: correct ? R.win : R.loss }]}>
-      <AppText variant="caption" color={R.text} numberOfLines={1} style={{ flex: 1 }}>
-        {label}
-      </AppText>
-      <AppText variant="caption" color={R.text}>
-        {points} pts · {answered ? `${(ms / 1000).toFixed(1)} s` : '—'}
-      </AppText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: '#000000' },
   screen: { flex: 1, backgroundColor: R.bg },
-  coverContent: { flex: 1 },
-  close: {
-    position: 'absolute',
-    right: 16,
-    top: 12,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  titles: { flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 40, gap: 2 },
-  title: { color: R.text, fontSize: 30, fontWeight: '900', letterSpacing: 1 },
-  subtitle: { color: '#E4E4E7', fontSize: 18, fontWeight: '600' },
-  body: { width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 20, gap: Spacing.lg },
-  players: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  cardSlot: { flex: 1, alignItems: 'center' },
-  crown: { height: 22, justifyContent: 'flex-end' },
-  card: { alignSelf: 'stretch', borderWidth: 2, borderRadius: 6, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', gap: 8 },
-  cardName: { color: R.text, fontSize: 16, fontWeight: '700' },
-  ring: { borderWidth: 4, borderRadius: 50, padding: 3 },
-  cardScore: { fontSize: 36, fontFamily: Fonts.score, fontVariant: ['tabular-nums'] },
-  vs: {
-    position: 'absolute',
-    left: '50%',
-    top: '52%',
-    transform: [{ translateX: -24 }, { translateY: -18 }],
-    width: 48,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: '#000000',
-    borderWidth: 2,
-    borderColor: PINK,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  vsText: { color: '#FFFFFF', fontWeight: '900', fontStyle: 'italic', fontSize: 18 },
-  table: { borderWidth: 1, borderColor: '#3F3F46', borderRadius: 4, overflow: 'hidden', backgroundColor: R.bg },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 54,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: R.line,
-  },
+  header: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, gap: 8 },
+  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  headerCenter: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  title: { color: R.text, fontSize: 28, lineHeight: 32, fontWeight: '800', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
+  subtitle: { color: R.text, fontSize: 18, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
+  body: { width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 20, gap: Spacing.md },
+  players: { flexDirection: 'row', justifyContent: 'space-around' },
+  slot: { flex: 1, alignItems: 'center', gap: 4 },
+  slotName: { color: R.text, fontSize: 16, fontWeight: '600', maxWidth: '95%' },
+  slotScore: { fontSize: 52, lineHeight: 58, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  buttons: { gap: 12 },
+  bigButton: { height: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  bigIcon: { width: 32, textAlign: 'center' },
+  bigDivider: { width: 1.5, height: 30, marginHorizontal: 12 },
+  bigLabel: { fontSize: 22, fontWeight: '700' },
+  bigLabelSmall: { fontSize: 16, flexShrink: 1 },
+  chevron: { alignSelf: 'center', marginTop: -Spacing.sm, paddingBottom: Spacing.md },
+  sectionTitle: { color: R.text, fontSize: 15, fontWeight: '800', letterSpacing: 2, textAlign: 'center', marginTop: Spacing.lg },
+  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: -Spacing.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '45%' },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLabel: { color: R.muted, fontSize: 13 },
+  table: { borderWidth: 1, borderColor: '#3F3F46', borderRadius: 12, overflow: 'hidden', backgroundColor: R.bg },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 50, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: R.line },
   totalRow: { backgroundColor: '#241C02', borderBottomWidth: 0 },
   rowIcon: { width: 40 },
-  rowLabel: { flex: 1, color: R.text, fontSize: 17 },
-  rowValue: { color: R.text, fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  speed: { borderWidth: 1, borderColor: '#3F3F46', borderRadius: 4, padding: 14, gap: 10 },
-  speedTitle: { color: R.text, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  rowLabel: { flex: 1, color: R.text, fontSize: 16 },
+  rowValue: { color: R.text, fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  speed: { borderWidth: 1, borderColor: '#3F3F46', borderRadius: 12, padding: 14, gap: 10 },
+  speedTitle: { color: R.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   speedHead: { flexDirection: 'row' },
   speedName: { flex: 1, color: R.muted, fontSize: 14, fontWeight: '700' },
   speedRow: { flexDirection: 'row', alignItems: 'center' },
   speedLabel: { flex: 1.2, color: R.muted, fontSize: 14, textAlign: 'center' },
   speedValue: { flex: 1, color: R.text, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   speedBest: { color: R.win },
-  levelRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  levelText: { color: R.text, fontSize: 17, fontWeight: '800' },
-  track: { height: 16, borderRadius: 999, backgroundColor: '#2A2A2E', overflow: 'hidden' },
   secondary: { flexDirection: 'row', gap: 12 },
-  secondaryButton: { flex: 1, height: 54, borderRadius: 10, backgroundColor: '#111113', alignItems: 'center', justifyContent: 'center' },
-  detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Spacing.sm },
-  flag: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 30 },
-  detail: { borderTopWidth: 1, borderTopColor: R.line, paddingTop: Spacing.sm, gap: 6 },
-  thumb: { width: 54, height: 36, borderRadius: 6 },
-  pill: { flex: 1, flexDirection: 'row', gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  secondaryButton: { flex: 1, height: 50, borderRadius: 12, backgroundColor: '#111113', alignItems: 'center', justifyContent: 'center' },
+  toTop: { alignSelf: 'center', alignItems: 'center', paddingTop: Spacing.md },
+  toTopText: { color: RC.chevron, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginTop: -6 },
 });
