@@ -73,7 +73,7 @@ const LAGON: Partial<Palette> = {
 
 export type AppThemeId = 'classic' | 'lagon' | 'arene';
 export const APP_THEME_KEY = 'qu1z.appTheme';
-let currentTheme: AppThemeId = 'classic';
+let currentTheme: AppThemeId = 'arene';
 export const appThemeId = () => currentTheme;
 /** Thème « Arène » : palette Lagon + touches de jeu (relief, barre d'XP, titres Lilita One). */
 export const isArena = () => currentTheme === 'arene';
@@ -83,7 +83,7 @@ export const Colors: Palette = { ...CLASSIC };
 
 /** Applique la palette enregistrée ; à appeler avant le chargement des écrans (voir `index.js`). */
 export function applyAppTheme(id: string | null | undefined): void {
-  currentTheme = id === 'lagon' || id === 'arene' ? id : 'classic';
+  currentTheme = id === 'lagon' || id === 'classic' ? id : 'arene';
   Object.assign(Colors, CLASSIC, currentTheme === 'classic' ? {} : LAGON);
 }
 
