@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
-import { CATEGORIES, RULES, THEMES, registerTheme, registerThemeQuestions, type CategoryId, type Question, type Theme } from '@qu1z/shared';
+import { CATEGORIES, QUESTIONS, RULES, THEMES, registerTheme, registerThemeQuestions, type CategoryId, type Question, type Theme } from '@qu1z/shared';
 import type { Database } from './db/database';
 import type { MediaStore } from './media';
 import { SocialError } from './social';
@@ -34,6 +34,56 @@ export class ThemeCatalog {
       const base = THEMES.find((theme) => theme.id === override.theme_id && !theme.id.startsWith('custom-'));
       if (base) registerTheme({ ...base, iconUrl: override.icon_key ? this.store.url(override.icon_key) : base.iconUrl, coverUrl: override.cover_key ? this.store.url(override.cover_key) : base.coverUrl });
     }
+    const imported = await this.db.query<{ theme_id: string }>('SELECT DISTINCT theme_id FROM imported_questions');
+    for (const { theme_id } of imported) await this.refreshImported(theme_id);
+  }
+  /** Ajoute (ou retire) les questions importées d'un thème à sa banque en mémoire. */
+  private async refreshImported(themeId: string): Promise<number> {
+    const rows = await this.db.query<{ id: string; text: string; choices: string[]; difficulty: number }>(
+      'SELECT id, text, choices, difficulty FROM imported_questions WHERE theme_id = $1 ORDER BY created_at, id', [themeId]);
+    const base = QUESTIONS.filter((q) => q.themeId === themeId && !q.id.startsWith('imp-'));
+    const extra: Question[] = rows.map((row) => ({ id: row.id, themeId, text: row.text, choices: row.choices as Question['choices'], difficulty: row.difficulty as 1 | 2 | 3 }));
+    registerThemeQuestions(themeId, [...base, ...extra]);
+    const theme = THEMES.find((t) => t.id === themeId);
+    if (theme) registerTheme({ ...theme, questionCount: base.length + extra.length });
+    return base.length + extra.length;
+  }
+  /**
+   * Import CSV (déjà découpé par l'appli) : `choices[0]` est la bonne réponse.
+   * `dryRun` ne fait que l'analyse, pour l'aperçu.
+   */
+  async importQuestions(admin: string, themeId: string, input: Record<string, unknown>) {
+    await this.requireAdmin(admin);
+    if (!THEMES.some((t) => t.id === themeId)) throw new SocialError(404, 'not_found');
+    const raw = Array.isArray(input.questions) ? input.questions : [];
+    if (!raw.length || raw.length > 1000) throw new SocialError(400, 'invalid_questions');
+    const norm = (text: string) => text.toLocaleLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const seen = new Set(QUESTIONS.filter((q) => q.themeId === themeId).map((q) => norm(q.text)));
+    const valid: QuestionInput[] = [], invalid: { line: number; reason: string }[] = [];
+    let duplicates = 0;
+    raw.forEach((item, index) => {
+      const q = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+      const line = Number(q.line ?? index + 1), text = String(q.text ?? '').trim();
+      const choices = Array.isArray(q.choices) ? q.choices.map((c) => String(c).trim()) : [];
+      const difficulty = [1, 2, 3].includes(Number(q.difficulty)) ? Number(q.difficulty) : 2;
+      let reason = '';
+      if (!text) reason = 'question vide';
+      else if (text.length > RULES.maxQuestionLength) reason = `question trop longue (${text.length}/${RULES.maxQuestionLength})`;
+      else if (choices.length !== 4 || choices.some((c) => !c)) reason = 'il faut 4 réponses';
+      else if (choices.some((c) => c.length > 120)) reason = 'réponse trop longue';
+      else if (new Set(choices.map((c) => c.toLocaleLowerCase())).size !== 4) reason = 'deux réponses identiques';
+      if (reason) return void invalid.push({ line, reason });
+      if (seen.has(norm(text))) return void duplicates++;
+      seen.add(norm(text));
+      valid.push({ text, choices: choices as QuestionInput['choices'], difficulty });
+    });
+    if (input.dryRun) return { added: 0, valid: valid.length, duplicates, invalid, total: null };
+    for (const q of valid) {
+      await this.db.query('INSERT INTO imported_questions (id, theme_id, text, choices, difficulty, created_by) VALUES ($1, $2, $3, $4, $5, $6)',
+        ['imp-' + randomUUID(), themeId, q.text, JSON.stringify(q.choices), q.difficulty, admin]);
+    }
+    const total = await this.refreshImported(themeId);
+    return { added: valid.length, valid: valid.length, duplicates, invalid, total };
   }
   async list(): Promise<Theme[]> {
     const rows = await this.db.query<Row>('SELECT * FROM custom_themes WHERE published = true ORDER BY created_at');

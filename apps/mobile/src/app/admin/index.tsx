@@ -59,6 +59,7 @@ export default function AdminScreenHome() {
         <SectionLabel>Outils</SectionLabel>
         <View style={styles.pair}>
           <Tool icon="albums-outline" label="Thèmes" hint="Créer un thème et ses questions" href={'/admin/themes/new' as Href} />
+          <Tool icon="cloud-upload-outline" label="Importer" hint="Questions depuis un CSV" href={'/admin/import-questions' as Href} />
           <Tool icon="musical-notes-outline" label="Sons" hint={sounds.data ? `${sounds.data.sounds.length} personnalisé${sounds.data.sounds.length > 1 ? 's' : ''} sur ${GAME_SOUNDS.length}` : 'Écouter et remplacer'} href="/admin/sounds" />
         </View>
         <View style={styles.pair}>

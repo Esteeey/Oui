@@ -297,6 +297,7 @@ export function createApi(
     ['GET', /^\/api\/theme-catalog$/, async () => ({ themes: await themeCatalog.list() })],
     ['POST', /^\/api\/admin\/themes$/, async ({ userId, body }) => themeCatalog.create(userId, await body())],
     ['PUT', /^\/api\/admin\/themes\/([^/]+)\/(icon|cover)$/, async ({ userId, params, raw }) => themeCatalog.setAsset(userId, params[0], params[1] as 'icon' | 'cover', await raw(MEDIA_MAX_BYTES))],
+    ['POST', /^\/api\/admin\/themes\/([^/]+)\/questions\/import$/, async ({ userId, params, body }) => themeCatalog.importQuestions(userId, params[0], await body())],
     ['POST', /^\/api\/admin\/themes\/([^/]+)\/publish$/, async ({ userId, params }) => ({ theme: await themeCatalog.publish(userId, params[0]) })],
     // Thèmes
     ['POST', /^\/api\/question-reports$/, async ({ userId, body }) => {
