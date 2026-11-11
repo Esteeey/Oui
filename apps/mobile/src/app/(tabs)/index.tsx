@@ -1,10 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import type { FeedItem } from '@qu1z/shared';
+import type { FeedItem, UserSummary } from '@qu1z/shared';
 
 import { ActivityCard } from '@/components/feed-card';
 import { HeaderButton } from '@/components/header';
@@ -22,17 +22,13 @@ type Filter = 'all' | 'friends' | 'results';
 /** Marge du fil de chaque côté de l'écran. */
 const FEED_MARGIN = 7;
 
-/** Texte et icônes des filtres non sélectionnés : gris sombre neutre. */
-const FILTER_INK = '#3D3B47';
-/** Rose vif et clair du filtre sélectionné. */
-const FILTER_ACTIVE = Colors.accent;
 /** Agrandit vers le haut et le bas la zone tactile des petits contrôles du header (44 px). */
 const HEADER_HIT = { top: 8, bottom: 8 };
 
-const FILTERS: { value: Filter; label: string; icon: (selected: boolean) => ReactNode }[] = [
-  { value: 'all', label: 'Tout', icon: (selected) => <Ionicons name="home-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
-  { value: 'friends', label: 'Amis', icon: (selected) => <Ionicons name="people-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
-  { value: 'results', label: 'Résultats', icon: (selected) => <Ionicons name="trophy-outline" size={14} color={selected ? Colors.onAccent : FILTER_INK} /> },
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: 'all', label: 'Tout' },
+  { value: 'friends', label: 'Amis' },
+  { value: 'results', label: 'Résultats' },
 ];
 
 /** Les filtres n'agissent que sur l'affichage : le serveur envoie toujours le même fil. */
@@ -51,6 +47,8 @@ export default function FeedScreen() {
   const { playerName } = useProgress();
   const { playerId, profile, unreadNotifications } = useGameServer();
   const feed = useApi<{ items: FeedItem[] }>(playerId ? '/api/feed' : null);
+  const following = useApi<{ users: UserSummary[] }>(playerId ? `/api/users/${playerId}/following` : null);
+  const friends = following.data?.users ?? [];
   const [filter, setFilter] = useState<Filter>('all');
   const allItems = feed.data?.items ?? [];
   const items = allItems.filter((item) => matches(item, filter, playerId));
@@ -80,35 +78,46 @@ export default function FeedScreen() {
       }
       headerContent={
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filters}>
+          {/* Bande d'amis : publier, chercher des joueurs, puis les joueurs suivis. */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.friends}>
+            <Tap accessibilityRole="button" accessibilityLabel="Publier" onPress={openCompose} style={styles.friend}>
+              <View>
+                <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.accent} size={50} uri={profile?.avatar} ring={false} />
+                <View style={styles.plusBadge}>
+                  <Ionicons name="add" size={13} color={Colors.onAccent} />
+                </View>
+              </View>
+              <AppText numberOfLines={1} style={styles.friendName}>Publier</AppText>
+            </Tap>
+            <Tap accessibilityRole="button" accessibilityLabel="Trouver des joueurs à défier" onPress={() => router.navigate('/people')} style={styles.friend}>
+              <View style={styles.addFriend}>
+                <Ionicons name="flash" size={20} color={Colors.text} />
+              </View>
+              <AppText numberOfLines={1} style={styles.friendName}>Défier</AppText>
+            </Tap>
+            {friends.map((u) => (
+              <Tap key={u.id} accessibilityRole="button" accessibilityLabel={`Profil de ${u.pseudo}`} onPress={() => router.push({ pathname: '/player/[id]', params: { id: u.id } })} style={styles.friend}>
+                <View style={styles.friendRing}>
+                  <Avatar name={u.pseudo} color={avatarColor(u.id)} size={46} uri={u.avatar} ring={false} />
+                </View>
+                <AppText numberOfLines={1} style={styles.friendName}>{u.pseudo}</AppText>
+              </Tap>
+            ))}
+          </ScrollView>
+
+          <View style={styles.filters}>
             {FILTERS.map((f) => {
               const selected = f.value === filter;
               return (
-                <Tap key={f.value} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setFilter(f.value)} style={styles.filterHit}>
+                <Tap key={f.value} accessibilityRole="button" accessibilityState={{ selected }} hitSlop={HEADER_HIT} onPress={() => setFilter(f.value)}>
                   <View style={[styles.filter, selected && styles.filterActive]}>
-                    {f.icon(selected)}
-                    <AppText color={selected ? Colors.onAccent : FILTER_INK} style={styles.filterLabel}>
+                    <AppText color={selected ? Colors.onAccent : Colors.text} style={styles.filterLabel}>
                       {f.label}
                     </AppText>
                   </View>
                 </Tap>
               );
             })}
-          </ScrollView>
-
-          <View style={styles.compose}>
-            <Avatar name={playerName} color={playerId ? avatarColor(playerId) : Colors.accent} size={28} uri={profile?.avatar} ring={false} />
-            <Tap accessibilityRole="button" accessibilityLabel="Publier une publication" hitSlop={HEADER_HIT} onPress={openCompose} style={styles.composeField}>
-              <AppText color={Colors.textSoft} style={{ fontSize: 12.5, lineHeight: 17 }} numberOfLines={1}>
-                Quoi de neuf ?
-              </AppText>
-            </Tap>
-            <Tap accessibilityRole="button" accessibilityLabel="Publier une image" hitSlop={HEADER_HIT} onPress={openCompose} style={styles.composeIcon}>
-              <Ionicons name="image-outline" size={21} color={Colors.textSoft} />
-            </Tap>
-            <Tap accessibilityRole="button" accessibilityLabel="Publier une photo" hitSlop={HEADER_HIT} onPress={openCompose} style={styles.composeIcon}>
-              <Ionicons name="camera-outline" size={21} color={Colors.textSoft} />
-            </Tap>
           </View>
         </>
       }>
@@ -141,25 +150,14 @@ export default function FeedScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: FEED_MARGIN, paddingTop: 12, gap: 10 },
-  // La zone tactile fait 44 px de haut sans changer la taille visible des filtres.
-  filterScroll: { flexGrow: 0, marginVertical: -9 },
-  filters: { gap: 8, paddingHorizontal: 12, flexGrow: 1 },
-  filterHit: { paddingVertical: 9 },
-  filter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    height: 26,
-    paddingHorizontal: 8,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: '#DDD5EA',
-    backgroundColor: Colors.surface,
-  },
-  filterActive: { backgroundColor: FILTER_ACTIVE, borderColor: FILTER_ACTIVE },
-  filterLabel: { fontSize: 11.5, lineHeight: 16, fontWeight: '600' },
-  compose: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 13, paddingRight: 14, marginTop: 6, paddingBottom: 8 },
-  composeIcon: { width: 32, height: 28, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },
-  composeField: { flex: 1, height: 28, borderRadius: Radius.pill, backgroundColor: '#E8E6EF', justifyContent: 'center', paddingHorizontal: 13 },
+  friends: { gap: 12, paddingHorizontal: 12, paddingTop: 2 },
+  friend: { width: 56, alignItems: 'center', gap: 3 },
+  friendName: { fontSize: 10.5, lineHeight: 14, fontWeight: '700', color: Colors.text, maxWidth: 56 },
+  friendRing: { width: 54, height: 54, borderRadius: 27, borderWidth: 2.5, borderColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
+  addFriend: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.textSoft, alignItems: 'center', justifyContent: 'center', margin: 2 },
+  plusBadge: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.accent, borderWidth: 2, borderColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+  filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 },
+  filter: { height: 28, paddingHorizontal: 13, borderRadius: Radius.pill, backgroundColor: Colors.surfaceRaised, justifyContent: 'center' },
+  filterActive: { backgroundColor: Colors.navy },
+  filterLabel: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
 });
