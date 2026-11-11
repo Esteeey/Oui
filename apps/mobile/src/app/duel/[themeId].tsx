@@ -27,7 +27,7 @@ import { MATCH_FOUND_MS, MatchmakingMap } from '@/components/matchmaking-map';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { VERSUS_CLASH_MS, VersusIntro } from '@/components/versus-intro';
 import { TICK_WINDOW_MS, VERSUS_HIT_OFFSET_MS, playMusic, playSound, preloadSounds, stopSound } from '@/audio/sounds';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { ClassicColors as Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { questionImageSource } from '@/game/question-images';
 import { remainingMs, useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';

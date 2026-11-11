@@ -23,7 +23,7 @@ import { BannerCarousel } from '@/components/rank';
 import { DivisionBadge, type IconName } from '@/components/social';
 import { TitleDecor } from '@/components/title-decor';
 import { AppText, Avatar, Card, ProgressBar, useNavBarSpace } from '@/components/ui';
-import { Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
+import { ClassicColors as Colors, Gradients, MaxContentWidth, Radius, Shadow, Spacing } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
 import { bestWinStreak } from '@/state/progress';
 import { formatCount } from '@/utils/format';

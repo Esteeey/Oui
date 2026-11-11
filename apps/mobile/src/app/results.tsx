@@ -32,7 +32,7 @@ import { OutcomeBanner, QuestionReview, RC, ScoreChart, XpRing } from '@/compone
 import { ThemeIcon } from '@/components/theme-icon';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
+import { ClassicColors as Colors, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';

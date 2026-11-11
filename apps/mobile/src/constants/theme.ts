@@ -2,7 +2,7 @@
  * Identité visuelle QuizX : fond pastel très clair, cartes blanches, textes bleu nuit, rose vif réservé aux actions.
  * L'écran de duel et celui des résultats gardent leurs propres couleurs (fond noir).
  */
-export const Colors = {
+const CLASSIC = {
   background: '#F7F5FB',
   surface: '#FFFFFF',
   surfaceRaised: '#F4F0FF',
@@ -46,7 +46,44 @@ export const Colors = {
   /** Or vif du bandeau et des décorations de rang. */
   goldBright: '#FFC928',
   goldDeep: '#C98A00',
-} as const;
+};
+
+type Palette = { [K in keyof typeof CLASSIC]: string };
+
+/** Palette d'origine, figée : le profil et le duel la gardent quel que soit le thème choisi. */
+export const ClassicColors: Readonly<Palette> = Object.freeze({ ...CLASSIC });
+
+/** Palette « Lagon » : turquoise, bleu profond et rose flashy, à plat. */
+const LAGON: Partial<Palette> = {
+  background: '#E8F6F7',
+  surface: '#FFFFFF',
+  surfaceRaised: '#D3EEF0',
+  border: '#CDE5E9',
+  text: '#0B3C5D',
+  ink: '#0B3C5D',
+  textMuted: '#4F7183',
+  textSoft: '#6E93A3',
+  violetInk: '#0B3C5D',
+  accent: '#FF2E88',
+  accentInk: '#D3166E',
+  accentFill: '#FF2E88',
+  avatarRing: '#7FD1D9',
+  navy: '#0B3C5D',
+};
+
+export type AppThemeId = 'classic' | 'lagon';
+export const APP_THEME_KEY = 'qu1z.appTheme';
+let currentTheme: AppThemeId = 'classic';
+export const appThemeId = () => currentTheme;
+
+/** Couleurs de l'app (hors profil et duel). Modifiées une seule fois, au démarrage, par `applyAppTheme`. */
+export const Colors: Palette = { ...CLASSIC };
+
+/** Applique la palette enregistrée ; à appeler avant le chargement des écrans (voir `index.js`). */
+export function applyAppTheme(id: string | null | undefined): void {
+  currentTheme = id === 'lagon' ? 'lagon' : 'classic';
+  Object.assign(Colors, CLASSIC, currentTheme === 'lagon' ? LAGON : {});
+}
 
 /** Dégradés (du début à la fin) : réservés aux visuels de duel. */
 export const Gradients = {

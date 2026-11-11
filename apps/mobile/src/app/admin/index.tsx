@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { GAME_SOUNDS, type AppealSummary, type ReportSummary, type SoundOverride } from '@qu1z/shared';
@@ -7,7 +8,9 @@ import { GAME_SOUNDS, type AppealSummary, type ReportSummary, type SoundOverride
 import { AdminScreen, Hint, SectionLabel, adminStyles, type IconName } from '@/components/admin-ui';
 import { Tap } from '@/components/tap';
 import { AppText } from '@/components/ui';
-import { Colors, Fonts, Radius, Shadow, Spacing } from '@/constants/theme';
+import { APP_THEME_KEY, Colors, Fonts, Radius, Shadow, Spacing, appThemeId, type AppThemeId } from '@/constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { useApi } from '@/net/api';
 
 const ANNOUNCE = '/admin/announce' as Href;
@@ -64,6 +67,8 @@ export default function AdminScreenHome() {
         </View>
       </View>
 
+      <AppThemePicker />
+
       <Tap accessibilityRole="button" onPress={() => router.push(ANNOUNCE)} style={styles.announce}>
         <View style={[styles.icon, styles.announceIcon]}>
           <Ionicons name="megaphone-outline" size={22} color={Colors.onAccent} />
@@ -108,4 +113,52 @@ const styles = StyleSheet.create({
   icon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surfaceRaised },
   announce: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm + 4, minHeight: 72, padding: 14, borderRadius: Radius.md, backgroundColor: Colors.ink },
   announceIcon: { backgroundColor: 'rgba(255,255,255,0.14)' },
+});
+
+const APP_THEMES: { id: AppThemeId; label: string; colors: string[] }[] = [
+  { id: 'classic', label: 'Classique', colors: ['#F7F5FB', '#FC0266', '#7B2FFF'] },
+  { id: 'lagon', label: 'Lagon', colors: ['#7FD1D9', '#0B3C5D', '#FF2E88'] },
+];
+
+/** Palette de l'app (hors profil et duel), enregistrée sur cet appareil et appliquée au prochain démarrage. */
+function AppThemePicker() {
+  const [saved, setSaved] = useState<AppThemeId>(appThemeId());
+  const pending = saved !== appThemeId();
+  async function choose(id: AppThemeId) {
+    setSaved(id);
+    await AsyncStorage.setItem(APP_THEME_KEY, id).catch(() => {});
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
+  }
+  return (
+    <View style={adminStyles.stack}>
+      <SectionLabel>Thème de l’app</SectionLabel>
+      <View style={styles.pair}>
+        {APP_THEMES.map((t) => (
+          <Tap
+            key={t.id}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: saved === t.id }}
+            onPress={() => choose(t.id)}
+            style={[themeStyles.option, saved === t.id && themeStyles.optionOn]}>
+            <View style={themeStyles.swatches}>
+              {t.colors.map((c) => (
+                <View key={c} style={[themeStyles.swatch, { backgroundColor: c }]} />
+              ))}
+            </View>
+            <AppText style={adminStyles.strong}>{t.label}</AppText>
+          </Tap>
+        ))}
+      </View>
+      <AppText muted>
+        {pending ? 'Ferme complètement l’app puis rouvre-la pour appliquer le thème.' : 'Le profil et le duel gardent leurs couleurs actuelles.'}
+      </AppText>
+    </View>
+  );
+}
+
+const themeStyles = StyleSheet.create({
+  option: { flex: 1, gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.md, backgroundColor: Colors.surface, borderWidth: 2, borderColor: 'transparent', ...Shadow },
+  optionOn: { borderColor: Colors.accent },
+  swatches: { flexDirection: 'row', gap: 4 },
+  swatch: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
 });

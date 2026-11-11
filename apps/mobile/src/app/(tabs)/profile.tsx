@@ -10,7 +10,7 @@ import { MoreMenu } from '@/components/more-menu';
 import { CoverButton, PlayedThemes, ProfileAction, ProfileLayout, ProfileOverview, totalsOf } from '@/components/player-profile';
 import { PostCard } from '@/components/post-card';
 import { BadgesGrid } from '@/components/profile-view';
-import { Colors } from '@/constants/theme';
+import { ClassicColors as Colors } from '@/constants/theme';
 import { computeBadges, medalBadges } from '@/game/badges';
 import { totalXp, useProgress } from '@/state/progress';
 import { useApi } from '@/net/api';

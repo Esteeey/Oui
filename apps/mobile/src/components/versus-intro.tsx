@@ -20,7 +20,7 @@ import Svg, { ClipPath, Defs, G, Image as SvgImage, LinearGradient, Path, Polygo
 import { countryFlag, countryName, getCategory, getTheme, levelFromXp, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
 
 import { Avatar } from '@/components/ui';
-import { Colors } from '@/constants/theme';
+import { ClassicColors as Colors } from '@/constants/theme';
 import { mediaUri } from '@/net/media';
 import { Tap } from '@/components/tap';
 import { ThemeIcon } from '@/components/theme-icon';

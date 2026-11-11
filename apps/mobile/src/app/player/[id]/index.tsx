@@ -12,7 +12,7 @@ import { PostCard } from '@/components/post-card';
 import { BadgesGrid } from '@/components/profile-view';
 import { ReportSheet } from '@/components/report-sheet';
 import { AppText, Button, Card, LoadingState, Screen } from '@/components/ui';
-import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
+import { ClassicColors as Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { medalBadges } from '@/game/badges';
 import { api, errorMessage, useApi } from '@/net/api';
 import { useProgress } from '@/state/progress';
