@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { ClipPath, Defs, G, Image as SvgImage, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
+import Svg, { ClipPath, Defs, G, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
 import { countryFlag, countryName, getCategory, getTheme, levelFromXp, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
 
@@ -166,7 +166,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
             <Polygon points={toPixels(WHITE_EDGE, width, height)} fill="#F4F2F8" />
             <G clipPath="url(#warmClip)">
               {theirCover ? (
-                <SvgImage href={theirCover} x={0} y={coverTop} width={width} height={height - coverTop} preserveAspectRatio="xMidYMid slice" />
+                null
               ) : (
                 <>
                   <Rect x={0} y={coverTop} width={width} height={height - coverTop} fill="url(#warm)" />
@@ -179,6 +179,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
               )}
             </G>
           </Svg>
+          {theirCover ? <Image source={{ uri: theirCover }} style={[styles.bottomCover, { top: coverTop }]} contentFit="cover" /> : null}
           <View style={[styles.half, { top: middle + VS_GAP }]} onLayout={(e) => setBottomBlock(e.nativeEvent.layout.height)}>
             <Player player={duel.opponent} profile={theirProfile.data} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} side="bottom" />
           </View>
@@ -320,6 +321,7 @@ const styles = StyleSheet.create({
   top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 20, zIndex: 2 },
   round: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(20, 24, 32, 0.6)', alignItems: 'center', justifyContent: 'center' },
   topCover: { position: 'absolute', left: 0, right: 0, top: 0, height: '62%' },
+  bottomCover: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 140 },
   half: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 6, paddingHorizontal: 24 },
   photo: { borderRadius: 999, boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' },
