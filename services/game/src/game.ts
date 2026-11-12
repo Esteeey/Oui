@@ -347,31 +347,73 @@ export class Game {
   }
 
   /**
-   * Mini chat entre les deux joueurs réels d'un duel (pas le bot ni un défi rejoué). Texte de 1 à 140 caractères,
-   * limité contre le spam, jamais entre joueurs qui se sont bloqués.
+   * Duel du joueur, en mémoire ou déjà terminé et enregistré, avec la clé de son chat : un défi partage un seul
+   * chat entre ses deux manches, un duel en direct a le sien.
+   */
+  private async chatContext(playerId: string, duelId: string): Promise<{ key: string; otherId: string; ghost: boolean } | null> {
+    const duel = this.duels.get(duelId) ?? (await this.loadFinished(duelId).catch(() => null));
+    if (!duel) return null;
+    const me = duel.state.participants.findIndex((p) => p.playerId === playerId);
+    if (me < 0) return null;
+    const other = duel.state.participants[1 - me];
+    if (other.isBot) return null;
+    const challenge = duel.state.challenge;
+    if (other.ghost && !challenge) return null;
+    return { key: challenge ? `challenge:${challenge.id}` : duelId, otherId: other.playerId, ghost: !!other.ghost };
+  }
+
+  /** Amis = abonnés l'un à l'autre. Seuls leurs messages de fin de partie sont enregistrés. */
+  private async areFriends(a: string, b: string): Promise<boolean> {
+    const rows = await this.repo.db.query(
+      `SELECT 1 FROM follows f1 JOIN follows f2 ON f2.follower_id = f1.followee_id AND f2.followee_id = f1.follower_id
+       WHERE f1.follower_id = $1 AND f1.followee_id = $2`,
+      [a, b],
+    );
+    return rows.length > 0;
+  }
+
+  /**
+   * Mini chat de fin de partie entre deux joueurs réels (jamais le bot). Texte de 1 à 140 caractères, limité
+   * contre le spam, jamais entre joueurs qui se sont bloqués. Entre amis, les messages sont enregistrés
+   * (ils restent visibles, défis compris) ; entre inconnus, ils ne vivent que le temps du duel en direct.
    */
   async duelChat(playerId: string, duelId: string, text: string, extra: { stickerId?: StickerId; gif?: DuelChatGif } = {}): Promise<void> {
-    const duel = this.ownedDuel(playerId, duelId);
-    if (!duel) return this.send(playerId, { type: 'error', code: 'not_in_duel', message: 'Duel introuvable.' });
-    const other = duel.state.participants[1 - duel.participantIndex(playerId)];
-    if (other.isBot || other.ghost) return;
+    const ctx = await this.chatContext(playerId, duelId);
+    if (!ctx) return this.send(playerId, { type: 'error', code: 'not_in_duel', message: 'Duel introuvable.' });
     const clean = extra.stickerId || extra.gif ? '' : text.replace(/\s+/g, ' ').trim().slice(0, DUEL_CHAT_MAX_LENGTH);
     if (!clean && !extra.stickerId && !extra.gif) return;
     if (!this.limiter.allow('chat', playerId)) return this.send(playerId, { type: 'error', code: 'rate_limited', message: 'Doucement : trop de messages.' });
     const blocked = await this.repo.db.query(
       'SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)',
-      [playerId, other.playerId],
+      [playerId, ctx.otherId],
     );
     if (blocked.length) return;
+    const friends = await this.areFriends(playerId, ctx.otherId);
+    // Un défi rejoué contre un inconnu n'a personne en face : rien à envoyer.
+    if (ctx.ghost && !friends) return;
     const message: DuelChatMessage = { from: playerId, text: clean, at: this.now(), ...(extra.stickerId ? { stickerId: extra.stickerId } : extra.gif ? { gif: extra.gif } : {}) };
-    const list = [...(this.chats.get(duelId) ?? []), message].slice(-30);
-    this.chats.set(duelId, list);
-    for (const id of [playerId, other.playerId]) this.send(id, { type: 'duelChat', duelId, messages: [message] });
+    if (friends) {
+      await this.repo.db.query('INSERT INTO friend_duel_chat (chat_key, from_id, to_id, message) VALUES ($1, $2, $3, $4)', [
+        ctx.key,
+        playerId,
+        ctx.otherId,
+        JSON.stringify(message),
+      ]);
+    } else {
+      this.chats.set(ctx.key, [...(this.chats.get(ctx.key) ?? []), message].slice(-30));
+    }
+    for (const id of [playerId, ctx.otherId]) this.send(id, { type: 'duelChat', duelId, messages: [message] });
   }
 
-  duelChatHistory(playerId: string, duelId: string): void {
-    if (!this.ownedDuel(playerId, duelId)) return;
-    this.send(playerId, { type: 'duelChat', duelId, messages: this.chats.get(duelId) ?? [] });
+  async duelChatHistory(playerId: string, duelId: string): Promise<void> {
+    const ctx = await this.chatContext(playerId, duelId);
+    if (!ctx) return;
+    const saved = await this.repo.db.query<{ message: DuelChatMessage }>(
+      'SELECT message FROM friend_duel_chat WHERE chat_key = $1 AND $2 IN (from_id, to_id) ORDER BY id DESC LIMIT 30',
+      [ctx.key, playerId],
+    );
+    const messages = [...saved.map((r) => r.message).reverse(), ...(this.chats.get(ctx.key) ?? [])].sort((x, y) => x.at - y.at);
+    this.send(playerId, { type: 'duelChat', duelId, messages });
   }
 
   forfeit(playerId: string, duelId: string): void {

@@ -15,8 +15,8 @@ import { useGameServer } from '@/state/game-server';
 const C = { bg: '#1F1F23', border: '#3F3F46', text: '#F4F4F5', muted: '#A1A1AA', mine: '#E11D48', theirs: '#3F3F46' };
 
 /**
- * Mini chat de fin de match avec l'adversaire (joueur réel uniquement) : réponses rapides, message libre de
- * 140 caractères au plus, sticker (pack ou importé) ou GIF. Les messages passent par le serveur du duel et ne sont pas gardés après.
+ * Mini chat de fin de match avec l'adversaire (joueur réel uniquement, défis compris) : réponses rapides, message libre de
+ * 140 caractères au plus, sticker (pack ou importé) ou GIF. Entre amis les messages sont gardés ; entre inconnus, non.
  */
 export function DuelChat({ duelId, opponentName }: { duelId: string; opponentName: string }) {
   const game = useGameServer();

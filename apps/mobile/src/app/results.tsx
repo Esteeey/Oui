@@ -323,7 +323,7 @@ export default function ResultsScreen() {
             }}
           />
 
-          {!duel.opponent.isBot && !duel.challenge && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
+          {!duel.opponent.isBot && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
 
           <View style={styles.secondary}>
             <Tap
