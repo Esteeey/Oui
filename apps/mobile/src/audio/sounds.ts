@@ -32,6 +32,7 @@ const SFX = {
   endLoss: require('../../assets/sounds/qz_fin_defaite.wav'),
   endDraw: require('../../assets/sounds/qz_fin_egalite.wav'),
   xp: require('../../assets/sounds/qz_xp.wav'),
+  xpTick: require('../../assets/sounds/qz_xp_cran.wav'),
   xpEnd: require('../../assets/sounds/qz_xp_fin.wav'),
   levelUp: require('../../assets/sounds/qz_niveau.wav'),
 } as const;

@@ -21,6 +21,7 @@ export const GAME_SOUNDS = [
   { id: 'endLoss', kind: 'effect', label: 'Coup de défaite', when: 'Arrivée sur l’écran de fin' },
   { id: 'endDraw', kind: 'effect', label: 'Coup d’égalité', when: 'Arrivée sur l’écran de fin' },
   { id: 'xp', kind: 'effect', label: 'XP qui monte', when: 'Écran de fin, si on gagne de l’XP' },
+  { id: 'xpTick', kind: 'effect', label: 'Cran d’XP', when: 'Chaque cran qui remplit l’anneau d’XP en fin de partie' },
   { id: 'xpEnd', kind: 'effect', label: 'Fin de la montée d’XP', when: 'Juste après l’XP' },
   { id: 'levelUp', kind: 'effect', label: 'Passage de niveau', when: 'Si le niveau augmente' },
   { id: 'musicSearch', kind: 'music', label: 'Musique de recherche', when: 'En boucle pendant la recherche d’adversaire' },

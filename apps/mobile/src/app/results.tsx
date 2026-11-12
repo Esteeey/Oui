@@ -20,13 +20,12 @@ import {
   formatSeconds,
   getTheme,
   THEMES,
-  levelFromXp,
   shareResultText,
   speedSummary,
   type SpeedSummary,
 } from '@qu1z/shared';
 
-import { XP_SOUND_MS, playMusic, playSound } from '@/audio/sounds';
+import { playMusic, playSound } from '@/audio/sounds';
 import { GOLD } from '@/components/results-art';
 import { OutcomeBanner, QuestionReview, RC, ScoreChart, XpRing } from '@/components/results-sections';
 import { ThemeIcon } from '@/components/theme-icon';
@@ -77,19 +76,7 @@ export default function ResultsScreen() {
     if (r.outcome !== 'draw') haptic(r.outcome === 'win' ? 'success' : 'error');
     let stop: (() => void) | undefined;
     const timers = [setTimeout(() => (stop = playMusic(music)), 900)];
-    if (r.accountXpAfter > r.accountXpBefore) {
-      const xpAt = 1500;
-      timers.push(setTimeout(() => playSound('xp'), xpAt));
-      timers.push(setTimeout(() => playSound('xpEnd'), xpAt + XP_SOUND_MS));
-      if (levelFromXp(r.record.xpBefore + r.record.xpGained).level > levelFromXp(r.record.xpBefore).level) {
-        timers.push(
-          setTimeout(() => {
-            playSound('levelUp');
-            haptic('success');
-          }, xpAt + XP_SOUND_MS + 150),
-        );
-      }
-    }
+    // La montée d'XP (crans, passage de niveau) est jouée par l'anneau lui-même, au rythme de son animation.
     return () => {
       timers.forEach(clearTimeout);
       stop?.();
@@ -275,7 +262,7 @@ export default function ResultsScreen() {
               )}
             </View>
 
-            <XpRing xpAfter={record.xpBefore + result.rewards.total} gained={result.rewards.total} />
+            <XpRing xpBefore={record.xpBefore} gained={result.rewards.total} animate={!reducedMotion} />
 
             <Tap accessibilityRole="button" accessibilityLabel="Voir les statistiques et les questions" onPress={scrollToStats} hitSlop={16} style={styles.chevron}>
               <Ionicons name="chevron-down" size={44} color={RC.chevron} />

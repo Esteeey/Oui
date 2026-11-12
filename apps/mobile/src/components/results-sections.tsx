@@ -1,13 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, type ScrollViewInstance, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated as RNAnimated, ScrollView, StyleSheet, type ScrollViewInstance, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import Svg, { Circle, G, Line, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
 
-import { RULES, levelFromXp, type DuelOutcome, type DuelRecord } from '@qu1z/shared';
+import { RULES, levelFromXp, xpForLevel, type DuelOutcome, type DuelRecord } from '@qu1z/shared';
 
 import { Tap } from '@/components/tap';
 import { AppText, Avatar } from '@/components/ui';
+import { playSound } from '@/audio/sounds';
+import { haptic } from '@/utils/haptics';
 import { questionImageSource } from '@/game/question-images';
 
 /** Couleurs de la page de résultats (fond noir, actions rose et violet, bandeau bleu). */
@@ -23,6 +25,9 @@ export const RC = {
   purple: '#3B1278',
   purpleIcon: '#4A1D8F',
   xpPale: '#F8DCEB',
+  xpTrack: '#2A2A33',
+  xpFill: '#FF007A',
+  xpNext: '#00E5AB',
   chevron: '#9A9AA0',
   correct: '#1FA65A',
   wrong: '#E5245E',
@@ -62,20 +67,87 @@ export function OutcomeBanner({ outcome, width }: { outcome: DuelOutcome; width:
 }
 
 /** Anneau d'XP : niveau au centre, XP restants à gauche, XP gagnés à droite, reliés à l'anneau. */
-export function XpRing({ xpAfter, gained }: { xpAfter: number; gained: number }) {
-  const lvl = levelFromXp(xpAfter);
-  const remaining = lvl.needed ? lvl.needed - lvl.current : 0;
+/** XP total au moment où le niveau `level + 1` est atteint. */
+const xpFromLevelStart = (level: number) => xpForLevel(level + 1);
+
+const XP_START_MS = 1500;
+const XP_STEP_MS = 110;
+const XP_LEVEL_PAUSE_MS = 650;
+const XP_STEPS = 24;
+
+/**
+ * Anneau d'XP de fin de partie : il se remplit par crans (un « clac » chacun, son modifiable dans
+ * l'administration), flashe et passe au niveau suivant quand il est plein, puis continue.
+ */
+export function XpRing({ xpBefore, gained, animate = true }: { xpBefore: number; gained: number; animate?: boolean }) {
+  const xpAfter = xpBefore + gained;
+  const [shown, setShown] = useState(animate ? xpBefore : xpAfter);
+  const [levelledUp, setLevelledUp] = useState(!animate && levelFromXp(xpAfter).level > levelFromXp(xpBefore).level);
+  const flash = useRef(new RNAnimated.Value(0)).current;
+
+  useEffect(() => {
+    if (!animate || gained <= 0) {
+      setShown(xpAfter);
+      return;
+    }
+    setShown(xpBefore);
+    setLevelledUp(false);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const step = Math.max(1, Math.ceil(gained / XP_STEPS));
+    let t = XP_START_MS;
+    let xp = xpBefore;
+    let level = levelFromXp(xpBefore).level;
+    while (xp < xpAfter) {
+      const next = Math.min(xpAfter, xp + step);
+      const nextLevel = levelFromXp(next).level;
+      if (nextLevel > level) {
+        // L'anneau se remplit jusqu'au bout, flashe, puis repart au niveau suivant.
+        const full = levelFromXp(xp).level;
+        timers.push(
+          setTimeout(() => {
+            setShown(-full);
+            playSound('xpTick');
+            playSound('levelUp');
+            haptic('success');
+            flash.setValue(1);
+            RNAnimated.timing(flash, { toValue: 0, duration: 450, useNativeDriver: true }).start();
+          }, t),
+        );
+        t += XP_LEVEL_PAUSE_MS;
+        timers.push(setTimeout(() => setLevelledUp(true), t));
+        level = nextLevel;
+      }
+      const value = next;
+      timers.push(
+        setTimeout(() => {
+          setShown(value);
+          playSound('xpTick');
+        }, t),
+      );
+      t += XP_STEP_MS;
+      xp = next;
+    }
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [xpBefore, gained, animate]);
+
+  // Valeur négative : anneau plein du niveau |shown| (instant du passage de niveau).
+  const full = shown < 0;
+  const lvl = full ? { level: -shown, current: 1, needed: 1, progress: 1 } : levelFromXp(shown);
+  const done = levelFromXp(xpAfter);
+  const remaining = full ? 0 : lvl.needed ? lvl.needed - lvl.current : 0;
+  const gainedNow = full ? null : Math.max(0, shown - xpBefore);
   const size = 124;
   const stroke = 22;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const progress = lvl.needed ? lvl.progress : 1;
-  const fmt = (n: number) => n.toLocaleString('fr-FR').replace(/ | /g, ' ');
+  const fmt = (n: number) => n.toLocaleString('fr-FR').replace(/ | /g, ' ');
   return (
     <View
       style={styles.xpRow}
       accessible
-      accessibilityLabel={`Niveau ${lvl.level}. ${fmt(gained)} XP gagnés. ${lvl.needed ? fmt(remaining) + ' XP restants avant le niveau suivant' : 'Niveau maximal'}.`}>
+      accessibilityLabel={`Niveau ${done.level}. ${fmt(gained)} XP gagnés. ${done.needed ? fmt(done.needed - done.current) + ' XP restants avant le niveau suivant' : 'Niveau maximal'}.`}>
       <View style={[styles.xpSide, { justifyContent: 'flex-end', paddingBottom: size * 0.55 }]}>
         <View style={styles.xpLabelBox}>
           <AppText style={styles.xpCaption}>XP RESTANTS</AppText>
@@ -88,9 +160,22 @@ export function XpRing({ xpAfter, gained }: { xpAfter: number; gained: number })
       </View>
       <View style={{ width: size, height: size }}>
         <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-          <Circle cx={size / 2} cy={size / 2} r={r} stroke="#FFFFFF" strokeWidth={stroke} fill="none" />
-          <Circle cx={size / 2} cy={size / 2} r={r} stroke={RC.xpPale} strokeWidth={stroke} fill="none" strokeDasharray={`${c * progress} ${c}`} />
+          <Circle cx={size / 2} cy={size / 2} r={r} stroke={levelledUp ? '#FFFFFF' : RC.xpTrack} strokeWidth={stroke} fill="none" />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            stroke={levelledUp ? RC.xpNext : RC.xpFill}
+            strokeWidth={stroke}
+            fill="none"
+            strokeDasharray={`${c * progress} ${c}`}
+          />
         </Svg>
+        <RNAnimated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: flash }]}>
+          <Svg width={size} height={size}>
+            <Circle cx={size / 2} cy={size / 2} r={r} stroke="#FFFFFF" strokeWidth={stroke} fill="none" />
+          </Svg>
+        </RNAnimated.View>
         <View style={styles.ringCenter}>
           <AppText style={styles.ringCaption}>NIVEAU</AppText>
           <AppText style={styles.ringLevel}>{lvl.level}</AppText>
@@ -103,7 +188,7 @@ export function XpRing({ xpAfter, gained }: { xpAfter: number; gained: number })
         </View>
         <View style={styles.xpLabelBox}>
           <AppText style={styles.xpCaption}>XP GAGNÉS</AppText>
-          <AppText style={styles.xpValue}>{fmt(gained)}</AppText>
+          <AppText style={styles.xpValue}>{fmt(gainedNow ?? Math.max(0, xpFromLevelStart(-shown) - xpBefore))}</AppText>
         </View>
       </View>
     </View>
