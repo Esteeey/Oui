@@ -15,7 +15,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { ClipPath, Defs, G, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
+import Svg, { ClipPath, Defs, G, Image as SvgImage, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
 import { countryFlag, countryName, getCategory, getTheme, levelFromXp, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
 
@@ -40,6 +40,10 @@ function tornEdge(offset: number, seed: number): P[] {
   return [...points, [100, 100], [0, 100]];
 }
 const WHITE_EDGE = tornEdge(-1.3, 7);
+/** Bord de la photo du bas : même diagonale, un peu plus bas, autre tirage, pour une bande blanche fine et irrégulière. */
+const LOWER_EDGE = tornEdge(2.2, 13);
+/** Haut de la photo du bas (le point le plus haut de la déchirure, côté droit). */
+const LOW_TOP = 0.42;
 /** Points du repère 100 × 100 convertis en pixels (les photos ne doivent pas être déformées). */
 const toPixels = (points: P[], w: number, h: number) => points.map(([x, y]) => `${((x * w) / 100).toFixed(1)},${((y * h) / 100).toFixed(1)}`).join(' ');
 
@@ -76,9 +80,6 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
   const vsWidth = Math.min(305, width * 0.48);
   // Tout est placé en pixels autour du milieu : la mise en page ne dépend plus de la hauteur de l'écran.
   const middle = height / 2;
-  const [bottomBlock, setBottomBlock] = useState(size);
-  // La photo de l'adversaire commence juste sous son bloc, comme sur la maquette, quelle que soit la hauteur de l'écran.
-  const coverTop = Math.min(height - 80, middle + VS_GAP + bottomBlock + 28);
 
   const top = useSharedValue(reduceMotion ? 0 : -height);
   const bottom = useSharedValue(reduceMotion ? 0 : height);
@@ -155,23 +156,24 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
           <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
             <Defs>
               <LinearGradient id="warm" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0.72" stopColor="#F2902E" />
-                <Stop offset="0.78" stopColor="#B4471C" />
+                <Stop offset="0" stopColor="#F2902E" />
+                <Stop offset="0.55" stopColor="#B4471C" />
                 <Stop offset="1" stopColor="#5A1E0B" />
               </LinearGradient>
-              <ClipPath id="warmClip">
-                <Rect x={0} y={coverTop} width={width} height={height - coverTop} />
+              {/* La photo du bas suit un second bord déchiré, juste sous le premier : il ne reste qu'une fine bande blanche. */}
+              <ClipPath id="lowClip">
+                <Polygon points={toPixels(LOWER_EDGE, width, height)} />
               </ClipPath>
             </Defs>
             <Polygon points={toPixels(WHITE_EDGE, width, height)} fill="#F4F2F8" />
-            <G clipPath="url(#warmClip)">
+            <G clipPath="url(#lowClip)">
               {theirCover ? (
-                null
+                <SvgImage href={theirCover} x={0} y={height * LOW_TOP} width={width} height={height * (1 - LOW_TOP)} preserveAspectRatio="xMidYMid slice" />
               ) : (
                 <>
-                  <Rect x={0} y={coverTop} width={width} height={height - coverTop} fill="url(#warm)" />
+                  <Rect x={0} y={height * LOW_TOP} width={width} height={height * (1 - LOW_TOP)} fill="url(#warm)" />
                   <G transform={`scale(${width / 100} ${height / 100})`}>
-                            <Path d="M0 74 Q20 70 40 73 T80 72 T100 73 V100 H0 Z" fill="#C2541F" opacity={0.75} />
+                    <Path d="M0 74 Q20 70 40 73 T80 72 T100 73 V100 H0 Z" fill="#C2541F" opacity={0.75} />
                     <Path d="M0 82 Q25 76 50 81 T100 79 V100 H0 Z" fill="#A9431A" opacity={0.85} />
                     <Path d="M0 92 Q30 86 60 91 T100 88 V100 H0 Z" fill="#8A3412" />
                   </G>
@@ -179,8 +181,7 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
               )}
             </G>
           </Svg>
-          {theirCover ? <Image source={{ uri: theirCover }} style={[styles.bottomCover, { top: coverTop }]} contentFit="cover" /> : null}
-          <View style={[styles.half, { top: middle + VS_GAP }]} onLayout={(e) => setBottomBlock(e.nativeEvent.layout.height)}>
+          <View style={[styles.half, { top: middle + VS_GAP }]}>
             <Player player={duel.opponent} profile={theirProfile.data} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} side="bottom" />
           </View>
           <Animated.View entering={FadeIn.delay(CLASH_MS + 300)} style={[styles.theme, { paddingBottom: insets.bottom + 24 }]}>
@@ -249,7 +250,8 @@ function Player({
   side: 'top' | 'bottom';
 }) {
   const dark = side === 'bottom';
-  const ink = dark ? '#1E1240' : '#FFFFFF';
+  // Les deux joueurs sont posés sur une photo : texte blanc ombré des deux côtés.
+  const ink = '#FFFFFF';
   const level = profile ? levelFromXp(profile.xp).level : null;
   const country = profile?.country ?? null;
   const photo = (
@@ -259,7 +261,7 @@ function Player({
   );
   const info = (
     <View style={[styles.info, { alignItems: dark ? 'flex-end' : 'flex-start' }]}>
-      <Text style={[styles.name, { color: ink }, !dark && shadow]} numberOfLines={1}>
+      <Text style={[styles.name, { color: ink }, shadow]} numberOfLines={1}>
         {player.name}
       </Text>
       {level != null && (
@@ -321,7 +323,6 @@ const styles = StyleSheet.create({
   top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 20, zIndex: 2 },
   round: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(20, 24, 32, 0.6)', alignItems: 'center', justifyContent: 'center' },
   topCover: { position: 'absolute', left: 0, right: 0, top: 0, height: '62%' },
-  bottomCover: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 140 },
   half: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 6, paddingHorizontal: 24 },
   photo: { borderRadius: 999, boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' },
@@ -341,5 +342,5 @@ const styles = StyleSheet.create({
   vsBox: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   flash: { backgroundColor: '#FFFFFF' },
   theme: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 24 },
-  themeText: { color: '#1E1240', fontSize: 15, fontWeight: '800' },
+  themeText: { ...shadow, color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 });
