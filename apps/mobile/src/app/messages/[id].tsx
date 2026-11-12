@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
 
@@ -10,6 +10,7 @@ import {
   attachmentLabel,
   groupRights,
   MAX_MESSAGE_LENGTH,
+  QUICK_CHAT,
   QUICK_REACTIONS,
   type ConversationDetail,
   type GifView,
@@ -21,7 +22,7 @@ import {
 import { AttachmentTray, AttachmentView } from '@/components/attachments';
 import { GroupAvatar } from '@/components/group';
 import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
-import { GradientHeader, HeaderBack } from '@/components/header';
+import { M } from '@/components/messages-theme';
 import { AppText, Avatar, LoadingState } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -41,6 +42,7 @@ function presenceText(p: ConversationDetail['conversation']['presence']): string
 export default function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { playerId } = useGameServer();
+  const insets = useSafeAreaInsets();
   const detail = useApi<ConversationDetail>(`/api/messages/${id}`);
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<MessageView | null>(null);
@@ -66,9 +68,9 @@ export default function ConversationScreen() {
     return (
       <SafeAreaView style={styles.screen}>
         <Tap onPress={() => router.back()} style={{ padding: Spacing.md }}>
-          <AppText muted>← Retour</AppText>
+          <AppText color={M.muted}>← Retour</AppText>
         </Tap>
-        <AppText muted style={{ padding: Spacing.md }}>
+        <AppText color={M.muted} style={{ padding: Spacing.md }}>
           Cette conversation n’est plus disponible.
         </AppText>
       </SafeAreaView>
@@ -157,61 +159,63 @@ export default function ConversationScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       <ReportSheet target={reporting} onClose={() => setReporting(null)} />
-      <GradientHeader
-        flat
-        left={<HeaderBack />}
-        title={
-          <>
+      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+        <Tap accessibilityRole="button" accessibilityLabel="Retour" onPress={() => router.back()} style={styles.back}>
+          <Ionicons name="chevron-back" size={26} color={M.text} />
+        </Tap>
         {group && (
           <Tap
             accessibilityRole="button"
             accessibilityLabel="Infos du groupe"
             onPress={() => router.push({ pathname: '/messages/group/[id]', params: { id } })}
             style={styles.who}>
-            <GroupAvatar id={id} name={group.name} uri={group.avatar} size={38} />
+            <GroupAvatar id={id} name={group.name} uri={group.avatar} size={42} />
             <View style={{ flex: 1 }}>
-              <AppText variant="label" numberOfLines={1}>
+              <AppText numberOfLines={1} style={styles.whoName}>
                 {group.name}
               </AppText>
-              <AppText variant="caption" muted>
+              <AppText style={styles.whoSub}>
                 {group.memberCount} membre{group.memberCount > 1 ? 's' : ''} · infos du groupe
               </AppText>
             </View>
           </Tap>
         )}
         {other && (
-          <Tap
-            accessibilityRole="button"
-            onPress={() => router.push({ pathname: '/player/[id]', params: { id: other.id } })}
-            style={styles.who}>
-            <Avatar name={other.pseudo} color={avatarColor(other.id)} uri={other.avatar} size={38} />
-            <View>
-              <AppText variant="label">
-                {other.pseudo}
-              </AppText>
-              {presenceText(c?.presence ?? null) && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  {c?.presence?.online && <View style={styles.dot} />}
-                  <AppText variant="caption" color={c?.presence?.online ? Colors.correct : Colors.textMuted}>
-                    {presenceText(c?.presence ?? null)}
-                  </AppText>
-                </View>
-              )}
-            </View>
-          </Tap>
-        )}
+          <>
+            <Tap accessibilityRole="button" onPress={() => router.push({ pathname: '/player/[id]', params: { id: other.id } })} style={styles.who}>
+              <View>
+                <Avatar name={other.pseudo} color={avatarColor(other.id)} uri={other.avatar} size={42} />
+                {c?.presence?.online && <View style={styles.dot} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppText numberOfLines={1} style={styles.whoName}>
+                  {other.pseudo}
+                </AppText>
+                {presenceText(c?.presence ?? null) && (
+                  <AppText style={[styles.whoSub, c?.presence?.online && { color: M.online }]}>{presenceText(c?.presence ?? null)}</AppText>
+                )}
+              </View>
+            </Tap>
+            <Tap
+              accessibilityRole="button"
+              accessibilityLabel={`Défier ${other.pseudo}`}
+              onPress={() => router.push({ pathname: '/player/[id]', params: { id: other.id } })}
+              style={styles.challenge}>
+              <Ionicons name="flash" size={16} color="#FFFFFF" />
+              <AppText style={styles.challengeText}>Défier</AppText>
+            </Tap>
           </>
-        }
-      />
+        )}
+      </View>
 
       {pinned.length > 0 && (
         <View style={styles.pinnedZone}>
           <Tap accessibilityRole="button" onPress={() => setShowPinned(!showPinned)} style={styles.pinnedHead}>
             <Ionicons name="pin" size={16} color={Colors.gold} />
-            <AppText variant="label" style={{ flex: 1 }} numberOfLines={1}>
+            <AppText variant="label" color={M.text} style={{ flex: 1 }} numberOfLines={1}>
               {pinned.length === 1 ? '1 message épinglé' : `${pinned.length} messages épinglés`}
             </AppText>
-            <Ionicons name={showPinned ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
+            <Ionicons name={showPinned ? 'chevron-up' : 'chevron-down'} size={16} color={M.muted} />
           </Tap>
           {(showPinned ? pinned : pinned.slice(0, 1)).map((p) => (
             <Tap
@@ -220,10 +224,10 @@ export default function ConversationScreen() {
               accessibilityLabel="Aller au message épinglé"
               onPress={() => goTo(p.messageId)}
               style={styles.pinnedItem}>
-              <AppText variant="caption" color={Colors.opponent}>
+              <AppText variant="caption" color={M.gold}>
                 {p.senderId === playerId ? 'Toi' : (p.senderPseudo ?? '')}
               </AppText>
-              <AppText variant="caption" muted numberOfLines={1} style={{ flex: 1 }}>
+              <AppText variant="caption" color={M.muted} numberOfLines={1} style={{ flex: 1 }}>
                 {p.text ?? attachmentLabel(p.kind)}
               </AppText>
             </Tap>
@@ -241,7 +245,7 @@ export default function ConversationScreen() {
           if (m.kind === 'system') {
             return (
               <View key={m.id} onLayout={(e) => positions.current.set(m.id, e.nativeEvent.layout.y)} style={styles.systemLine}>
-                <AppText variant="caption" muted style={{ textAlign: 'center' }}>
+                <AppText variant="caption" style={{ textAlign: 'center', color: M.muted }}>
                   {m.text}
                 </AppText>
               </View>
@@ -285,17 +289,17 @@ export default function ConversationScreen() {
                 ]}>
                 {m.replyTo && (
                   <Tap accessibilityRole="button" accessibilityLabel="Voir le message d’origine" onPress={() => goTo(m.replyTo!.id)} style={styles.quote}>
-                    <AppText variant="caption" color={Colors.opponent}>
+                    <AppText variant="caption" color={M.gold}>
                       {m.replyTo.senderId === playerId ? 'Toi' : (m.replyTo.senderPseudo ?? '')}
                     </AppText>
-                    <AppText variant="caption" muted numberOfLines={2}>
+                    <AppText variant="caption" color={M.muted} numberOfLines={2}>
                       {m.replyTo.text ?? (attachmentLabel(m.replyTo.kind) || 'Message retiré')}
                     </AppText>
                   </Tap>
                 )}
                 {m.attachment && <AttachmentView attachment={m.attachment} />}
-                {m.text ? <AppText>{m.text}</AppText> : null}
-                <AppText variant="caption" muted style={{ alignSelf: 'flex-end', fontSize: 11 }}>
+                {m.text ? <AppText style={{ color: M.text, fontSize: 15, lineHeight: 21 }}>{m.text}</AppText> : null}
+                <AppText variant="caption" style={{ alignSelf: 'flex-end', fontSize: 11, color: mine ? '#FFD3E4' : M.muted }}>
                   {new Date(m.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                 </AppText>
               </Tap>
@@ -303,7 +307,7 @@ export default function ConversationScreen() {
                 <View style={styles.reactions}>
                   {m.reactions.map((r) => (
                     <View key={r.emoji} style={styles.reaction}>
-                      <AppText variant="caption">
+                      <AppText variant="caption" color={M.text}>
                         {r.emoji} {r.userIds.length > 1 ? r.userIds.length : ''}
                       </AppText>
                     </View>
@@ -324,8 +328,8 @@ export default function ConversationScreen() {
                       setSelected(null);
                     }}
                     style={styles.replyButton}>
-                    <Ionicons name="arrow-undo" size={16} color={Colors.text} />
-                    <AppText variant="caption">Répondre</AppText>
+                    <Ionicons name="arrow-undo" size={16} color={M.text} />
+                    <AppText variant="caption" color={M.text}>Répondre</AppText>
                   </Tap>
                   {!mine && (
                     <Tap
@@ -340,57 +344,67 @@ export default function ConversationScreen() {
                       }}
                       style={styles.replyButton}>
                       <Ionicons name="flag-outline" size={16} color={Colors.wrong} />
-                      <AppText variant="caption">Signaler</AppText>
+                      <AppText variant="caption" color={M.text}>Signaler</AppText>
                     </Tap>
                   )}
                   {canPin && (
                     <Tap accessibilityRole="button" onPress={() => togglePin(m)} style={styles.replyButton}>
                       <Ionicons name="pin" size={16} color={Colors.gold} />
-                      <AppText variant="caption">{pinnedIds.has(m.id) ? 'Désépingler' : 'Épingler'}</AppText>
+                      <AppText variant="caption" color={M.text}>{pinnedIds.has(m.id) ? 'Désépingler' : 'Épingler'}</AppText>
                     </Tap>
                   )}
                 </View>
               )}
               {lastMine?.id === m.id && m.status && (
-                <AppText variant="caption" color={m.status === 'read' ? Colors.opponent : Colors.textMuted}>
-                  {m.status === 'read' ? 'Lu' : 'Envoyé'}
-                </AppText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <AppText variant="caption" style={{ color: M.muted }}>{m.status === 'read' ? 'Lu' : 'Envoyé'}</AppText>
+                  <Ionicons name={m.status === 'read' ? 'checkmark-done' : 'checkmark'} size={15} color={m.status === 'read' ? M.online : M.muted} />
+                </View>
               )}
             </View>
           );
         })}
         {detail.data && messages.length === 0 && (
-          <AppText muted style={{ textAlign: 'center' }}>
+          <AppText style={{ textAlign: 'center', color: M.muted }}>
             Aucun message pour l’instant.
           </AppText>
         )}
       </ScrollView>
 
       {detail.data?.canSend === false ? (
-        <AppText muted style={{ textAlign: 'center', padding: Spacing.md }}>
+        <AppText style={{ textAlign: 'center', padding: Spacing.md, color: M.muted }}>
           Tu ne peux plus écrire dans cette conversation.
         </AppText>
       ) : (
         <View style={styles.composer}>
           {replyTo && (
             <Tap accessibilityRole="button" onPress={() => setReplyTo(null)} style={styles.replyBanner}>
-              <AppText variant="caption" color={Colors.opponent} style={{ flex: 1 }} numberOfLines={1}>
+              <AppText variant="caption" color={M.gold} style={{ flex: 1 }} numberOfLines={1}>
                 Réponse à {replyTo.senderId === playerId ? 'toi' : other?.pseudo} : {replyTo.text ?? attachmentLabel(replyTo.kind)}
               </AppText>
-              <Ionicons name="close" size={16} color={Colors.textMuted} />
+              <Ionicons name="close" size={16} color={M.muted} />
             </Tap>
           )}
           {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
           {photo && (
             <View style={styles.pending}>
               <Image source={{ uri: photo.uri }} style={styles.pendingImage} contentFit="cover" accessibilityLabel="Photo à envoyer" />
-              <AppText variant="caption" muted style={{ flex: 1 }}>
+              <AppText variant="caption" color={M.muted} style={{ flex: 1 }}>
                 Photo prête. Ajoute une légende si tu veux.
               </AppText>
               <Tap accessibilityRole="button" accessibilityLabel="Retirer la photo" onPress={() => setPhoto(null)} style={{ padding: 6 }}>
-                <Ionicons name="close" size={18} color={Colors.textMuted} />
+                <Ionicons name="close" size={18} color={M.muted} />
               </Tap>
             </View>
+          )}
+          {!group && !text && !photo && !tray && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
+              {QUICK_CHAT.map((q) => (
+                <Tap key={q} accessibilityRole="button" onPress={() => void post({ text: q })} style={styles.chip}>
+                  <AppText style={{ color: M.text, fontSize: 13 }}>{q}</AppText>
+                </Tap>
+              ))}
+            </ScrollView>
           )}
           {tray && !photo && <AttachmentTray onPhoto={choosePhoto} onSticker={sendSticker} onGif={sendGif} />}
           <View style={styles.inputRow}>
@@ -399,20 +413,25 @@ export default function ConversationScreen() {
               accessibilityLabel={tray ? 'Fermer les pièces jointes' : 'Photo, sticker ou GIF'}
               onPress={() => setTray(!tray)}
               style={styles.plus}>
-              <Ionicons name={tray ? 'close' : 'add'} size={24} color={Colors.text} />
+              <Ionicons name={tray ? 'close' : 'add'} size={24} color={M.text} />
             </Tap>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              placeholder={photo ? 'Légende…' : 'Message…'}
-              placeholderTextColor={Colors.textMuted}
-              maxLength={MAX_MESSAGE_LENGTH}
-              multiline
-              accessibilityLabel="Écrire un message"
-              style={styles.input}
-            />
+            <View style={styles.field}>
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder={photo ? 'Légende…' : 'Message…'}
+                placeholderTextColor={M.muted}
+                maxLength={MAX_MESSAGE_LENGTH}
+                multiline
+                accessibilityLabel="Écrire un message"
+                style={styles.input}
+              />
+              <Tap accessibilityRole="button" accessibilityLabel="Stickers et GIF" onPress={() => setTray(!tray)} style={styles.smiley}>
+                <Ionicons name="happy-outline" size={22} color={M.gold} />
+              </Tap>
+            </View>
             <Tap accessibilityRole="button" accessibilityLabel="Envoyer" disabled={!canSend} onPress={send} style={[styles.send, !canSend && { opacity: 0.4 }]}>
-              <Ionicons name="send" size={20} color={Colors.onAccent} />
+              <Ionicons name="send" size={20} color="#FFFFFF" />
             </Tap>
           </View>
         </View>
@@ -422,34 +441,43 @@ export default function ConversationScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
-  who: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, alignSelf: 'stretch' },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.correct },
+  screen: { flex: 1, backgroundColor: M.bg },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 10, backgroundColor: M.bar },
+  back: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
+  who: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  whoName: { color: M.text, fontWeight: '700', fontSize: 16 },
+  whoSub: { color: M.muted, fontSize: 12 },
+  dot: { position: 'absolute', right: -1, bottom: -1, width: 13, height: 13, borderRadius: 7, backgroundColor: M.online, borderWidth: 2, borderColor: M.bar },
+  challenge: { height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: M.accent, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  challengeText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
   messages: { padding: Spacing.md, gap: Spacing.sm, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   line: { gap: 4 },
-  systemLine: { alignSelf: 'center', backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingHorizontal: Spacing.sm + 4, paddingVertical: 4, maxWidth: '90%' },
+  systemLine: { alignSelf: 'center', backgroundColor: M.field, borderRadius: Radius.pill, paddingHorizontal: Spacing.sm + 4, paddingVertical: 4, maxWidth: '90%' },
   senderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: -36 },
-  pinnedZone: { borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: 6, gap: 2, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
+  pinnedZone: { borderBottomWidth: 1, borderBottomColor: M.border, backgroundColor: M.bar, paddingHorizontal: Spacing.md, paddingVertical: 6, gap: 2, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   pinnedHead: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 28 },
   pinnedItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 22, minHeight: 26 },
-  bubble: { maxWidth: '82%', borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 4, paddingVertical: Spacing.sm, gap: 4 },
-  mine: { backgroundColor: '#3A1F17', borderBottomRightRadius: 6 },
-  theirs: { backgroundColor: Colors.surface, borderBottomLeftRadius: 6 },
-  highlight: { borderWidth: 2, borderColor: Colors.gold },
+  bubble: { maxWidth: '80%', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, gap: 4 },
+  mine: { backgroundColor: M.accent, borderBottomRightRadius: 6 },
+  theirs: { backgroundColor: M.theirs, borderBottomLeftRadius: 6 },
+  highlight: { borderWidth: 2, borderColor: M.gold },
   bare: { backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 },
   photoBubble: { padding: 4 },
-  plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
-  pending: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: 6 },
+  plus: { width: 44, height: 44, borderRadius: 22, backgroundColor: M.raised, alignItems: 'center', justifyContent: 'center' },
+  pending: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: M.raised, borderRadius: Radius.sm, padding: 6 },
   pendingImage: { width: 56, height: 56, borderRadius: Radius.sm },
-  quote: { borderLeftWidth: 3, borderLeftColor: Colors.opponent, paddingLeft: Spacing.sm, paddingVertical: 2 },
+  quote: { borderLeftWidth: 3, borderLeftColor: M.gold, paddingLeft: Spacing.sm, paddingVertical: 2 },
   reactions: { flexDirection: 'row', gap: 4 },
-  reaction: { backgroundColor: Colors.surfaceRaised, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, backgroundColor: Colors.surfaceRaised, borderRadius: Radius.pill, padding: 4 },
+  reaction: { backgroundColor: M.raised, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, backgroundColor: M.raised, borderRadius: Radius.pill, padding: 4 },
   emoji: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   replyButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, minHeight: 36 },
-  composer: { borderTopWidth: 1, borderTopColor: Colors.border, padding: Spacing.sm, gap: 6, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
-  replyBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: Spacing.sm },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
-  input: { flex: 1, color: Colors.text, fontSize: 16, backgroundColor: Colors.surface, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 4, paddingVertical: 10, maxHeight: 120 },
-  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
+  composer: { backgroundColor: M.bar, paddingHorizontal: 10, paddingVertical: 8, gap: 8, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
+  chip: { height: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, borderColor: M.border, justifyContent: 'center' },
+  replyBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: M.raised, borderRadius: Radius.sm, padding: Spacing.sm },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  field: { flex: 1, minHeight: 44, borderRadius: 22, backgroundColor: M.raised, flexDirection: 'row', alignItems: 'flex-end', paddingLeft: 16, paddingRight: 4 },
+  input: { flex: 1, color: M.text, fontSize: 16, paddingVertical: 11, maxHeight: 120 },
+  smiley: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: M.accent, alignItems: 'center', justifyContent: 'center' },
 });

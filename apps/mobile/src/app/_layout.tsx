@@ -71,6 +71,7 @@ export default function RootLayout() {
                   <Stack.Screen name="duel/[themeId]" options={{ gestureEnabled: false, animation: 'fade' }} />
                   <Stack.Screen name="results" options={{ gestureEnabled: false, animation: 'fade_from_bottom' }} />
                   <Stack.Screen name="messages/index" />
+                  <Stack.Screen name="messages/requests" />
                   <Stack.Screen name="messages/[id]" />
                   <Stack.Screen name="messages/new" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                   <Stack.Screen name="messages/new-group" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
