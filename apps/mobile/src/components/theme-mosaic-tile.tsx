@@ -55,8 +55,6 @@ export function ThemeMosaicTile({ themeId, xp, big = false, badge }: { themeId: 
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${theme.name}${played ? `, niveau ${level}` : ''}`}
-      onPressIn={() => { press.value = withTiming(1, { duration: 90 }); }}
-      onPressOut={() => { press.value = withSpring(0, { damping: 9, stiffness: 260 }); }}
       onPress={() => router.push({ pathname: '/theme/[id]', params: { id: themeId } })}
       style={[styles.tile, big && styles.big, { backgroundColor: color }]}>
       {/* Décor : motifs de la catégorie et grande icône du thème, inclinée dans le coin. */}
