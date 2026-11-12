@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient as FadeGradient } from 'expo-linear-gradient';
 import { useEffect, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -61,7 +61,21 @@ const CLASH_MS = VERSUS_CLASH_MS;
  * (couverture de l'adversaire, sinon paysage chaud) foncent l'une vers l'autre et s'entrechoquent ; l'écran tremble et
  * le « VS » peint au pinceau s'abat sur la déchirure entre les deux.
  */
-export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; onBack: () => void; children?: ReactNode }) {
+export function VersusIntro({
+  duel,
+  onBack,
+  children,
+  onVsLongPress,
+  armed = false,
+}: {
+  duel: DuelSnapshot;
+  onBack: () => void;
+  children?: ReactNode;
+  /** Appui long sur le VS (comptes admin) : active ou coupe le mode triche pour cette partie. */
+  onVsLongPress?: () => void;
+  /** Mode triche actif : seul repère, un point presque invisible sous le VS. */
+  armed?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const [box, setBox] = useState({ width: window.width, height: window.height });
@@ -194,10 +208,13 @@ export function VersusIntro({ duel, onBack, children }: { duel: DuelSnapshot; on
         </Animated.View>
 
         {/* Le VS chevauche la déchirure, au milieu de l'écran. */}
-        <View style={styles.vsBox} pointerEvents="none">
-          <Animated.View style={vsStyle} accessible accessibilityLabel="contre">
-            <Image source={VS_IMAGE} style={{ width: vsWidth, aspectRatio: VS_RATIO }} contentFit="contain" />
-          </Animated.View>
+        <View style={styles.vsBox} pointerEvents="box-none">
+          <Pressable onLongPress={onVsLongPress} delayLongPress={900} disabled={!onVsLongPress} accessible={false}>
+            <Animated.View style={vsStyle} accessible accessibilityLabel="contre">
+              <Image source={VS_IMAGE} style={{ width: vsWidth, aspectRatio: VS_RATIO }} contentFit="contain" />
+            </Animated.View>
+          </Pressable>
+          {onVsLongPress && <View style={[styles.armedDot, { opacity: armed ? 0.35 : 0 }]} pointerEvents="none" />}
         </View>
         <Animated.View style={[StyleSheet.absoluteFill, styles.flash, flashStyle]} pointerEvents="none" />
       </Animated.View>
@@ -319,6 +336,7 @@ const shadow = { textShadowColor: 'rgba(0, 0, 0, 0.45)', textShadowOffset: { wid
 const VS_GAP = 58;
 
 const styles = StyleSheet.create({
+  armedDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#FFFFFF', marginTop: 2 },
   screen: { flex: 1, backgroundColor: '#000000', overflow: 'hidden' },
   top: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: 20, zIndex: 2 },
   round: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(20, 24, 32, 0.6)', alignItems: 'center', justifyContent: 'center' },

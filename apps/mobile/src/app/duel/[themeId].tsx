@@ -432,6 +432,11 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
   const me = useApi<{ role: string }>('/api/me');
   const isAdmin = me.data?.role === 'admin';
   const [cheatMenu, setCheatMenu] = useState(false);
+  // Dernier mode choisi dans le menu : l'appui long sur le VS le réactive tel quel.
+  const cheatPick = useRef<CheatMode>('show');
+  useEffect(() => {
+    if (cheat !== 'off') cheatPick.current = cheat;
+  }, [cheat]);
   const taps = useRef<number[]>([]);
   const onTimerTap = () => {
     if (!isAdmin) return;
@@ -501,7 +506,11 @@ function DuelView({ duel }: { duel: DuelSnapshot }) {
 
   if (duel.phase === 'intro') {
     return (
-      <VersusIntro duel={duel} onBack={() => setConfirmQuit(true)}>
+      <VersusIntro
+        duel={duel}
+        onBack={() => setConfirmQuit(true)}
+        armed={isAdmin && cheat !== 'off'}
+        onVsLongPress={isAdmin ? () => setCheat(cheat === 'off' ? cheatPick.current : 'off') : undefined}>
         {quitDialog}
       </VersusIntro>
     );
