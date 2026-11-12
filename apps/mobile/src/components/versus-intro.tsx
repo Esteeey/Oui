@@ -17,7 +17,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { ClipPath, Defs, G, Image as SvgImage, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
-import { countryFlag, countryName, getCategory, getTheme, levelFromXp, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
+import { countryName, getCategory, getTheme, levelFromXp, type DuelSnapshot, type ParticipantView, type PublicProfile } from '@qu1z/shared';
 
 import { Avatar } from '@/components/ui';
 import { ClassicColors as Colors } from '@/constants/theme';
@@ -155,6 +155,7 @@ export function VersusIntro({
           {myCover ? (
             <>
               <Image source={{ uri: myCover }} style={styles.topCover} contentFit="cover" />
+              <View style={[styles.topCover, { backgroundColor: 'rgba(0, 0, 0, 0.45)' }]} pointerEvents="none" />
               <FadeGradient colors={['rgba(0, 0, 0, 0.35)', 'rgba(0, 0, 0, 0)']} style={styles.topShade} />
             </>
           ) : (
@@ -182,7 +183,11 @@ export function VersusIntro({
             <Polygon points={toPixels(WHITE_EDGE, width, height)} fill="#F4F2F8" />
             <G clipPath="url(#lowClip)">
               {theirCover ? (
-                <SvgImage href={theirCover} x={0} y={height * LOW_TOP} width={width} height={height * (1 - LOW_TOP)} preserveAspectRatio="xMidYMid slice" />
+                <>
+                  <SvgImage href={theirCover} x={0} y={height * LOW_TOP} width={width} height={height * (1 - LOW_TOP)} preserveAspectRatio="xMidYMid slice" />
+                  {/* Voile sombre : les textes blancs restent lisibles sur une photo claire. */}
+                  <Rect x={0} y={height * LOW_TOP} width={width} height={height * (1 - LOW_TOP)} fill="#000000" opacity={0.45} />
+                </>
               ) : (
                 <>
                   <Rect x={0} y={height * LOW_TOP} width={width} height={height * (1 - LOW_TOP)} fill="url(#warm)" />
@@ -199,11 +204,13 @@ export function VersusIntro({
             <Player player={duel.opponent} profile={theirProfile.data} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} side="bottom" />
           </View>
           <Animated.View entering={FadeIn.delay(CLASH_MS + 300)} style={[styles.theme, { paddingBottom: insets.bottom + 24 }]}>
-            {theme && <ThemeIcon themeId={theme.id} size={26} />}
-            <Text style={styles.themeText} numberOfLines={1}>
-              {category ? `${category.name} · ` : ''}
-              {theme?.name}
-            </Text>
+            <View style={styles.themePill}>
+              {theme && <ThemeIcon themeId={theme.id} size={26} />}
+              <Text style={styles.themeText} numberOfLines={1}>
+                {category ? `${category.name} · ` : ''}
+                {theme?.name}
+              </Text>
+            </View>
           </Animated.View>
         </Animated.View>
 
@@ -288,44 +295,47 @@ function Player({
       )}
       {country ? (
         <View style={styles.countryRow} accessible accessibilityLabel={countryName(country) ?? country}>
-          <View style={styles.flagRound}>
-            <Text style={styles.flagEmoji}>{countryFlag(country)}</Text>
-          </View>
+          <Image source={{ uri: `https://flagcdn.com/w80/${country.toLowerCase()}.png` }} style={styles.flag} contentFit="cover" />
           <Text style={[styles.countryText, { color: ink }]} numberOfLines={1}>
             {countryName(country)}
-          </Text>
-        </View>
-      ) : null}
-      {bannerRank && themeName ? (
-        <View style={styles.rankBanner} accessible accessibilityLabel={`${bannerRank === 1 ? '1er' : `${bannerRank}e`} en ${themeName}`}>
-          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 10" preserveAspectRatio="none">
-            <Polygon points="0,0 100,0 95,5 100,10 0,10" fill="#F5B82E" />
-          </Svg>
-          <Ionicons name="trophy" size={14} color="#1E1240" />
-          <Text style={styles.rankBannerText} numberOfLines={1}>
-            {bannerRank === 1 ? '1er' : `${bannerRank}e`} en {themeName}
           </Text>
         </View>
       ) : null}
       {player.isBot && <Text style={[styles.bot, { color: ink }]}>Réponses simulées (bot)</Text>}
     </View>
   );
-  const rule = <View style={[styles.rule, { backgroundColor: ink, height: size * 0.95 }]} />;
+  const banner =
+    bannerRank && themeName ? (
+        <View style={[styles.rankBanner, { alignSelf: dark ? 'flex-end' : 'flex-start' }]} accessible accessibilityLabel={`${bannerRank === 1 ? '1er' : `${bannerRank}e`} en ${themeName}`}>
+          {/* Encoche de fanion à droite : un triangle de la couleur du fond posé sur le bord. */}
+          <View style={styles.rankNotch} pointerEvents="none" />
+          <Ionicons name="trophy" size={14} color="#1E1240" />
+          <Text style={styles.rankBannerText} numberOfLines={1}>
+            {bannerRank === 1 ? '1er' : `${bannerRank}e`} en {themeName}
+          </Text>
+        </View>
+      ) : null;
+  const rule = <View style={[styles.rule, { backgroundColor: ink, height: size * 0.8 }]} />;
+  // Haut : photo en haut à gauche, infos à sa droite un peu plus bas. Bas : l'inverse, photo en bas à droite.
   return (
-    <View style={styles.playerRow}>
-      {dark ? (
-        <>
-          {info}
-          {rule}
-          {photo}
-        </>
-      ) : (
-        <>
-          {photo}
-          {rule}
-          {info}
-        </>
-      )}
+    <View style={{ gap: 10, width: '100%' }}>
+      {dark && banner}
+      <View style={[styles.playerRow, dark ? { justifyContent: 'flex-end', alignItems: 'flex-end' } : { alignItems: 'flex-start' }]}>
+        {dark ? (
+          <>
+            <View style={[styles.infoWrap, { paddingBottom: size * 0.1 }]}>{info}</View>
+            {rule}
+            {photo}
+          </>
+        ) : (
+          <>
+            {photo}
+            {rule}
+            <View style={[styles.infoWrap, { paddingTop: size * 0.1 }]}>{info}</View>
+          </>
+        )}
+      </View>
+      {!dark && banner}
     </View>
   );
 }
@@ -342,23 +352,25 @@ const styles = StyleSheet.create({
   round: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(20, 24, 32, 0.6)', alignItems: 'center', justifyContent: 'center' },
   topCover: { position: 'absolute', left: 0, right: 0, top: 0, height: '62%' },
   topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 140 },
-  half: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 6, paddingHorizontal: 24 },
+  half: { position: 'absolute', left: 0, right: 0, gap: 6, paddingHorizontal: 20 },
   photo: { borderRadius: 999, boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)' },
-  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: '100%' },
-  info: { gap: 7, flexShrink: 1 },
+  playerRow: { flexDirection: 'row', gap: 14, width: '100%' },
+  infoWrap: { flexShrink: 1, minWidth: 0 },
+  info: { gap: 7 },
   rule: { width: 2, borderRadius: 1 },
   name: { fontSize: 24, fontWeight: '900', letterSpacing: -0.3 },
   levelPill: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 2 },
   levelText: { fontSize: 12, fontWeight: '800' },
   countryRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  flagRound: { width: 20, height: 20, borderRadius: 10, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
-  flagEmoji: { fontSize: 26, lineHeight: 30, textAlign: 'center' },
+  flag: { width: 24, height: 16, borderRadius: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
   countryText: { fontSize: 12, fontWeight: '700' },
   bot: { fontSize: 12, fontWeight: '600', opacity: 0.8 },
-  rankBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 8, paddingRight: 20, paddingVertical: 4, borderRadius: 3 },
-  rankBannerText: { color: '#1E1240', fontSize: 12, lineHeight: 15, fontWeight: '800', flexShrink: 1 },
+  rankBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 26, paddingLeft: 10, paddingRight: 22, borderRadius: 3, backgroundColor: '#F5B82E', overflow: 'hidden', maxWidth: '92%' },
+  rankNotch: { position: 'absolute', right: -1, top: 0, width: 0, height: 0, borderTopWidth: 13, borderBottomWidth: 13, borderRightWidth: 10, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: 'rgba(0,0,0,0.0)' },
+  rankBannerText: { color: '#1E1240', fontSize: 13, lineHeight: 17, fontWeight: '800', flexShrink: 1, includeFontPadding: false },
   vsBox: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   flash: { backgroundColor: '#FFFFFF' },
-  theme: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingHorizontal: 24 },
-  themeText: { ...shadow, color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  theme: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', paddingHorizontal: 24 },
+  themePill: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: '100%', paddingLeft: 8, paddingRight: 16, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(14, 15, 43, 0.72)' },
+  themeText: { color: '#FFFFFF', fontSize: 15, lineHeight: 20, fontWeight: '800', flexShrink: 1 },
 });

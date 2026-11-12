@@ -4,6 +4,7 @@ import { EXTRA_QUESTIONS } from './extra-questions';
 import { GENERATED_QUESTIONS } from './generated-questions';
 import { FOOTBALL_QUESTIONS } from './football-questions';
 import { FAN_QUESTIONS } from './fan-questions';
+import { FLAG_QUESTIONS } from './flag-questions';
 import { TOPUP_QUESTIONS } from './topup-questions';
 import { CLUB_QUESTIONS } from './club-questions';
 
@@ -202,12 +203,14 @@ const LEGACY_QUESTIONS: Question[] = [
 ];
 
 const GENERATED_THEME_IDS = new Set(GENERATED_QUESTIONS.map((question) => question.themeId));
+// « Drapeaux du monde » ne garde que des questions illustrées : on reconnaît le pays à son drapeau.
+const ILLUSTRATED_ONLY = new Set(['geo-drapeaux']);
 export const QUESTIONS: Question[] = [
   ...GENERATED_QUESTIONS,
   ...LEGACY_QUESTIONS.filter((question) => !GENERATED_THEME_IDS.has(question.themeId)),
   ...TOPUP_QUESTIONS,
   ...CLUB_QUESTIONS,
-];
+].filter((question) => !ILLUSTRATED_ONLY.has(question.themeId) || question.image).concat(FLAG_QUESTIONS);
 
 export function registerThemeQuestions(themeId: string, questions: Question[]): void {
   for (let index = QUESTIONS.length - 1; index >= 0; index--) { if (QUESTIONS[index].themeId === themeId) QUESTIONS.splice(index, 1); }
