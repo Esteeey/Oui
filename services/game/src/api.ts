@@ -26,6 +26,8 @@ import { Stickers } from './stickers';
 import { ThemeCatalog } from './theme-catalog';
 
 const MAX_BODY = 16 * 1024;
+/** Import de questions par l'admin (fichier CSV de plusieurs centaines de questions). */
+const IMPORT_MAX_BODY = 20 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -33,12 +35,12 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+async function readBody(req: IncomingMessage, maxBytes = MAX_BODY): Promise<Record<string, unknown>> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY) throw new SocialError(413, 'too_large');
+    if (size > maxBytes) throw new SocialError(413, 'too_large');
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
@@ -98,7 +100,7 @@ type Handler = (ctx: {
   userId: string;
   params: string[];
   query: URLSearchParams;
-  body: () => Promise<Record<string, unknown>>;
+  body: (maxBytes?: number) => Promise<Record<string, unknown>>;
   /** Corps binaire ; `maxBytes` : plafond (par défaut celui des images). */
   raw: (maxBytes?: number) => Promise<Buffer>;
   token: string;
@@ -297,9 +299,9 @@ export function createApi(
     }],
 
     ['GET', /^\/api\/theme-catalog$/, async () => ({ themes: await themeCatalog.list() })],
-    ['POST', /^\/api\/admin\/themes$/, async ({ userId, body }) => themeCatalog.create(userId, await body())],
+    ['POST', /^\/api\/admin\/themes$/, async ({ userId, body }) => themeCatalog.create(userId, await body(IMPORT_MAX_BODY))],
     ['PUT', /^\/api\/admin\/themes\/([^/]+)\/(icon|cover)$/, async ({ userId, params, raw }) => themeCatalog.setAsset(userId, params[0], params[1] as 'icon' | 'cover', await raw(MEDIA_MAX_BYTES))],
-    ['POST', /^\/api\/admin\/themes\/([^/]+)\/questions\/import$/, async ({ userId, params, body }) => themeCatalog.importQuestions(userId, params[0], await body())],
+    ['POST', /^\/api\/admin\/themes\/([^/]+)\/questions\/import$/, async ({ userId, params, body }) => themeCatalog.importQuestions(userId, params[0], await body(IMPORT_MAX_BODY))],
     ['POST', /^\/api\/admin\/themes\/([^/]+)\/publish$/, async ({ userId, params }) => ({ theme: await themeCatalog.publish(userId, params[0]) })],
     // Thèmes
     ['POST', /^\/api\/question-reports$/, async ({ userId, body }) => {
@@ -612,7 +614,7 @@ export function createApi(
           userId: user.id,
           params: match.slice(1).map(decodeURIComponent),
           query: url.searchParams,
-          body: () => readBody(req),
+          body: (maxBytes) => readBody(req, maxBytes),
           raw: (maxBytes) => readRaw(req, maxBytes),
           token,
         });
