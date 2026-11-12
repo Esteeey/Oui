@@ -173,8 +173,8 @@ export function Button({
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
-      onPressIn={() => scale.set(withSpring(0.96, { duration: 150 }))}
-      onPressOut={() => scale.set(withSpring(1, { duration: 200 }))}
+      onPressIn={() => scale.set(withSpring(0.93, { duration: 120 }))}
+      onPressOut={() => scale.set(withSpring(1, { damping: 9, stiffness: 280 }))}
       style={style}>
       <Animated.View
         style={[

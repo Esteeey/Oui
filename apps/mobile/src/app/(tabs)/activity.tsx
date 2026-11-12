@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { notificationText, type ChallengeView, type NotificationView, type UserSummary } from '@qu1z/shared';
@@ -11,6 +11,7 @@ import { HeaderButton } from '@/components/header';
 import { AppText, Avatar, Button, LoadingState, Screen } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
+import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 
 import { timeAgo } from '@/utils/time';
@@ -91,8 +92,21 @@ export default function ActivityScreen() {
     api(method, path).catch((e) => setError(errorMessage(e)));
   };
 
+  const game = useGameServer();
+  const [awaitingResult, setAwaitingResult] = useState<string | null>(null);
+  useEffect(() => {
+    if (!awaitingResult || game.duel?.duelId !== awaitingResult || game.duel.phase !== 'finished' || !game.duel.result) return;
+    setAwaitingResult(null);
+    router.push('/results');
+  }, [awaitingResult, game.duel]);
   const tap = (n: NotificationView) => {
     if (!n.read) api('POST', `/api/notifications/${n.id}/read`).catch(() => {});
+    // Duel terminé sans toi ou abandon adverse : on rouvre la page de victoire ou de défaite.
+    if ((n.type === 'duel_finished' || n.type === 'opponent_forfeit') && typeof n.data.duelId === 'string') {
+      setAwaitingResult(n.data.duelId);
+      game.viewResult(n.data.duelId);
+      return;
+    }
     open(n);
   };
 

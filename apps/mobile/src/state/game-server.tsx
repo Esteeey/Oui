@@ -49,6 +49,7 @@ interface GameServerState {
   answer: (choice: number) => void;
   forfeit: () => void;
   ackResult: (duelId: string) => void;
+  viewResult: (duelId: string) => void;
   retry: () => void;
   /** Après une connexion ou une déconnexion : reconnexion avec le nouveau jeton. */
   switchAccount: () => void;
@@ -258,6 +259,7 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     },
     forfeit: () => duel && send({ type: 'forfeit', duelId: duel.duelId }),
     ackResult: (duelId) => send({ type: 'ackResult', duelId }),
+    viewResult: (duelId) => send({ type: 'viewResult', duelId }),
     retry: () => connection.current?.reconnectNow(),
     switchAccount: () => {
       setDuel(null);

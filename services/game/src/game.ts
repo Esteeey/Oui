@@ -378,6 +378,14 @@ export class Game {
     this.ownedDuel(playerId, duelId)?.forfeit(playerId);
   }
 
+  /** Rouvre les résultats d'un duel terminé (depuis une notification), réservé à ses participants. */
+  async viewResult(playerId: string, duelId: string): Promise<void> {
+    if (this.active.has(playerId)) return;
+    const duel = this.duels.get(duelId) ?? (await this.loadFinished(duelId).catch(() => null));
+    if (!duel || !duel.isFinished || !duel.state.participants.some((p) => p.playerId === playerId)) return;
+    await this.pushTo(playerId, duel);
+  }
+
   async ackResult(playerId: string, duelId: string): Promise<void> {
     await this.repo.clearPendingResult(playerId, duelId);
   }

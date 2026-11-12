@@ -1,10 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router, useFocusEffect, type Href } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { router, type Href } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { CATEGORIES, THEMES, getTheme, levelFromXp, themesOf, type Category } from '@qu1z/shared';
+import { CATEGORIES, THEMES, getTheme, themesOf } from '@qu1z/shared';
 
 import { HeaderButton } from '@/components/header';
 import { AppText, Avatar, Screen } from '@/components/ui';
@@ -12,23 +12,11 @@ import { Colors, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
 import { ThemeIcon } from '@/components/theme-icon';
+import { ThemeMosaicTile } from '@/components/theme-mosaic-tile';
 import { Tap } from '@/components/tap';
 
 function normalize(text: string): string {
   return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
-function chooseThree<T extends { category: Category }>(groups: T[], previousIds: string[] = []): T[] {
-  const shuffled = [...groups];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  let selected = shuffled.slice(0, 3);
-  if (shuffled.length > 3 && selected.length === 3 && selected.every((group) => previousIds.includes(group.category.id))) {
-    selected = shuffled.slice(1, 4);
-  }
-  return selected;
 }
 
 export default function ExploreScreen() {
@@ -38,17 +26,13 @@ export default function ExploreScreen() {
   const allGroups = useMemo(() => CATEGORIES
     .map((category) => ({ category, themes: themesOf(category.id).filter((theme) => !q || normalize(`${theme.name} ${category.name}`).includes(q)) }))
     .filter((group) => group.themes.length > 0), [q]);
-  const [visibleCategoryIds, setVisibleCategoryIds] = useState<string[]>(() => chooseThree(allGroups).map((group) => group.category.id));
-  const firstFocus = useRef(true);
-  useFocusEffect(useCallback(() => {
-    if (firstFocus.current) {
-      firstFocus.current = false;
-      return;
-    }
-    setVisibleCategoryIds((previous) => chooseThree(allGroups, previous).map((group) => group.category.id));
-  }, [allGroups]));
-  const selectedGroups = allGroups.filter((group) => visibleCategoryIds.includes(group.category.id));
-  const groups = selectedGroups.length || !allGroups.length ? selectedGroups : allGroups.slice(0, 3);
+  const matches = useMemo(() => allGroups.flatMap((group) => group.themes.map((theme) => theme.id)), [allGroups]);
+  // Mur : tes thèmes les plus joués d'abord, puis une sélection mélangée pour découvrir.
+  const discover = useMemo(() => THEMES.map((theme) => theme.id).sort(() => Math.random() - 0.5), []);
+  const wall = useMemo(() => {
+    const played = Object.entries(stats).filter(([id, st]) => id !== FEATURED && (st?.xp ?? 0) > 0 && getTheme(id)).sort((x, y) => (y[1]?.xp ?? 0) - (x[1]?.xp ?? 0)).map(([id]) => id);
+    return [...played, ...discover.filter((id) => id !== FEATURED && !played.includes(id))].slice(0, 10);
+  }, [stats, discover]);
   const recentDuels = history.slice(0, 5);
 
   return (
@@ -67,10 +51,10 @@ export default function ExploreScreen() {
         {!!query && <Tap accessibilityRole="button" accessibilityLabel="Effacer la recherche" onPress={() => setQuery('')}><Ionicons name="close-circle" size={19} color={Colors.textMuted} /></Tap>}
       </View>
 
-      {groups.length ? groups.map(({ category, themes }, index) => (
-        <CategoryStrip key={category.id} category={category} themeIds={themes.map((theme) => theme.id)} index={index} stats={stats} />
-      )) : (
-        <AppText muted style={styles.noResults}>Aucun thème trouvé pour « {query} ».</AppText>
+      {q ? (
+        matches.length ? <Mosaic ids={matches} stats={stats} /> : <AppText muted style={styles.noResults}>Aucun thème trouvé pour « {query} ».</AppText>
+      ) : (
+        <Mosaic ids={wall} stats={stats} featured={FEATURED} />
       )}
 
       <Tap
@@ -93,43 +77,32 @@ export default function ExploreScreen() {
   );
 }
 
-function CategoryStrip({ category, themeIds, index, stats }: { category: Category; themeIds: string[]; index: number; stats: ReturnType<typeof useProgress>['stats'] }) {
-  return (
-    <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 35).duration(220)} style={styles.categorySection}>
-      <View style={styles.sectionHeading}>
-        <AppText variant="heading" style={styles.categoryTitle}>{category.name}</AppText>
-        <Tap
-          accessibilityRole="button"
-          accessibilityLabel={`Voir tous les thèmes de ${category.name}`}
-          onPress={() => router.push({ pathname: '/category/[id]', params: { id: category.id } })}
-          style={styles.seeAllHit}>
-          <View style={styles.seeAll}>
-            <AppText style={styles.seeAllText}>Tout voir</AppText>
-          </View>
-        </Tap>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeStrip}>
-        {themeIds.slice(0, 5).map((id) => <ThemeTile key={id} themeId={id} color={category.color} xp={stats[id]?.xp ?? 0} />)}
-      </ScrollView>
-      <View style={styles.divider} />
-    </Animated.View>
-  );
-}
+/** Thème mis à la une en grande tuile. */
+const FEATURED = 'geo-drapeaux';
 
-function ThemeTile({ themeId, color, xp }: { themeId: string; color: string; xp: number }) {
-  const theme = THEMES.find((item) => item.id === themeId)!;
-  const level = levelFromXp(xp).level;
+function Mosaic({ ids, stats, featured }: { ids: string[]; stats: ReturnType<typeof useProgress>['stats']; featured?: string }) {
+  const xp = (id: string) => stats[id]?.xp ?? 0;
+  const head = featured ? ids.slice(0, 2) : [];
+  const rest = featured ? ids.slice(2) : ids;
+  const rows: string[][] = [];
+  for (let i = 0; i < rest.length; i += 2) rows.push(rest.slice(i, i + 2));
   return (
-    <Tap
-      accessibilityRole="button"
-      accessibilityLabel={`${theme.name}, niveau ${level}`}
-      onPress={() => router.push({ pathname: '/theme/[id]', params: { id: themeId } })}
-      style={styles.themeTile}>
-      <View style={[styles.themeArtwork, { backgroundColor: color }]}>
-        <ThemeIcon themeId={themeId} size={48} />
-      </View>
-      <AppText numberOfLines={2} style={styles.themeName}>{theme.name}</AppText>
-    </Tap>
+    <Animated.View entering={FadeInDown.duration(220)} style={styles.mosaic}>
+      {featured && (
+        <View style={styles.row}>
+          <ThemeMosaicTile themeId={featured} xp={xp(featured)} big badge="À la une" />
+          <View style={styles.column}>
+            {head.map((id) => <ThemeMosaicTile key={id} themeId={id} xp={xp(id)} />)}
+          </View>
+        </View>
+      )}
+      {rows.map((row) => (
+        <View key={row.join()} style={styles.row}>
+          {row.map((id) => <ThemeMosaicTile key={id} themeId={id} xp={xp(id)} />)}
+          {row.length === 1 && <View style={{ flex: 1 }} />}
+        </View>
+      ))}
+    </Animated.View>
   );
 }
 
@@ -189,6 +162,9 @@ const styles = StyleSheet.create({
     ...Shadow,
   },
   input: { flex: 1, color: Colors.text, fontSize: 14, paddingVertical: 6 },
+  mosaic: { gap: 10 },
+  row: { flexDirection: 'row', gap: 10 },
+  column: { flex: 1, gap: 10 },
   noResults: { paddingVertical: Spacing.lg, textAlign: 'center' },
   categorySection: { marginTop: 4 },
   sectionHeading: { zIndex: 1, minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },

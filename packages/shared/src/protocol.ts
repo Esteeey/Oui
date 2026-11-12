@@ -132,7 +132,8 @@ export type ClientMessage =
   /** Mini chat de fin de match : message à l'adversaire du duel, ou demande des messages déjà échangés. */
   | { type: 'duelChat'; duelId: string; text?: string; stickerId?: string; gif?: DuelChatGif }
   | { type: 'duelChatHistory'; duelId: string }
-  | { type: 'ackResult'; duelId: string };
+  | { type: 'ackResult'; duelId: string }
+  | { type: 'viewResult'; duelId: string };
 
 export interface DuelChatGif {
   id: string;

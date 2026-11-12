@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import type { FeedItem, UserSummary } from '@qu1z/shared';
+import type { ChallengeView, FeedItem, UserSummary } from '@qu1z/shared';
 
-import { ActivityCard } from '@/components/feed-card';
+import { Highlights, Kpis, RecentDuels, WaitingHero } from '@/components/feed-dashboard';
 import { HeaderButton } from '@/components/header';
 import { PostCard } from '@/components/post-card';
 import { AppText, Avatar, Button, Card, LoadingState, Screen } from '@/components/ui';
@@ -17,31 +17,8 @@ import { useProgress } from '@/state/progress';
 import { avatarColor } from '@/utils/avatar';
 import { Tap } from '@/components/tap';
 
-type Filter = 'all' | 'friends' | 'results';
-
 /** Marge du fil de chaque côté de l'écran. */
 const FEED_MARGIN = 7;
-
-/** Agrandit vers le haut et le bas la zone tactile des petits contrôles du header (44 px). */
-const HEADER_HIT = { top: 8, bottom: 8 };
-
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'all', label: 'Tout' },
-  { value: 'friends', label: 'Amis' },
-  { value: 'results', label: 'Résultats' },
-];
-
-/** Les filtres n'agissent que sur l'affichage : le serveur envoie toujours le même fil. */
-function matches(item: FeedItem, filter: Filter, playerId: string | null | undefined): boolean {
-  switch (filter) {
-    case 'all':
-      return true;
-    case 'friends':
-      return item.kind === 'post' ? item.post.target.kind === 'profile' && item.post.author.id !== playerId : item.activity.user.id !== playerId;
-    case 'results':
-      return item.kind === 'activity' || !!item.post.result;
-  }
-}
 
 export default function FeedScreen() {
   const { playerName } = useProgress();
@@ -49,9 +26,13 @@ export default function FeedScreen() {
   const feed = useApi<{ items: FeedItem[] }>(playerId ? '/api/feed' : null);
   const following = useApi<{ users: UserSummary[] }>(playerId ? `/api/users/${playerId}/following` : null);
   const friends = following.data?.users ?? [];
-  const [filter, setFilter] = useState<Filter>('all');
+  const { history, stats } = useProgress();
+  const challenges = useApi<{ challenges: ChallengeView[] }>(playerId ? '/api/challenges' : null);
   const allItems = feed.data?.items ?? [];
-  const items = allItems.filter((item) => matches(item, filter, playerId));
+  const posts = allItems.flatMap((item) => (item.kind === 'post' ? [item.post] : []));
+  const highlights = allItems
+    .flatMap((item) => (item.kind === 'activity' && item.activity.user.id !== playerId && (item.activity.event.kind === 'level' || item.activity.event.kind === 'perfect') ? [item.activity] : []))
+    .slice(0, 3);
   const openCompose = () => router.push('/compose');
   // Seul un rechargement demandé en tirant affiche l'indicateur du haut de l'écran.
   const [pulled, setPulled] = useState(false);
@@ -63,11 +44,12 @@ export default function FeedScreen() {
     <Screen
       inTabs
       headerLeft={false}
-      title="Fil d'actualité"
+      title="Accueil"
       style={styles.content}
       onRefresh={() => {
         setPulled(true);
         feed.refresh();
+        challenges.refresh();
       }}
       refreshing={pulled && feed.loading}
       headerRight={
@@ -105,36 +87,21 @@ export default function FeedScreen() {
             ))}
           </ScrollView>
 
-          <View style={styles.filters}>
-            {FILTERS.map((f) => {
-              const selected = f.value === filter;
-              return (
-                <Tap key={f.value} accessibilityRole="button" accessibilityState={{ selected }} hitSlop={HEADER_HIT} onPress={() => setFilter(f.value)}>
-                  <View style={[styles.filter, selected && styles.filterActive]}>
-                    <AppText color={selected ? Colors.onAccent : Colors.text} style={styles.filterLabel}>
-                      {f.label}
-                    </AppText>
-                  </View>
-                </Tap>
-              );
-            })}
-          </View>
         </>
       }>
       <LoadingState visible={feed.loading && !feed.data} label="Chargement du fil" />
       {feed.error && <AppText color={Colors.wrong}>Impossible de charger le fil. Vérifie ta connexion.</AppText>}
-      {items.map((item, i) => (
-        <Animated.View
-          key={item.kind === 'post' ? item.post.id : item.activity.id}
-          entering={FadeInDown.delay(Math.min(i, 6) * 40).springify()}>
-          {item.kind === 'post' ? <PostCard post={item.post} screenMargin={FEED_MARGIN} /> : <ActivityCard activity={item.activity} />}
+      {/* Tableau de bord : ce qui t'attend, tes chiffres, les temps forts des amis, tes derniers duels. */}
+      <WaitingHero challenges={challenges.data?.challenges ?? []} />
+      <Kpis history={history} stats={stats} />
+      <Highlights items={highlights} />
+      <RecentDuels history={history} />
+      {posts.length > 0 && <AppText style={styles.h2}>Publications</AppText>}
+      {posts.map((post, i) => (
+        <Animated.View key={post.id} entering={FadeInDown.delay(Math.min(i, 6) * 40).springify()}>
+          <PostCard post={post} screenMargin={FEED_MARGIN} />
         </Animated.View>
       ))}
-      {feed.data && allItems.length > 0 && items.length === 0 && (
-        <AppText muted style={{ textAlign: 'center', paddingVertical: Spacing.lg }}>
-          Rien à afficher ici pour le moment.
-        </AppText>
-      )}
       {feed.data && allItems.length === 0 && (
         <Card style={{ alignItems: 'center', gap: Spacing.sm }}>
           <AppText variant="heading">Ton fil est vide</AppText>
@@ -156,6 +123,7 @@ const styles = StyleSheet.create({
   friendRing: { width: 54, height: 54, borderRadius: 27, borderWidth: 2.5, borderColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
   addFriend: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.textSoft, alignItems: 'center', justifyContent: 'center', margin: 2 },
   plusBadge: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.accent, borderWidth: 2, borderColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+  h2: { fontSize: 16, lineHeight: 22, fontWeight: '800', color: Colors.text, marginTop: 4 },
   filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 },
   filter: { height: 28, paddingHorizontal: 13, borderRadius: Radius.pill, backgroundColor: Colors.surfaceRaised, justifyContent: 'center' },
   filterActive: { backgroundColor: Colors.navy },
