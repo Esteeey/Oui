@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Modal, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DUEL_CHAT_MAX_LENGTH, QUICK_CHAT } from '@qu1z/shared';
+import { DUEL_CHAT_MAX_LENGTH, QUICK_CHAT, type StickerId } from '@qu1z/shared';
 
 import { AttachmentTray } from '@/components/attachments';
 import { Sticker } from '@/components/sticker';
@@ -14,11 +15,17 @@ import { useGameServer } from '@/state/game-server';
 
 const C = { bg: '#1F1F23', border: '#3F3F46', text: '#F4F4F5', muted: '#A1A1AA', mine: '#E11D48', theirs: '#3F3F46' };
 
+/** Stickers proposés directement dans la barre. */
+const QUICK_STICKERS: StickerId[] = ['gg', 'bravo', 'mdr', 'revanche'];
+
 /**
+ * Barre de réactions posée en bas de l'écran de fin : 4 stickers en un geste, « Plus » ouvre le panneau complet.
  * Mini chat de fin de match avec l'adversaire (joueur réel uniquement, défis compris) : réponses rapides, message libre de
  * 140 caractères au plus, sticker (pack ou importé) ou GIF. Entre amis les messages sont gardés ; entre inconnus, non.
  */
 export function DuelChat({ duelId, opponentName }: { duelId: string; opponentName: string }) {
+  const insets = useSafeAreaInsets();
+  const [open, setOpen] = useState(false);
   const game = useGameServer();
   const [text, setText] = useState('');
   const [trayOpen, setTrayOpen] = useState(false);
@@ -37,7 +44,10 @@ export function DuelChat({ duelId, opponentName }: { duelId: string; opponentNam
     setText('');
   };
 
-  return (
+  const sticker = (stickerId: StickerId) => game.sendDuelChat(duelId, '', { stickerId });
+  const last = messages.filter((m) => m.from !== game.playerId).slice(-2);
+
+  const panel = (
     <View style={styles.box}>
       <AppText variant="label" color={C.muted}>
         Message à {opponentName}
@@ -106,10 +116,58 @@ export function DuelChat({ duelId, opponentName }: { duelId: string; opponentNam
       </View>
     </View>
   );
-}
 
+  return (
+    <>
+      <View pointerEvents="box-none" style={[styles.overlay, { bottom: insets.bottom + 10 }]}>
+        {last.length > 0 && !open && (
+          <View pointerEvents="none" style={styles.peek}>
+            {last.map((m) =>
+              m.stickerId ? (
+                <Sticker key={`${m.at}:${m.stickerId}`} id={m.stickerId} size={56} />
+              ) : (
+                <View key={`${m.at}:${m.text}`} style={[styles.bubble, styles.theirs]}>
+                  <AppText numberOfLines={1} color={C.text} variant="caption">
+                    {m.gif ? 'GIF' : m.text}
+                  </AppText>
+                </View>
+              ),
+            )}
+          </View>
+        )}
+        <View style={styles.bar}>
+          {QUICK_STICKERS.map((id) => (
+            <Tap key={id} accessibilityRole="button" accessibilityLabel={`Envoyer le sticker ${id}`} onPress={() => sticker(id)} style={styles.barSticker}>
+              <Sticker id={id} size={38} />
+            </Tap>
+          ))}
+          <Tap accessibilityRole="button" accessibilityLabel={`Écrire à ${opponentName}`} onPress={() => setOpen(true)} style={styles.more}>
+            <AppText variant="caption" color={C.text} style={{ fontWeight: '700' }}>
+              Plus
+            </AppText>
+          </Tap>
+        </View>
+      </View>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setOpen(false)} style={styles.scrim} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.md }]}>
+          <View style={styles.grab} />
+          {panel}
+        </View>
+      </Modal>
+    </>
+  );
+}
 const styles = StyleSheet.create({
-  box: { gap: Spacing.sm, padding: Spacing.md, borderRadius: 12, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  box: { gap: Spacing.sm },
+  overlay: { position: 'absolute', left: 12, right: 12, gap: 6 },
+  peek: { gap: 4, alignItems: 'flex-start' },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6, borderRadius: 999, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  barSticker: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
+  more: { marginLeft: 'auto', minHeight: 40, paddingHorizontal: 14, borderRadius: 999, backgroundColor: C.theirs, justifyContent: 'center' },
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: { backgroundColor: C.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Spacing.md, gap: Spacing.sm },
+  grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#52525B' },
   list: { gap: 6 },
   bubble: { maxWidth: '80%', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
   mine: { alignSelf: 'flex-end', backgroundColor: C.mine },

@@ -199,9 +199,9 @@ export default function ResultsScreen() {
     <GestureDetector gesture={pullDown}>
     <Animated.View style={[styles.screen, dragStyle]}>
       <GestureDetector gesture={scrollGesture}>
-      <Animated.ScrollView ref={scroller} onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView ref={scroller} onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl + (duel.opponent.isBot ? 0 : 64) }} showsVerticalScrollIndicator={false}>
         {/* Premier écran : tout tient dans la hauteur de l'appareil. */}
-        <View style={{ minHeight: height }}>
+        <View style={{ minHeight: height, paddingBottom: duel.opponent.isBot ? 0 : 64 }}>
           <ThemeCover themeId={duel.themeId} height={coverHeight + insets.top} fadeTo={R.bg} dim={false}>
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
               <Tap accessibilityRole="button" accessibilityLabel="Retour" onPress={close} hitSlop={10} style={styles.headerButton}>
@@ -323,7 +323,6 @@ export default function ResultsScreen() {
             }}
           />
 
-          {!duel.opponent.isBot && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
 
           <View style={styles.secondary}>
             <Tap
@@ -359,6 +358,7 @@ export default function ResultsScreen() {
         </View>
       </Animated.ScrollView>
       </GestureDetector>
+      {!duel.opponent.isBot && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
       <QuestionReportSheet question={reportedQuestion} onClose={() => setReportedQuestion(null)} />
     </Animated.View>
     </GestureDetector>
