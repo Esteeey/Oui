@@ -43,6 +43,7 @@ import type { Notifier } from './notifier';
 import type { RateLimiter } from './rate-limit';
 import { Banners } from './banners';
 import { mediaUrl, mediaView, type Media } from './media';
+import { assertSticker } from './stickers';
 
 /** Erreur métier renvoyée telle quelle par l'API (code HTTP + code lisible). */
 export class SocialError extends Error {
@@ -544,7 +545,8 @@ export class Social {
   async createPost(viewer: string, target: PostTarget, rawText: unknown, mediaId?: string, stickerId?: unknown): Promise<PostView> {
     const text = String(rawText ?? '').trim();
     const sticker = stickerId === undefined || stickerId === null ? null : stickerId;
-    if (sticker !== null && (!isSticker(sticker) || mediaId)) throw new SocialError(400, 'invalid_sticker');
+    if (sticker !== null && mediaId) throw new SocialError(400, 'invalid_sticker');
+    if (sticker !== null) await assertSticker(this.db, sticker);
     if ((!text && !mediaId && !sticker) || text.length > MAX_POST_LENGTH) throw new SocialError(400, 'invalid_text');
     if (mediaId && !this.media) throw new SocialError(503, 'media_unavailable');
     this.limit('post', viewer);
@@ -893,7 +895,8 @@ export class Social {
     const post = await this.post(viewer, postId);
     const text = String(rawText ?? '').trim();
     const sticker = stickerId === undefined || stickerId === null ? null : stickerId;
-    if (sticker !== null && (!isSticker(sticker) || mediaId)) throw new SocialError(400, 'invalid_sticker');
+    if (sticker !== null && mediaId) throw new SocialError(400, 'invalid_sticker');
+    if (sticker !== null) await assertSticker(this.db, sticker);
     if ((!text && !mediaId && !sticker) || text.length > MAX_COMMENT_LENGTH) throw new SocialError(400, 'invalid_text');
     if (mediaId && !this.media) throw new SocialError(503, 'media_unavailable');
     if (await this.isBlockedEitherWay(viewer, post.author.id)) throw new SocialError(403, 'blocked');

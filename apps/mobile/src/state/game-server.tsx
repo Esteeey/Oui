@@ -2,7 +2,7 @@ import { router, usePathname } from 'expo-router';
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Platform, Vibration } from 'react-native';
 
-import { RULES, registerTheme, type LiveInvitation, type NotificationPrefs, type Theme, type DuelChatMessage, type DuelSnapshot, type Profile, type ServerMessage } from '@qu1z/shared';
+import { RULES, registerTheme, type LiveInvitation, type NotificationPrefs, type Theme, type DuelChatGif, type DuelChatMessage, type StickerId, type DuelSnapshot, type Profile, type ServerMessage } from '@qu1z/shared';
 
 import { api, invalidateAll } from '@/net/api';
 import { registerForPush } from '@/net/push';
@@ -42,7 +42,7 @@ interface GameServerState {
   refreshInvitePrefs: () => Promise<void>;
   /** Mini chat de fin de match, par duel. */
   duelChat: Record<string, DuelChatMessage[]>;
-  sendDuelChat: (duelId: string, text: string) => void;
+  sendDuelChat: (duelId: string, text: string, extra?: { stickerId?: StickerId; gif?: DuelChatGif }) => void;
   loadDuelChat: (duelId: string) => void;
   play: (request: DuelRequest) => void;
   cancelQueue: () => void;
@@ -233,8 +233,8 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
       const next = { duelInvites: p.duelInvites, duelInviteSound: p.duelInviteSound, duelInviteVibration: p.duelInviteVibration };
       invitePrefsRef.current = next; setInvitePrefs(next);
     },
-    sendDuelChat: (duelId, text) => {
-      send({ type: 'duelChat', duelId, text });
+    sendDuelChat: (duelId, text, extra) => {
+      send({ type: 'duelChat', duelId, text, ...extra });
     },
     loadDuelChat: (duelId) => {
       send({ type: 'duelChatHistory', duelId });

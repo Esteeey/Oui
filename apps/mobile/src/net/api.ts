@@ -160,6 +160,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   invalid_push_token: 'Notifications push indisponibles sur cet appareil.',
   unsupported_format: 'Format non pris en charge : JPEG, PNG, WebP ou GIF uniquement.',
   too_large: 'Fichier trop lourd (8 Mo maximum).',
+  too_many_stickers: 'Tu as atteint la limite de 60 stickers importés : retire-en un (appui long).',
   empty_file: 'Fichier vide.',
   too_many_frames: 'Ce GIF est trop long.',
   invalid_media: 'Cette image ne peut pas être envoyée.',

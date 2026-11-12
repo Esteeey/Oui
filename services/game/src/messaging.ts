@@ -24,6 +24,7 @@ import type { Notifier } from './notifier';
 import type { Push, PushMessage } from './push';
 import type { RateLimiter } from './rate-limit';
 import { SocialError } from './social';
+import { assertSticker } from './stickers';
 
 /** Au plus 3 demandes vers la même personne sur 30 jours (anti-spam). */
 const MAX_REQUESTS_PER_TARGET = 3;
@@ -500,7 +501,7 @@ export class Messaging {
     if (kind === 'text' && !text) throw new SocialError(400, 'invalid_text');
     // Seule une photo peut porter une légende ; un GIF ou un sticker est envoyé seul.
     if ((kind === 'gif' || kind === 'sticker') && text) throw new SocialError(400, 'invalid_message');
-    if (kind === 'sticker' && !isSticker(content.stickerId)) throw new SocialError(400, 'invalid_sticker');
+    if (kind === 'sticker') await assertSticker(this.db, content.stickerId);
     const gif = kind === 'gif' ? validateGif(this.gifs, content.gif) : null;
     const others = await this.otherMembers(conversationId, viewer);
     if (member.kind === 'direct') for (const o of others) if (await this.blocked(viewer, o)) throw new SocialError(403, 'blocked');

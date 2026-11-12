@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
-import { MAX_POST_LENGTH, STICKERS, type MediaView, type PostTarget, type StickerId } from '@qu1z/shared';
+import { MAX_POST_LENGTH, type MediaView, type PostTarget, type StickerId } from '@qu1z/shared';
 
 import { MentionSuggestions } from '@/components/mention-suggestions';
 import { Sticker } from '@/components/sticker';
+import { StickerPicker } from '@/components/sticker-picker';
 import { AppText, Avatar, Button } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
@@ -107,22 +108,14 @@ export function Composer({
         </View>
       )}
       {stickersOpen && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
-          {STICKERS.map((s) => (
-            <Tap
-              key={s.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Joindre le sticker ${s.label}`}
-              onPress={() => {
-                setSticker(s.id);
-                setPhoto(null);
-                setStickersOpen(false);
-              }}
-              style={styles.stickerCell}>
-              <Sticker id={s.id} size={56} />
-            </Tap>
-          ))}
-        </ScrollView>
+        <StickerPicker
+          size={56}
+          onPick={(id) => {
+            setSticker(id);
+            setPhoto(null);
+            setStickersOpen(false);
+          }}
+        />
       )}
       {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
       <View style={styles.footer}>

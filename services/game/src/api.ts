@@ -22,6 +22,7 @@ import type { Notifier } from './notifier';
 import { SocialError, type Social } from './social';
 import { GameSounds } from './sounds';
 import { AnimationSettings } from './animation-settings';
+import { Stickers } from './stickers';
 import { ThemeCatalog } from './theme-catalog';
 
 const MAX_BODY = 16 * 1024;
@@ -128,6 +129,7 @@ export function createApi(
   const medals = new Medals(game.repo.db);
   const sounds = new GameSounds(game.repo.db);
   const animations = new AnimationSettings(game.repo.db);
+  const stickers = new Stickers(game.repo.db, media.store);
   const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/api\/me$/, async ({ userId }) => {
       const user = (await game.repo.user(userId))!;
@@ -352,6 +354,10 @@ export function createApi(
     ['GET', /^\/api\/discover$/, async ({ userId }) => ({ users: await discovery.discover(userId) })],
     ['GET', /^\/api\/people$/, async ({ userId }) => discovery.people(userId)],
 
+    // Stickers importés par le joueur (sa collection personnelle).
+    ['GET', /^\/api\/me\/stickers$/, async ({ userId }) => ({ stickers: await stickers.list(userId) })],
+    ['PUT', /^\/api\/me\/stickers$/, async ({ userId, raw }) => stickers.upload(userId, await raw(MEDIA_MAX_BYTES))],
+    ['DELETE', /^\/api\/me\/stickers\/([^/]+)$/, async ({ userId, params }) => stickers.remove(userId, params[0])],
     // Messagerie privée (séparée du centre de notifications)
     ['GET', /^\/api\/messages$/, async ({ userId }) => ({ conversations: await messaging.inbox(userId) })],
     ['GET', /^\/api\/messages\/requests$/, async ({ userId }) => ({ requests: await messaging.requests(userId) })],

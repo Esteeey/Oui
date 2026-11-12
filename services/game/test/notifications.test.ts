@@ -337,13 +337,19 @@ describe('mini chat de fin de match', () => {
     const history = await b.ws.waitFor((m) => m.type === 'duelChat' && m.messages.length === 1 && m.messages[0].from === a.id);
     expect(history.type).toBe('duelChat');
 
+    // Sticker du pack : relayé seul (sans texte) ; sticker inventé : ignoré.
+    a.ws.send({ type: 'duelChat', duelId: s.duelId, text: 'ignoré', stickerId: 'gg' });
+    const sticker = await b.ws.waitFor((m) => m.type === 'duelChat' && m.messages.some((x) => x.stickerId === 'gg'));
+    expect(sticker.type === 'duelChat' && sticker.messages[0].text).toBe('');
+    a.ws.send({ type: 'duelChat', duelId: s.duelId, stickerId: 'u-' + '0'.repeat(32) });
+
     c.ws.send({ type: 'duelChat', duelId: s.duelId, text: 'coucou' });
     await c.ws.waitFor((m) => m.type === 'error' && m.code === 'not_in_duel');
 
     await ok(call(b, 'POST', '/api/blocks', { userId: a.id }));
     a.ws.send({ type: 'duelChat', duelId: s.duelId, text: 'encore' });
     await sleep(150);
-    expect(server.game['chats'].get(s.duelId)).toHaveLength(1);
+    expect(server.game['chats'].get(s.duelId)).toHaveLength(2);
   });
 });
 

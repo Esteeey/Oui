@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import Svg, { Circle, Ellipse, G, Path, Rect, Text as SvgText } from 'react-native-svg';
 
-import { STICKERS, type StickerId } from '@qu1z/shared';
+import { Image } from 'expo-image';
+
+import { STICKERS, customStickerKey, isCustomSticker, type PackStickerId, type StickerId } from '@qu1z/shared';
+
+import { mediaUri } from '@/net/media';
 
 /**
  * Pack de stickers originaux de Qu1z : « Kubi », une petite tuile de quiz à antenne,
@@ -163,7 +167,7 @@ function MouthShape({ kind }: { kind: Mouth }) {
   }
 }
 
-const LOOKS: Record<StickerId, Look> = {
+const LOOKS: Record<PackStickerId, Look> = {
   gg: {
     body: '#FF6B57',
     eyes: 'happy',
@@ -324,6 +328,10 @@ const LOOKS: Record<StickerId, Look> = {
 };
 
 export function Sticker({ id, size = 120 }: { id: StickerId; size?: number }) {
+  // Sticker importé par un joueur : simple image (transparente, parfois animée).
+  if (isCustomSticker(id)) {
+    return <Image source={{ uri: mediaUri('/media/' + customStickerKey(id)) ?? undefined }} style={{ width: size, height: size }} contentFit="contain" accessibilityLabel="Sticker" />;
+  }
   const look = LOOKS[id];
   const label = STICKERS.find((s) => s.id === id)?.label ?? '';
   const fontSize = look.label.length > 7 ? 12 : 15;

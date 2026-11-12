@@ -1,6 +1,7 @@
 import type { Rewards } from './rewards';
 import type { DuelOutcome, DuelQuestion, ScoredAnswer } from './types';
 import type { LiveInvitation } from './social';
+import type { StickerId } from './media';
 
 /** Statistiques d'un joueur dans un thème (tenues par le serveur). */
 export interface ThemeStats {
@@ -129,14 +130,24 @@ export type ClientMessage =
   | { type: 'answer'; duelId: string; index: number; choice: number; elapsedMs?: number }
   | { type: 'forfeit'; duelId: string }
   /** Mini chat de fin de match : message à l'adversaire du duel, ou demande des messages déjà échangés. */
-  | { type: 'duelChat'; duelId: string; text: string }
+  | { type: 'duelChat'; duelId: string; text?: string; stickerId?: string; gif?: DuelChatGif }
   | { type: 'duelChatHistory'; duelId: string }
   | { type: 'ackResult'; duelId: string };
 
+export interface DuelChatGif {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** Message du mini chat de fin de match : texte, sticker ou GIF (un seul des trois). */
 export interface DuelChatMessage {
   from: string;
   text: string;
   at: number;
+  stickerId?: StickerId;
+  gif?: DuelChatGif;
 }
 
 /** Longueur maximale d'un message du mini chat de fin de match. */

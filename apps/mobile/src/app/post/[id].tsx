@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { MAX_COMMENT_LENGTH, STICKERS, type CommentView, type MediaView, type PostView, type StickerId, type UserSummary } from '@qu1z/shared';
+import { MAX_COMMENT_LENGTH, type CommentView, type MediaView, type PostView, type StickerId, type UserSummary } from '@qu1z/shared';
 
 import { AppNavBar, useKeyboardVisible, useNavBarHeight } from '@/components/app-nav-bar';
 import { Photo } from '@/components/attachments';
@@ -16,6 +16,7 @@ import { RankBadge, rankLabel } from '@/components/rank';
 import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
 import { RichText } from '@/components/rich-text';
 import { Sticker } from '@/components/sticker';
+import { StickerPicker } from '@/components/sticker-picker';
 import { AppText, Avatar, Button, LoadingState, Screen } from '@/components/ui';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
@@ -253,13 +254,9 @@ export default function PostScreen() {
               </View>
             )}
             {stickersOpen && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }} contentContainerStyle={styles.stickers}>
-                {STICKERS.map((s) => (
-                  <Tap key={s.id} accessibilityRole="button" accessibilityLabel={`Envoyer le sticker ${s.label}`} onPress={() => void sendSticker(s.id)} style={styles.stickerCell}>
-                    <Sticker id={s.id} size={52} />
-                  </Tap>
-                ))}
-              </ScrollView>
+              <View style={styles.stickers}>
+                <StickerPicker size={52} onPick={(id) => void sendSticker(id)} />
+              </View>
             )}
             <View style={styles.inputRow}>
               <Avatar name={profile?.name ?? '?'} color={playerId ? avatarColor(playerId) : Colors.accent} uri={profile?.avatar} size={36} />

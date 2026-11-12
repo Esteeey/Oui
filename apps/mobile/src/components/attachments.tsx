@@ -3,9 +3,10 @@ import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { Modal, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { STICKERS, type Attachment, type GifView, type MediaView, type StickerId } from '@qu1z/shared';
+import { type Attachment, type GifView, type MediaView, type StickerId } from '@qu1z/shared';
 
 import { Sticker } from '@/components/sticker';
+import { StickerPicker } from '@/components/sticker-picker';
 import { AppText } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
@@ -65,7 +66,8 @@ export function AttachmentTray({
   onSticker,
   onGif,
 }: {
-  onPhoto: (source: 'library' | 'camera') => void;
+  /** Sans `onPhoto` (fin de match), seuls les stickers et les GIF sont proposés. */
+  onPhoto?: (source: 'library' | 'camera') => void;
   onSticker: (id: StickerId) => void;
   onGif: (gif: GifView) => void;
 }) {
@@ -90,20 +92,14 @@ export function AttachmentTray({
   return (
     <View style={styles.tray}>
       <View style={styles.trayRow}>
-        <TrayButton icon="images" label="Galerie" onPress={() => onPhoto('library')} />
-        {Platform.OS !== 'web' && <TrayButton icon="camera" label="Appareil photo" onPress={() => onPhoto('camera')} />}
+        {onPhoto && <TrayButton icon="images" label="Galerie" onPress={() => onPhoto('library')} />}
+        {onPhoto && Platform.OS !== 'web' && <TrayButton icon="camera" label="Appareil photo" onPress={() => onPhoto('camera')} />}
         <TrayButton icon="happy" label="Stickers" active={tab === 'stickers'} onPress={() => setTab('stickers')} />
         <TrayButton icon="film" label="GIF" active={tab === 'gifs'} onPress={() => setTab('gifs')} />
       </View>
 
       {tab === 'stickers' ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.xs }}>
-          {STICKERS.map((s) => (
-            <Tap key={s.id} accessibilityRole="button" accessibilityLabel={`Envoyer le sticker ${s.label}`} onPress={() => onSticker(s.id)} style={styles.stickerCell}>
-              <Sticker id={s.id} size={84} />
-            </Tap>
-          ))}
-        </ScrollView>
+        <StickerPicker size={84} onPick={onSticker} />
       ) : gifs && !gifs.available ? (
         <AppText muted style={{ textAlign: 'center', padding: Spacing.md }}>
           Les GIF arrivent bientôt.

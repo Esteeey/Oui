@@ -17,7 +17,9 @@ import {
   unlockedTitles,
   type DuelRecord,
   type DuelResult,
+  type DuelChatGif,
   type DuelChatMessage,
+  type StickerId,
   type DuelQuestion,
   type DuelSnapshot,
   type PlayerAnswer,
@@ -348,20 +350,20 @@ export class Game {
    * Mini chat entre les deux joueurs réels d'un duel (pas le bot ni un défi rejoué). Texte de 1 à 140 caractères,
    * limité contre le spam, jamais entre joueurs qui se sont bloqués.
    */
-  async duelChat(playerId: string, duelId: string, text: string): Promise<void> {
+  async duelChat(playerId: string, duelId: string, text: string, extra: { stickerId?: StickerId; gif?: DuelChatGif } = {}): Promise<void> {
     const duel = this.ownedDuel(playerId, duelId);
     if (!duel) return this.send(playerId, { type: 'error', code: 'not_in_duel', message: 'Duel introuvable.' });
     const other = duel.state.participants[1 - duel.participantIndex(playerId)];
     if (other.isBot || other.ghost) return;
-    const clean = text.replace(/\s+/g, ' ').trim().slice(0, DUEL_CHAT_MAX_LENGTH);
-    if (!clean) return;
+    const clean = extra.stickerId || extra.gif ? '' : text.replace(/\s+/g, ' ').trim().slice(0, DUEL_CHAT_MAX_LENGTH);
+    if (!clean && !extra.stickerId && !extra.gif) return;
     if (!this.limiter.allow('chat', playerId)) return this.send(playerId, { type: 'error', code: 'rate_limited', message: 'Doucement : trop de messages.' });
     const blocked = await this.repo.db.query(
       'SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)',
       [playerId, other.playerId],
     );
     if (blocked.length) return;
-    const message: DuelChatMessage = { from: playerId, text: clean, at: this.now() };
+    const message: DuelChatMessage = { from: playerId, text: clean, at: this.now(), ...(extra.stickerId ? { stickerId: extra.stickerId } : extra.gif ? { gif: extra.gif } : {}) };
     const list = [...(this.chats.get(duelId) ?? []), message].slice(-30);
     this.chats.set(duelId, list);
     for (const id of [playerId, other.playerId]) this.send(id, { type: 'duelChat', duelId, messages: [message] });

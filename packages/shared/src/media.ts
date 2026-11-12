@@ -49,10 +49,28 @@ export const STICKERS = [
   { id: 'salut', label: 'Salut' },
   { id: 'genie', label: 'Génie' },
 ] as const;
-export type StickerId = (typeof STICKERS)[number]['id'];
+export type PackStickerId = (typeof STICKERS)[number]['id'];
+/** Sticker importé par un joueur : `u-` suivi de 32 caractères hexadécimaux. */
+export type CustomStickerId = `u-${string}`;
+export type StickerId = PackStickerId | CustomStickerId;
 
-export function isSticker(id: unknown): id is StickerId {
+const CUSTOM_STICKER = /^u-[0-9a-f]{32}$/;
+/** Nombre maximum de stickers importés par joueur. */
+export const MAX_CUSTOM_STICKERS = 60;
+
+export function isPackSticker(id: unknown): id is PackStickerId {
   return typeof id === 'string' && STICKERS.some((s) => s.id === id);
+}
+export function isCustomSticker(id: unknown): id is CustomStickerId {
+  return typeof id === 'string' && CUSTOM_STICKER.test(id);
+}
+/** Identifiant de sticker bien formé (pack Qu1z ou importé ; l'existence d'un importé est vérifiée par le serveur). */
+export function isSticker(id: unknown): id is StickerId {
+  return isPackSticker(id) || isCustomSticker(id);
+}
+/** Fichier d'un sticker importé, servi sous `/media/<clé>`. */
+export function customStickerKey(id: CustomStickerId): string {
+  return `stickers/${id.slice(2)}.webp`;
 }
 
 /** Libellé court d'un message non textuel (boîte de réception, aperçu de réponse). */

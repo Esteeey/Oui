@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 
 import { WebSocket, WebSocketServer } from 'ws';
 
-import type { ClientMessage, ServerMessage } from '@qu1z/shared';
+import type { ClientMessage, DuelChatGif, ServerMessage, StickerId } from '@qu1z/shared';
 
 import { createApi } from './api';
 import { Game, type GameOptions } from './game';
@@ -14,7 +14,8 @@ import { Moderation, requestNetwork } from './moderation';
 import { AccountDeletion } from './account-deletion';
 import { Accounts, emailSenderFromEnv, type EmailSender } from './accounts';
 import { Push, type PushSender } from './push';
-import { gifProviderFromEnv, type GifProvider } from './gifs';
+import { gifProviderFromEnv, validateGif, type GifProvider } from './gifs';
+import { assertSticker } from './stickers';
 import { Media, MemoryStore, type MediaStore } from './media';
 import { Notifier } from './notifier';
 import { Social } from './social';
@@ -181,8 +182,17 @@ export async function startServer(port: number, options: ServerOptions): Promise
           return game.answer(playerId, str(msg.duelId), num(msg.index), num(msg.choice), msg.elapsedMs === undefined ? undefined : num(msg.elapsedMs));
         case 'forfeit':
           return game.forfeit(playerId, str(msg.duelId));
-        case 'duelChat':
-          return game.duelChat(playerId, str(msg.duelId), str(msg.text));
+        case 'duelChat': {
+          // Sticker ou GIF : vérifiés ici (le sticker doit exister, le GIF venir du fournisseur).
+          const extra: { stickerId?: StickerId; gif?: DuelChatGif } = {};
+          try {
+            if (msg.stickerId) extra.stickerId = await assertSticker(game.repo.db, msg.stickerId);
+            else if (msg.gif) extra.gif = validateGif(gifs, msg.gif);
+          } catch {
+            return;
+          }
+          return game.duelChat(playerId, str(msg.duelId), str(msg.text ?? ''), extra);
+        }
         case 'duelChatHistory':
           return game.duelChatHistory(playerId, str(msg.duelId));
         case 'ackResult':
