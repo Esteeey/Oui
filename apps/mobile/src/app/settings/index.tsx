@@ -25,7 +25,7 @@ const SECTIONS: { title: string; entries: Entry[] }[] = [
   },
   {
     title: 'Notifications',
-    entries: [{ label: 'Notifications', hint: 'Push par catégorie, aperçus des messages', icon: 'notifications-outline', href: '/settings/notifications' }],
+    entries: [{ label: 'Notifications et messages', hint: 'Push par catégorie, qui peut m’écrire, aperçus des messages', icon: 'notifications-outline', href: '/settings/notifications' }],
   },
   {
     title: 'Compte et sécurité',

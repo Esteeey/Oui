@@ -59,7 +59,18 @@ export interface NotificationView {
   updatedAt: number;
 }
 
+/**
+ * Qui peut m'écrire. Tout le monde peut toujours envoyer un message ; ce réglage décide seulement s'il arrive :
+ * - `everyone` : directement dans la boîte de réception ;
+ * - `requests` : directement si je suis l'expéditeur, sinon dans « Demandes » ;
+ * - `following` : seulement si je suis l'expéditeur, les autres messages ne me parviennent pas.
+ */
+export type MessagesFrom = 'everyone' | 'requests' | 'following';
+export const MESSAGES_FROM: readonly MessagesFrom[] = ['everyone', 'requests', 'following'];
+
 export interface NotificationPrefs {
+  /** Qui peut m'écrire directement (voir `MessagesFrom`). */
+  messagesFrom: MessagesFrom;
   /** Notifications push par catégorie. Le centre de notifications, lui, garde tout. */
   push: Record<NotificationCategory, boolean>;
   /** Être prévenu quand une personne suivie se connecte (désactivé par défaut). */
@@ -84,6 +95,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
     system: true,
     friends_online: false,
   },
+  messagesFrom: 'requests',
   friendsOnline: false,
   hideMessagePreviews: false,
   messagePush: true,

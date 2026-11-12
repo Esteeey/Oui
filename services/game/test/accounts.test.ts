@@ -197,6 +197,7 @@ describe('M8 : notifications push', () => {
   async function chat() {
     const [ana, bob] = [await user('Ana'), await user('Bob')];
     await ok(call(bob.token, 'PUT', '/api/me/push-tokens', { token: TOKEN(1), platform: 'ios' }));
+    await ok(call(ana.token, 'POST', `/api/users/${bob.id}/follow`));
     await ok(call(ana.token, 'POST', '/api/messages/requests', { userId: bob.id, text: 'Une partie ?' }));
     const [req] = (await ok(call<{ requests: MessageRequestView[] }>(bob.token, 'GET', '/api/messages/requests'))).requests;
     const { conversationId } = await ok(call<{ conversationId: string }>(bob.token, 'POST', `/api/messages/requests/${req.id}/accept`));
@@ -226,6 +227,8 @@ describe('M8 : notifications push', () => {
     await ok(call(cle.token, 'PUT', '/api/me/push-tokens', { token: TOKEN(2), platform: 'android' }));
     await ok(call(cle.token, 'PATCH', '/api/me/notification-preferences', { hideMessagePreviews: true }));
     await goOffline(cle);
+    await ok(call(ana.token, 'POST', `/api/users/${cle.id}/follow`));
+    await ok(call(bob.token, 'POST', `/api/users/${cle.id}/follow`));
     await ok(call(ana.token, 'POST', '/api/messages/requests', { userId: cle.id, text: 'Secret' }));
     expect(pushes.sent.at(-1)).toMatchObject({ title: 'Nouvelle demande de message', body: 'Ana veut t’écrire', channelId: 'messages' });
     expect(JSON.stringify(pushes.sent)).not.toContain('Secret');

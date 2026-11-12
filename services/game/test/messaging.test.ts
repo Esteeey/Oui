@@ -58,7 +58,11 @@ const sendMsg = (u: U, id: string, text: string, replyToId?: string) =>
   ok(call<MessageView>(u, 'POST', `/api/messages/${id}`, { text, ...(replyToId ? { replyToId } : {}) }));
 
 /** A envoie une demande à B, B l'accepte : renvoie l'id de la conversation. */
+/** Pour écrire à quelqu'un, il faut le suivre. */
+const follow = (a: U, b: U) => ok(call(a, 'POST', `/api/users/${b.id}/follow`));
+
 async function connect(a: U, b: U, first = 'Salut !'): Promise<string> {
+  await follow(a, b);
   await ok(call(a, 'POST', '/api/messages/requests', { userId: b.id, text: first }));
   const [r] = await requests(b);
   return (await ok(call<{ conversationId: string }>(b, 'POST', `/api/messages/requests/${r.id}/accept`))).conversationId;
@@ -68,6 +72,7 @@ describe('demandes de message', () => {
   it('demande avec premier message, rien d’autre avant acceptation, conversation ouverte ensuite', async () => {
     const a = await user('Alice');
     const b = await user('Bruno');
+    await follow(a, b);
     expect(await ok(call(a, 'POST', '/api/messages/requests', { userId: b.id, text: 'Bonjour, partie ?' }))).toEqual({ status: 'requested' });
     const [r] = await requests(b);
     expect(r).toMatchObject({ incoming: true, firstMessage: 'Bonjour, partie ?' });
@@ -86,6 +91,7 @@ describe('demandes de message', () => {
   it('refus silencieux ; au plus 3 demandes vers la même personne en 30 jours', async () => {
     const a = await user('Alice');
     const b = await user('Bruno');
+    await follow(a, b);
     for (let i = 0; i < 3; i++) {
       await ok(call(a, 'POST', '/api/messages/requests', { userId: b.id, text: `Essai ${i}` }));
       const [r] = await requests(b);
@@ -189,7 +195,8 @@ describe('conversation', () => {
     const m = await b.ws.waitFor((x) => x.type === 'messages', 2000, from);
     expect(m.type === 'messages' && m.conversationId).toBe(id);
     const notifs = await ok(call<{ notifications: NotificationView[] }>(b, 'GET', '/api/notifications'));
-    expect(notifs.notifications).toEqual([]);
+    // Seule la notification d'abonnement (Alice suit Bruno pour pouvoir lui écrire) y figure.
+    expect(notifs.notifications.filter((n) => n.category !== 'follows')).toEqual([]);
   });
 
   it('un non-membre ne peut ni lire ni écrire', async () => {
@@ -237,6 +244,74 @@ describe('blocage', () => {
 
     await ok(call(a, 'DELETE', `/api/blocks/${b.id}`));
     expect(await inbox(a)).toEqual([]);
+    await follow(b, a);
     expect(await ok(call(b, 'POST', '/api/messages/requests', { userId: a.id, text: 'On recommence ?' }))).toEqual({ status: 'requested' });
+  });
+});
+
+describe('qui peut m’écrire', () => {
+  const send = (from: U, to: U, text: string, duelId?: string) =>
+    call<{ status: string; conversationId?: string }>(from, 'POST', '/api/messages/requests', { userId: to.id, text, duelId });
+  const write = async (from: U, to: U, text: string) => {
+    await call(from, 'POST', `/api/users/${to.id}/follow`);
+    return ok(send(from, to, text));
+  };
+  const setFrom = (u: U, messagesFrom: string) => ok(call(u, 'PATCH', '/api/me/notification-preferences', { messagesFrom }));
+
+  it('par défaut : directement si le destinataire suit l’expéditeur, sinon dans les demandes', async () => {
+    const a = await user('Alice');
+    const b = await user('Bruno');
+    const c = await user('Chloé');
+    await ok(call(b, 'POST', `/api/users/${a.id}/follow`));
+    const direct = await write(a, b, 'Coucou');
+    expect(direct.status).toBe('sent');
+    expect((await open(b, direct.conversationId!)).messages.map((m) => m.text)).toEqual(['Coucou']);
+    expect(await write(c, b, 'Salut')).toEqual({ status: 'requested' });
+    expect((await requests(b)).map((r) => r.firstMessage)).toEqual(['Salut']);
+  });
+
+  it('« tout le monde » : la conversation s’ouvre sans demande', async () => {
+    const a = await user('Alice');
+    const b = await user('Bruno');
+    await setFrom(b, 'everyone');
+    const r = await write(a, b, 'Partie ?');
+    expect(r.status).toBe('sent');
+    expect((await inbox(b)).map((c) => c.id)).toContain(r.conversationId);
+    expect(await requests(b)).toEqual([]);
+  });
+
+  it('« personnes que je suis » : les autres messages ne parviennent pas, l’expéditeur ne le sait pas', async () => {
+    const a = await user('Alice');
+    const b = await user('Bruno');
+    await setFrom(b, 'following');
+    expect(await write(a, b, 'Hé')).toEqual({ status: 'requested' });
+    expect(await requests(b)).toEqual([]);
+    expect(await inbox(b)).toEqual([]);
+    expect((await ok(call<{ messagesFrom: string }>(b, 'GET', '/api/me/notification-preferences'))).messagesFrom).toBe('following');
+  });
+
+  it('répondre à quelqu’un qui m’a écrit accepte sa demande', async () => {
+    const a = await user('Alice');
+    const b = await user('Bruno');
+    await write(a, b, 'Salut');
+    // Bruno ne suit pas Alice, mais il peut lui répondre.
+    const r = await ok(send(b, a, 'Oui ?'));
+    expect(r.status).toBe('sent');
+    expect((await open(a, r.conversationId!)).messages.map((m) => m.text)).toEqual(['Salut', 'Oui ?']);
+  });
+
+  it('il faut suivre la personne, sauf depuis la fin d’un duel joué contre elle', async () => {
+    const a = await user('Alice');
+    const b = await user('Bruno');
+    const c = await user('Chloé');
+    const refused = await send(a, b, 'Salut');
+    expect(refused.status).toBe(403);
+    expect(refused.body).toMatchObject({ error: 'must_follow' });
+    const duelId = '11111111-1111-4111-8111-111111111111';
+    await db.query("INSERT INTO duels (id, theme_id, mode, state) VALUES ($1, 'histoire', 'pvp', '{}')", [duelId]);
+    for (const u of [a, b]) await db.query('INSERT INTO duel_participants (duel_id, user_id) VALUES ($1, $2)', [duelId, u.id]);
+    expect((await ok(send(a, b, 'Bien joué !', duelId))).status).toBe('requested');
+    // Un duel auquel on n'a pas participé ensemble ne compte pas.
+    expect((await send(c, b, 'Coucou', duelId)).status).toBe(403);
   });
 });

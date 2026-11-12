@@ -70,6 +70,7 @@ async function user(pseudo: string): Promise<U> {
 }
 
 async function conversation(a: U, b: U): Promise<string> {
+  await ok(call(a, 'POST', `/api/users/${b.id}/follow`));
   await ok(call(a, 'POST', '/api/messages/requests', { userId: b.id }));
   const [req] = (await ok(call<{ requests: MessageRequestView[] }>(b, 'GET', '/api/messages/requests'))).requests;
   return (await ok(call<{ conversationId: string }>(b, 'POST', `/api/messages/requests/${req.id}/accept`))).conversationId;

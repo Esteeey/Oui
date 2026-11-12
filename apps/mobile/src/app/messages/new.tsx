@@ -10,17 +10,20 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
 
 /**
- * Nouveau message : s'il existe déjà une conversation, on l'ouvre ;
- * sinon on envoie une demande avec un premier message facultatif.
+ * Nouveau message : s'il existe déjà une conversation, on l'ouvre ; sinon on écrit le premier message.
+ * Tout le monde peut écrire : c'est le réglage du destinataire qui décide s'il le reçoit directement,
+ * en demande, ou pas du tout (l'expéditeur voit la même confirmation dans ces deux derniers cas).
  */
 export default function NewMessageScreen() {
-  const params = useLocalSearchParams<{ userId?: string }>();
+  const params = useLocalSearchParams<{ userId?: string; duelId?: string }>();
   const [userId, setUserId] = useState<string | null>(params.userId ?? null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<UserSummary[]>([]);
   const [text, setText] = useState('');
   const [state, setState] = useState<{ ok: boolean; text: string } | null>(null);
   const target = useApi<PublicProfile>(userId ? `/api/users/${userId}` : null);
+  // Il faut suivre la personne, sauf depuis la fin d'un duel joué contre elle.
+  const canWrite = !!params.duelId || !!target.data?.relationship.following;
 
   // Conversation existante : on y va directement.
   useEffect(() => {
@@ -42,12 +45,12 @@ export default function NewMessageScreen() {
   }, [query]);
 
   const send = async () => {
-    if (!userId) return;
+    if (!userId || !text.trim()) return;
     setState(null);
     try {
-      const r = await api<{ status: string; conversationId?: string }>('POST', '/api/messages/requests', { userId, text: text.trim() || undefined });
+      const r = await api<{ status: string; conversationId?: string }>('POST', '/api/messages/requests', { userId, text: text.trim() || undefined, duelId: params.duelId });
       if (r.conversationId) router.replace({ pathname: '/messages/[id]', params: { id: r.conversationId } });
-      else setState({ ok: true, text: 'Demande envoyée. La conversation s’ouvrira quand elle sera acceptée.' });
+      else setState({ ok: true, text: 'Message envoyé.' });
     } catch (e) {
       setState({ ok: false, text: errorMessage(e) });
     }
@@ -76,22 +79,19 @@ export default function NewMessageScreen() {
         <>
           {target.data && <AppText variant="label">À : {target.data.pseudo}</AppText>}
           {target.error && <AppText muted>Ce joueur n’est pas joignable.</AppText>}
+          {target.data && !canWrite && <AppText muted>Suis ce joueur pour pouvoir lui écrire.</AppText>}
           <Card>
-            <AppText variant="caption" muted>
-              Ta demande et ce premier message seront visibles par {target.data?.pseudo ?? 'ce joueur'}. Vous pourrez discuter dès qu’il
-              aura accepté.
-            </AppText>
             <TextInput
               value={text}
               onChangeText={setText}
-              placeholder="Premier message (facultatif)"
+              placeholder="Écris ton message…"
               placeholderTextColor={Colors.textMuted}
               maxLength={MAX_FIRST_MESSAGE_LENGTH}
               multiline
-              accessibilityLabel="Premier message"
+              accessibilityLabel="Message"
               style={[styles.input, { minHeight: 80 }]}
             />
-            <Button label="Envoyer la demande" onPress={send} disabled={!target.data || state?.ok === true} />
+            <Button label="Envoyer" onPress={send} disabled={!target.data || !canWrite || !text.trim() || state?.ok === true} />
           </Card>
           {state && <AppText color={state.ok ? Colors.correct : Colors.wrong}>{state.text}</AppText>}
         </>

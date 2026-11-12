@@ -363,7 +363,7 @@ export function createApi(
     ['GET', /^\/api\/messages\/requests$/, async ({ userId }) => ({ requests: await messaging.requests(userId) })],
     ['POST', /^\/api\/messages\/requests$/, async ({ userId, body }) => {
       const b = await body();
-      return messaging.request(userId, uuid(b.userId), b.text);
+      return messaging.request(userId, uuid(b.userId), b.text, typeof b.duelId === 'string' ? b.duelId : undefined);
     }],
     ['POST', /^\/api\/messages\/requests\/([^/]+)\/accept$/, async ({ userId, params }) => messaging.acceptRequest(userId, uuid(params[0]))],
     ['POST', /^\/api\/messages\/requests\/([^/]+)\/decline$/, async ({ userId, params }) => messaging.declineRequest(userId, uuid(params[0]))],

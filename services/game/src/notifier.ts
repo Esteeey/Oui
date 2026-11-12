@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import {
   notificationText,
   DEFAULT_NOTIFICATION_PREFS,
+  MESSAGES_FROM,
+  type MessagesFrom,
   MAX_NOTIFICATIONS,
   levelFromXp,
   type NotificationCategory,
@@ -222,6 +224,7 @@ export class Notifier {
     const stored = row?.prefs ?? {};
     return {
       push: { ...DEFAULT_NOTIFICATION_PREFS.push, ...(stored.push ?? {}) },
+      messagesFrom: MESSAGES_FROM.includes(stored.messagesFrom as MessagesFrom) ? (stored.messagesFrom as MessagesFrom) : DEFAULT_NOTIFICATION_PREFS.messagesFrom,
       friendsOnline: stored.friendsOnline ?? DEFAULT_NOTIFICATION_PREFS.friendsOnline,
       hideMessagePreviews: stored.hideMessagePreviews ?? DEFAULT_NOTIFICATION_PREFS.hideMessagePreviews,
       messagePush: stored.messagePush ?? DEFAULT_NOTIFICATION_PREFS.messagePush,
@@ -239,6 +242,7 @@ export class Notifier {
         if (key in current.push && typeof value === 'boolean') current.push[key as NotificationCategory] = value;
       }
     }
+    if (MESSAGES_FROM.includes(patch.messagesFrom as MessagesFrom)) current.messagesFrom = patch.messagesFrom as MessagesFrom;
     if (typeof patch.friendsOnline === 'boolean') current.friendsOnline = patch.friendsOnline;
     if (typeof patch.hideMessagePreviews === 'boolean') current.hideMessagePreviews = patch.hideMessagePreviews;
     if (typeof patch.messagePush === 'boolean') current.messagePush = patch.messagePush;

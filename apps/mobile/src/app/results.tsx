@@ -343,7 +343,7 @@ export default function ResultsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Discuter avec l’adversaire"
               disabled={duel.opponent.isBot}
-              onPress={() => router.push({ pathname: '/messages/new', params: { userId: duel.opponent.id } })}
+              onPress={() => router.push({ pathname: '/messages/new', params: { userId: duel.opponent.id, duelId: duel.duelId } })}
               style={styles.secondaryButton}>
               <Ionicons name="chatbubble-ellipses" size={26} color={duel.opponent.isBot ? '#52525B' : R.text} />
             </Tap>

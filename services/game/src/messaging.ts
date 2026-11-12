@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import {
   attachmentLabel,
+  DEFAULT_NOTIFICATION_PREFS,
   isSticker,
+  MESSAGES_FROM,
+  type MessagesFrom,
   MAX_FIRST_MESSAGE_LENGTH,
   MAX_MESSAGE_LENGTH,
   levelFromXp,
@@ -169,8 +172,48 @@ export class Messaging {
 
   // ---- Demandes de message -----------------------------------------------------------------
 
-  /** Envoyer une demande (avec un premier message facultatif). La conversation ne s'ouvre qu'après acceptation. */
-  async request(from: string, to: string, rawText?: unknown): Promise<{ status: 'requested' | 'exists'; conversationId?: string }> {
+  /** Réglage « Qui peut m'écrire » du destinataire (lu directement : la messagerie ne dépend pas du centre de notifications). */
+  private async messagesFrom(userId: string): Promise<MessagesFrom> {
+    const [row] = await this.db.query<{ v: string | null }>("SELECT prefs->>'messagesFrom' AS v FROM notification_preferences WHERE user_id = $1", [userId]);
+    return MESSAGES_FROM.includes(row?.v as MessagesFrom) ? (row!.v as MessagesFrom) : DEFAULT_NOTIFICATION_PREFS.messagesFrom;
+  }
+
+  /** Écrire à quelqu'un : il faut le suivre, ou venir de jouer un duel contre lui. */
+  private async mayWrite(from: string, to: string, duelId?: string): Promise<boolean> {
+    const [follows] = await this.db.query('SELECT 1 FROM follows WHERE follower_id = $1 AND followee_id = $2', [from, to]);
+    if (follows) return true;
+    if (!duelId || !/^[0-9a-f-]{36}$/i.test(duelId)) return false;
+    const played = await this.db.query(
+      `SELECT 1 FROM duel_participants x JOIN duel_participants y ON y.duel_id = x.duel_id
+       WHERE x.duel_id = $3 AND x.user_id = $1 AND y.user_id = $2`,
+      [from, to, duelId],
+    );
+    return played.length > 0;
+  }
+
+  /** Crée (ou rouvre) la conversation privée entre deux joueurs, avec le premier message s'il y en a un. */
+  private async openDirect(tx: Queryable, from: string, to: string, firstMessage: string | null): Promise<string> {
+    let conversationId = await this.activeDirect(from, to, tx);
+    if (!conversationId) {
+      conversationId = randomUUID();
+      await tx.query("INSERT INTO conversations (id, kind, direct_key, created_by) VALUES ($1, 'direct', $2, $3)", [conversationId, directKey(from, to), from]);
+      for (const u of [from, to]) await tx.query('INSERT INTO conversation_members (conversation_id, user_id) VALUES ($1, $2)', [conversationId, u]);
+    }
+    if (firstMessage) {
+      await tx.query("INSERT INTO messages (id, conversation_id, sender_id, kind, text) VALUES ($1, $2, $3, 'text', $4)", [randomUUID(), conversationId, from, firstMessage]);
+      await tx.query('UPDATE conversations SET last_message_at = now() WHERE id = $1', [conversationId]);
+    }
+    return conversationId;
+  }
+
+  /**
+   * Écrire à un joueur. Tout le monde peut envoyer ; le réglage du destinataire décide de ce qui arrive :
+   * conversation ouverte directement (`sent`), demande à valider, ou rien du tout. Dans ces deux derniers cas,
+   * l'expéditeur voit la même réponse (`requested`) : il ne sait pas si son message a été filtré.
+   * Pour écrire, il faut suivre la personne, sauf depuis la fin d'un duel joué contre elle (`duelId`)
+   * ou pour répondre à quelqu'un qui nous a écrit.
+   */
+  async request(from: string, to: string, rawText?: unknown, duelId?: string): Promise<{ status: 'requested' | 'exists' | 'sent'; conversationId?: string }> {
     if (from === to) throw new SocialError(400, 'self');
     if (!(await this.user(to))) throw new SocialError(404, 'not_found');
     if (await this.blocked(from, to)) throw new SocialError(403, 'blocked');
@@ -185,13 +228,33 @@ export class Messaging {
       [from, to],
     );
     if (pending.some((p) => p.from_id === from)) throw new SocialError(409, 'already_requested');
-    if (pending.length) throw new SocialError(409, 'request_waiting_for_you');
+    if (!pending.length && !(await this.mayWrite(from, to, duelId))) throw new SocialError(403, 'must_follow');
+    // L'autre m'avait déjà écrit : lui répondre accepte sa demande.
+    const theirs = pending.find((p) => p.from_id === to);
+    if (theirs) {
+      const { conversationId } = await this.acceptRequest(from, theirs.id);
+      if (text) await this.sendMessage(from, conversationId, { text });
+      return { status: 'sent', conversationId };
+    }
     const [{ n }] = await this.db.query<{ n: number }>(
       "SELECT count(*)::int AS n FROM message_requests WHERE from_id = $1 AND to_id = $2 AND created_at > now() - interval '30 days'",
       [from, to],
     );
     if (n >= MAX_REQUESTS_PER_TARGET) throw new SocialError(429, 'too_many_requests');
     this.limit('messageRequest', from);
+
+    const setting = await this.messagesFrom(to);
+    const [follows] = await this.db.query('SELECT 1 FROM follows WHERE follower_id = $1 AND followee_id = $2', [to, from]);
+    if (setting === 'everyone' || follows) {
+      const conversationId = await this.db.transaction((tx) => this.openDirect(tx, from, to, text));
+      this.signal([from, to], conversationId);
+      await this.pushMessage(from, [to], { conversationId, kind: 'text', text });
+      return { status: 'sent', conversationId };
+    }
+    if (setting === 'following') {
+      // Filtré par le destinataire : rien ne lui parvient, l'expéditeur n'en sait rien.
+      return { status: 'requested' };
+    }
     await this.db.query('INSERT INTO message_requests (id, from_id, to_id, first_message) VALUES ($1, $2, $3, $4)', [randomUUID(), from, to, text]);
     this.signal([to]);
     await this.pushMessage(from, [to], { kind: 'text', text, request: true });
@@ -244,28 +307,8 @@ export class Messaging {
       );
       if (!r) throw new SocialError(404, 'not_found');
       if (await this.blocked(r.from_id, r.to_id, tx)) throw new SocialError(403, 'blocked');
-      let conversationId = await this.activeDirect(r.from_id, r.to_id, tx);
-      if (!conversationId) {
-        conversationId = randomUUID();
-        await tx.query("INSERT INTO conversations (id, kind, direct_key, created_by) VALUES ($1, 'direct', $2, $3)", [
-          conversationId,
-          directKey(r.from_id, r.to_id),
-          r.from_id,
-        ]);
-        for (const u of [r.from_id, r.to_id]) {
-          await tx.query('INSERT INTO conversation_members (conversation_id, user_id) VALUES ($1, $2)', [conversationId, u]);
-        }
-      }
+      const conversationId = await this.openDirect(tx, r.from_id, r.to_id, r.first_message);
       await tx.query('UPDATE message_requests SET conversation_id = $2 WHERE id = $1', [id, conversationId]);
-      if (r.first_message) {
-        await tx.query("INSERT INTO messages (id, conversation_id, sender_id, kind, text) VALUES ($1, $2, $3, 'text', $4)", [
-          randomUUID(),
-          conversationId,
-          r.from_id,
-          r.first_message,
-        ]);
-        await tx.query('UPDATE conversations SET last_message_at = now() WHERE id = $1', [conversationId]);
-      }
       return { conversationId, from: r.from_id };
     });
     this.signal([viewer, result.from], result.conversationId);

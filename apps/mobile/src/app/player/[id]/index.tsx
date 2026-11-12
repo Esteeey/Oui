@@ -128,7 +128,13 @@ export default function PlayerScreen() {
                 color={rel.following || rel.requested ? Colors.textMuted : Colors.violetInk}
                 onPress={onFollow}
               />
-              <ProfileAction accessibilityLabel="Message" icon="paper-plane-outline" color={Colors.violetInk} onPress={() => router.push({ pathname: '/messages/new', params: { userId: id } })} />
+              <ProfileAction
+                accessibilityLabel={rel.following ? 'Message' : 'Message : suis ce joueur pour lui écrire'}
+                icon="paper-plane-outline"
+                color={Colors.violetInk}
+                disabled={!rel.following}
+                onPress={() => router.push({ pathname: '/messages/new', params: { userId: id } })}
+              />
             </>
           )
         }

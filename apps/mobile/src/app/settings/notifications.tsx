@@ -1,7 +1,11 @@
 import { Platform, Switch, View } from 'react-native';
 import { useState } from 'react';
 
-import { NOTIFICATION_CATEGORIES, type NotificationCategory, type NotificationPrefs } from '@qu1z/shared';
+import Ionicons from '@expo/vector-icons/Ionicons';
+
+import { NOTIFICATION_CATEGORIES, type MessagesFrom, type NotificationCategory, type NotificationPrefs } from '@qu1z/shared';
+
+import { Tap } from '@/components/tap';
 
 import { SectionHeader } from '@/components/social';
 import { AppText, Button, Card, LoadingState, Screen } from '@/components/ui';
@@ -16,6 +20,7 @@ export default function NotificationSettingsScreen() {
   const p = prefs.data;
   const { refreshInvitePrefs } = useGameServer();
   const [webPushMessage, setWebPushMessage] = useState('');
+  const [messagesFrom, setMessagesFrom] = useState<MessagesFrom | null>(null);
   const save = (patch: Partial<NotificationPrefs> | { push: Partial<Record<NotificationCategory, boolean>> }) =>
     api('PATCH', '/api/me/notification-preferences', patch).then(() => refreshInvitePrefs()).catch(() => {});
 
@@ -61,6 +66,35 @@ export default function NotificationSettingsScreen() {
         />
       </Card>
 
+      <SectionHeader title="Qui peut m’écrire" />
+      <AppText variant="caption" muted>
+        Tout le monde peut t’envoyer un message. Ce réglage décide seulement de ce que tu reçois, sans que l’expéditeur le sache.
+      </AppText>
+      <Card style={{ gap: Spacing.sm }}>
+        {MESSAGES_FROM_CHOICES.map((c) => {
+          const selected = (messagesFrom ?? p?.messagesFrom ?? 'requests') === c.id;
+          return (
+            <Tap
+              key={c.id}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              onPress={() => {
+                setMessagesFrom(c.id);
+                void save({ messagesFrom: c.id });
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: 4 }}>
+              <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={22} color={selected ? Colors.accent : Colors.textMuted} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <AppText variant="label">{c.label}</AppText>
+                <AppText variant="caption" muted>
+                  {c.hint}
+                </AppText>
+              </View>
+            </Tap>
+          );
+        })}
+      </Card>
+
       <SectionHeader title="Messages" />
       <Card style={{ gap: Spacing.md }}>
         <Row
@@ -79,6 +113,12 @@ export default function NotificationSettingsScreen() {
     </Screen>
   );
 }
+
+const MESSAGES_FROM_CHOICES: { id: MessagesFrom; label: string; hint: string }[] = [
+  { id: 'everyone', label: 'Tout le monde', hint: 'Les messages arrivent directement dans ta boîte.' },
+  { id: 'requests', label: 'Demandes pour les inconnus', hint: 'Directement si tu suis la personne, sinon dans « Demandes » : tu acceptes ou tu ignores.' },
+  { id: 'following', label: 'Seulement les personnes que je suis', hint: 'Les messages des autres ne te parviennent pas.' },
+];
 
 function Row({ label, hint, value, onChange }: { label: string; hint?: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
