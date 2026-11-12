@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: M.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   back: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, color: M.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  title: { flex: 1, color: M.text, fontSize: 28, lineHeight: 36, fontWeight: '800', letterSpacing: -0.5, paddingVertical: 2 },
   round: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   content: { gap: 14, paddingTop: 4, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   search: { marginHorizontal: 16, height: 44, borderRadius: 14, backgroundColor: M.field, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 },

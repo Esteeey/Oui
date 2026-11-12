@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: M.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   back: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, color: M.text, fontSize: 26, fontWeight: '800' },
+  title: { flex: 1, color: M.text, fontSize: 26, lineHeight: 34, fontWeight: '800', paddingVertical: 2 },
   content: { gap: 12, paddingHorizontal: 16, width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   intro: { color: M.muted, fontSize: 14, lineHeight: 20 },
   empty: { color: M.muted, textAlign: 'center', paddingVertical: 32 },

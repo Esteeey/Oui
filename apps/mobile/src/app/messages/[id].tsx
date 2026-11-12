@@ -298,8 +298,8 @@ export default function ConversationScreen() {
                   </Tap>
                 )}
                 {m.attachment && <AttachmentView attachment={m.attachment} />}
-                {m.text ? <AppText style={{ color: M.text, fontSize: 15, lineHeight: 21 }}>{m.text}</AppText> : null}
-                <AppText variant="caption" style={{ alignSelf: 'flex-end', fontSize: 11, color: mine ? '#FFD3E4' : M.muted }}>
+                {m.text ? <AppText style={{ color: mine && m.kind !== 'sticker' && m.kind !== 'gif' ? M.onAccent : M.text, fontSize: 15, lineHeight: 21 }}>{m.text}</AppText> : null}
+                <AppText variant="caption" style={{ alignSelf: 'flex-end', fontSize: 11, color: mine ? 'rgba(255,255,255,0.8)' : M.muted }}>
                   {new Date(m.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                 </AppText>
               </Tap>
