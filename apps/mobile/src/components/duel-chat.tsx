@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { DUEL_CHAT_MAX_LENGTH, QUICK_CHAT, STICKERS, type CustomStickerId, type StickerId } from '@qu1z/shared';
 
 import { AttachmentTray } from '@/components/attachments';
 import { Sticker } from '@/components/sticker';
+import { uploadSticker } from '@/components/sticker-picker';
 import { Tap } from '@/components/tap';
 import { AppText } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -30,6 +31,17 @@ export function DuelChat({ duelId, opponentName }: { duelId: string; opponentNam
   const [trayOpen, setTrayOpen] = useState(false);
   const [width, setWidth] = useState(0);
   const [page, setPage] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const importOne = async () => {
+    setBusy(true);
+    try {
+      if (await uploadSticker()) mine.refresh();
+    } catch {
+      // échec d'import : rien à envoyer
+    } finally {
+      setBusy(false);
+    }
+  };
   const messages = game.duelChat[duelId] ?? [];
 
   useEffect(() => {
@@ -47,10 +59,11 @@ export function DuelChat({ duelId, opponentName }: { duelId: string; opponentNam
   const sticker = (stickerId: StickerId) => game.sendDuelChat(duelId, '', { stickerId });
 
   const pack: StickerId[] = STICKERS.map((s) => s.id);
-  const pages: { label: string; ids: StickerId[] }[] = [];
+  const pages: { label: string; ids: (StickerId | 'add')[] }[] = [];
   for (let i = 0; i < pack.length; i += PER_PAGE) pages.push({ label: 'Stickers Qu1z', ids: pack.slice(i, i + PER_PAGE) });
   const custom = mine.data?.stickers ?? [];
-  for (let i = 0; i < custom.length; i += PER_PAGE) pages.push({ label: 'Mes stickers', ids: custom.slice(i, i + PER_PAGE) });
+  const withAdd: (StickerId | 'add')[] = ['add', ...custom];
+  for (let i = 0; i < withAdd.length; i += PER_PAGE) pages.push({ label: 'Mes stickers', ids: withAdd.slice(i, i + PER_PAGE) });
   const cell = width ? (width - 4 * 8) / 5 : 0;
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (width) setPage(Math.round(e.nativeEvent.contentOffset.x / width));
@@ -98,7 +111,11 @@ export function DuelChat({ duelId, opponentName }: { duelId: string; opponentNam
               <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={64}>
                 {pages.map((p, i) => (
                   <View key={i} style={[styles.page, { width }]}>
-                    {p.ids.map((id) => (
+                    {p.ids.map((id) => id === 'add' ? (
+                      <Tap key="add" accessibilityRole="button" accessibilityLabel="Importer un sticker" disabled={busy} onPress={() => void importOne()} style={[styles.cell, styles.add, { width: cell, height: cell }]}>
+                        {busy ? <ActivityIndicator color={C.mine} /> : <Ionicons name="add" size={cell * 0.4} color={C.mine} />}
+                      </Tap>
+                    ) : (
                       <Tap key={id} accessibilityRole="button" accessibilityLabel="Envoyer ce sticker" onPress={() => sticker(id)} style={[styles.cell, { width: cell, height: cell }]}>
                         <Sticker id={id} size={cell * 0.8} />
                       </Tap>
@@ -177,6 +194,7 @@ const styles = StyleSheet.create({
   mineMedia: { alignSelf: 'flex-end' },
   theirsMedia: { alignSelf: 'flex-start' },
   page: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  add: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.mine },
   cell: { borderRadius: 14, backgroundColor: C.cell, alignItems: 'center', justifyContent: 'center' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.dot },

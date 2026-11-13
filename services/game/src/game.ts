@@ -352,7 +352,7 @@ export class Game {
    * Duel du joueur, en mémoire ou déjà terminé et enregistré, avec la clé de son chat : un défi partage un seul
    * chat entre ses deux manches, un duel en direct a le sien.
    */
-  private async chatContext(playerId: string, duelId: string): Promise<{ key: string; otherId: string; ghost: boolean } | null> {
+  private async chatContext(playerId: string, duelId: string): Promise<{ key: string; otherId: string; ghost: boolean; bot: boolean } | null> {
     const duel = this.duels.get(duelId) ?? (await this.loadFinished(duelId).catch(() => null));
     if (!duel) return null;
     const me = duel.state.participants.findIndex((p) => p.playerId === playerId);
@@ -360,7 +360,7 @@ export class Game {
     const other = duel.state.participants[1 - me];
     const challenge = duel.state.challenge;
     if (other.ghost && !challenge) return null;
-    return { key: challenge ? `challenge:${challenge.id}` : duelId, otherId: other.playerId, ghost: !!other.ghost };
+    return { key: challenge ? `challenge:${challenge.id}` : duelId, otherId: other.playerId, ghost: !!other.ghost, bot: other.isBot };
   }
 
   /** Amis = abonnés l'un à l'autre. Seuls leurs messages de fin de partie sont enregistrés. */
@@ -384,6 +384,12 @@ export class Game {
     const clean = extra.stickerId || extra.gif ? '' : text.replace(/\s+/g, ' ').trim().slice(0, DUEL_CHAT_MAX_LENGTH);
     if (!clean && !extra.stickerId && !extra.gif) return;
     if (!this.limiter.allow('chat', playerId)) return this.send(playerId, { type: 'error', code: 'rate_limited', message: 'Doucement : trop de messages.' });
+    // Le bot ne lit rien : le message s'affiche seulement chez l'expéditeur, sans rien enregistrer.
+    if (ctx.bot) {
+      const own: DuelChatMessage = { from: playerId, text: clean, at: this.now(), ...(extra.stickerId ? { stickerId: extra.stickerId } : extra.gif ? { gif: extra.gif } : {}) };
+      this.chats.set(ctx.key, [...(this.chats.get(ctx.key) ?? []), own].slice(-30));
+      return this.send(playerId, { type: 'duelChat', duelId, messages: [own] });
+    }
     const blocked = await this.repo.db.query(
       'SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)',
       [playerId, ctx.otherId],

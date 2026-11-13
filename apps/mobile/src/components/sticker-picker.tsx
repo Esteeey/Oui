@@ -13,7 +13,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, apiBase, ApiError, errorMessage, TOKEN_KEY, useApi } from '@/net/api';
 
 /** Envoie une image (PNG, GIF, WebP, JPEG) telle quelle : la transparence et l'animation sont gardées par le serveur. */
-async function uploadSticker(): Promise<CustomStickerId | null> {
+export async function uploadSticker(): Promise<CustomStickerId | null> {
   const picked = await DocumentPicker.getDocumentAsync({ type: ['image/png', 'image/gif', 'image/webp', 'image/jpeg'], copyToCacheDirectory: true, multiple: false });
   if (picked.canceled || !picked.assets[0]) return null;
   const file = picked.assets[0];
