@@ -2,12 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { Animated as RNAnimated, ScrollView, StyleSheet, type ScrollViewInstance, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import Svg, { Circle, G, Line, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
+import Animated, { Easing, cancelAnimation, useAnimatedProps, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Svg, { Circle, Defs, G, Line, LinearGradient, Polyline, Stop, Text as SvgText } from 'react-native-svg';
 
 import { RULES, levelFromXp, xpForLevel, type DuelOutcome, type DuelRecord } from '@qu1z/shared';
 
 import { Tap } from '@/components/tap';
 import { AppText, Avatar } from '@/components/ui';
+import { Fonts } from '@/constants/theme';
 import { playSound } from '@/audio/sounds';
 import { haptic } from '@/utils/haptics';
 import { questionImageSource } from '@/game/question-images';
@@ -19,7 +21,7 @@ export const RC = {
   muted: '#A1A1AA',
   faint: '#3A3A40',
   win: '#2BE02B',
-  lose: '#FF2D7A',
+  lose: '#E0101E',
   draw: '#F5B700',
   pink: '#FC0266',
   purple: '#3B1278',
@@ -33,35 +35,50 @@ export const RC = {
   wrong: '#E5245E',
 };
 
-const BANNER: Record<DuelOutcome, { text: string; fill: string; edge: string }> = {
-  win: { text: 'VICTOIRE !', fill: '#1F5BFF', edge: '#5C8BFF' },
-  loss: { text: 'DÉFAITE !', fill: '#C8124F', edge: '#FF4F8A' },
-  draw: { text: 'ÉGALITÉ !', fill: '#C27C00', edge: '#FFC23D' },
+// Couleurs du dégradé qui défile dans le titre (une période, répétée deux fois pour boucler sans saut).
+const BANNER: Record<DuelOutcome, { text: string; colors: string[] }> = {
+  win: { text: 'VICTOIRE !', colors: ['#2EE62E', '#00E5AB', '#FFD700', '#FF007A', '#7B2FFF'] },
+  loss: { text: 'DÉFAITE !', colors: ['#E0101E', '#FF007A', '#FF4F8A', '#B0003A'] },
+  draw: { text: 'ÉGALITÉ !', colors: ['#FFD700', '#FF9F1C', '#FFE27A', '#C27C00'] },
 };
 
-/** Bandeau incliné « VICTOIRE ! » / « DÉFAITE ! » / « ÉGALITÉ ! » avec ses doubles traits de chaque côté. */
+const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
+const BANNER_LOOP_MS = 4000;
+
+/** Titre de fin (VICTOIRE ! / DÉFAITE ! / ÉGALITÉ !) rempli d'un dégradé de couleurs qui défile. */
 export function OutcomeBanner({ outcome, width }: { outcome: DuelOutcome; width: number }) {
   const b = BANNER[outcome];
   const W = Math.min(width, 380);
   const H = Math.round(W * 0.2);
-  const s = H * 0.42; // inclinaison
-  const bodyL = W * 0.16;
-  const bodyR = W * 0.84;
-  const stripe = (x: number) => `${x + s},0 ${x + s + 9},0 ${x + 9},${H} ${x},${H}`;
+  const reduced = useReducedMotion();
+  const shift = useSharedValue(0);
+  useEffect(() => {
+    if (!reduced) shift.value = withRepeat(withTiming(1, { duration: BANNER_LOOP_MS, easing: Easing.linear }), -1, false);
+    return () => cancelAnimation(shift);
+  }, [reduced, shift]);
+  const gradientProps = useAnimatedProps(() => ({ x1: -shift.value * W, x2: (2 - shift.value) * W }));
+  const stops = [...b.colors, ...b.colors, b.colors[0]];
   return (
     <View style={{ width: W, height: H, alignSelf: 'center' }} accessibilityRole="header" accessibilityLabel={b.text}>
-      <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={StyleSheet.absoluteFill}>
-        <Polygon points={stripe(bodyL - 34)} fill={b.fill} />
-        <Polygon points={stripe(bodyL - 18)} fill={b.fill} />
-        <Polygon points={stripe(bodyR + 8)} fill={b.fill} />
-        <Polygon points={stripe(bodyR + 24)} fill={b.fill} />
-        <Polygon points={`${bodyL + s},0 ${bodyR + s},0 ${bodyR},${H} ${bodyL},${H}`} fill={b.fill} stroke={b.edge} strokeWidth={2} />
-      </Svg>
-      <View style={styles.bannerTextWrap}>
-        <AppText style={[styles.bannerText, { fontSize: Math.round(H * 0.56), lineHeight: Math.round(H * 0.8) }]} numberOfLines={1}>
+      <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        <Defs>
+          <AnimatedGradient id="outcome" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={2 * W} y2={0} animatedProps={gradientProps}>
+            {stops.map((c, i) => (
+              <Stop key={i} offset={i / (stops.length - 1)} stopColor={c} />
+            ))}
+          </AnimatedGradient>
+        </Defs>
+        <SvgText
+          x={W / 2}
+          y={H * 0.78}
+          textAnchor="middle"
+          fontFamily={Fonts.extraBold}
+          fontSize={Math.round(H * 0.72)}
+          fill="url(#outcome)"
+          transform={`skewX(-12) translate(${H * 0.14} 0)`}>
           {b.text}
-        </AppText>
-      </View>
+        </SvgText>
+      </Svg>
     </View>
   );
 }
@@ -404,8 +421,6 @@ export function QuestionReview({
 }
 
 const styles = StyleSheet.create({
-  bannerTextWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: '16%' },
-  bannerText: { color: '#FFFFFF', fontWeight: '900', fontStyle: 'italic', letterSpacing: 1 },
   xpRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
   xpSide: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
   xpLabelBox: { alignItems: 'center' },

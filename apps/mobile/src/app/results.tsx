@@ -84,6 +84,16 @@ export default function ResultsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duel?.duelId, duel?.result]);
 
+  // Présence sur l'écran de fin : seulement juste après un duel en direct contre un joueur réel, pas en revoyant un résultat.
+  const freshLive = !!duel && duel.phase === 'finished' && !duel.opponent.isBot && !duel.challenge && game.reviewedDuelId !== duel.duelId;
+  const liveDuelId = freshLive ? duel?.duelId : undefined;
+  useEffect(() => {
+    if (!liveDuelId) return;
+    game.setResultsPresence(liveDuelId, true);
+    return () => game.setResultsPresence(liveDuelId, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveDuelId]);
+
   // Retour là où l'on était avant de lancer le défi (l'écran de duel a été remplacé par celui-ci).
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -199,9 +209,9 @@ export default function ResultsScreen() {
     <GestureDetector gesture={pullDown}>
     <Animated.View style={[styles.screen, dragStyle]}>
       <GestureDetector gesture={scrollGesture}>
-      <Animated.ScrollView ref={scroller} onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl + (duel.opponent.isBot ? 0 : 64) }} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView ref={scroller} onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }} showsVerticalScrollIndicator={false}>
         {/* Premier écran : tout tient dans la hauteur de l'appareil. */}
-        <View style={{ minHeight: height, paddingBottom: duel.opponent.isBot ? 0 : 64 }}>
+        <View style={{ minHeight: height }}>
           <ThemeCover themeId={duel.themeId} height={coverHeight + insets.top} fadeTo={R.bg} dim={false}>
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
               <Tap accessibilityRole="button" accessibilityLabel="Retour" onPress={close} hitSlop={10} style={styles.headerButton}>
@@ -228,7 +238,7 @@ export default function ResultsScreen() {
             {/* Le joueur connecté est TOUJOURS à gauche : le serveur l'envoie comme « me ». */}
             <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(120).springify()} style={styles.players}>
               <PlayerSlot player={meView} points={duel.me.points} state={result.outcome === 'win' ? 'win' : result.outcome === 'loss' ? 'loss' : 'draw'} />
-              <PlayerSlot player={oppView} points={duel.opponent.points} state={result.outcome === 'win' ? 'loss' : result.outcome === 'loss' ? 'win' : 'draw'} />
+              <PlayerSlot player={oppView} points={duel.opponent.points} state={result.outcome === 'win' ? 'loss' : result.outcome === 'loss' ? 'win' : 'draw'} presence={freshLive ? game.opponentOnResults[duel.duelId] : undefined} />
             </Animated.View>
 
             {!result.finished && !result.forfeited && (
@@ -241,6 +251,8 @@ export default function ResultsScreen() {
                 Duel abandonné : aucun XP.
               </AppText>
             )}
+
+            <XpRing xpBefore={record.xpBefore} gained={result.rewards.total} animate={!reducedMotion} />
 
             <View style={styles.buttons}>
               <Tap accessibilityRole="button" accessibilityLabel="Rejouer" disabled={rematchBusy} onPress={replay} style={[styles.bigButton, { backgroundColor: RC.pink }]}>
@@ -262,7 +274,7 @@ export default function ResultsScreen() {
               )}
             </View>
 
-            <XpRing xpBefore={record.xpBefore} gained={result.rewards.total} animate={!reducedMotion} />
+            {!duel.opponent.isBot && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
 
             <Tap accessibilityRole="button" accessibilityLabel="Voir les statistiques et les questions" onPress={scrollToStats} hitSlop={16} style={styles.chevron}>
               <Ionicons name="chevron-down" size={44} color={RC.chevron} />
@@ -358,7 +370,6 @@ export default function ResultsScreen() {
         </View>
       </Animated.ScrollView>
       </GestureDetector>
-      {!duel.opponent.isBot && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
       <QuestionReportSheet question={reportedQuestion} onClose={() => setReportedQuestion(null)} />
     </Animated.View>
     </GestureDetector>
@@ -384,16 +395,39 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 /** Photo ronde cerclée (vert gagnant, rouge perdant), nom, puis score en grand. */
-function PlayerSlot({ player, points, state }: { player: { name: string; color: string; avatar: string | null }; points: number; state: 'win' | 'loss' | 'draw' }) {
+function PlayerSlot({
+  player,
+  points,
+  state,
+  presence,
+}: {
+  player: { name: string; color: string; avatar: string | null };
+  points: number;
+  state: 'win' | 'loss' | 'draw';
+  /** Adversaire seulement, juste après la partie : encore sur son écran de fin ou parti. */
+  presence?: boolean;
+}) {
   const ring = state === 'win' ? RC.win : state === 'loss' ? '#E0101E' : RC.draw;
   const scoreColor = state === 'win' ? RC.win : state === 'loss' ? RC.lose : RC.draw;
   return (
     <View style={styles.slot} accessible accessibilityLabel={`${player.name} : ${points} points${state === 'win' ? ', gagnant' : ''}`}>
-      <Avatar name={player.name} color={player.color} uri={player.avatar} size={88} borderColor={ring} />
+      <View>
+        <Avatar name={player.name} color={player.color} uri={player.avatar} size={88} borderColor={ring} />
+        {/* Couronne posée sur le bord du cercle du gagnant, sans couvrir la photo. */}
+        {state === 'win' && <AppText style={styles.crown}>👑</AppText>}
+      </View>
       <AppText style={styles.slotName} numberOfLines={1}>
         {player.name}
       </AppText>
       <AppText style={[styles.slotScore, { color: scoreColor }]}>{points}</AppText>
+      {presence !== undefined && (
+        <View style={styles.presence} accessible accessibilityLabel={presence ? `${player.name} regarde le résultat` : `${player.name} a quitté le résultat`}>
+          <View style={[styles.presenceDot, { backgroundColor: presence ? '#2EE62E' : '#666666' }]} />
+          <AppText style={[styles.presenceText, !presence && { color: '#888888' }]}>
+            {presence ? `Sur l’écran ${state === 'win' ? 'de victoire' : state === 'loss' ? 'de défaite' : 'd’égalité'}` : 'A quitté l’écran'}
+          </AppText>
+        </View>
+      )}
     </View>
   );
 }
@@ -455,6 +489,10 @@ const styles = StyleSheet.create({
   bigDivider: { width: 1.5, height: 30, marginHorizontal: 12 },
   bigLabel: { fontSize: 22, fontWeight: '700' },
   bigLabelSmall: { fontSize: 16, flexShrink: 1 },
+  presence: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  presenceDot: { width: 6, height: 6, borderRadius: 3 },
+  presenceText: { color: '#BBBBBB', fontSize: 10, lineHeight: 14, fontWeight: '600' },
+  crown: { position: 'absolute', top: -18, left: -4, fontSize: 28, lineHeight: 34, transform: [{ rotate: '-38deg' }] },
   chevron: { alignSelf: 'center', marginTop: -Spacing.sm, paddingBottom: Spacing.md },
   sectionTitle: { color: R.text, fontSize: 15, fontWeight: '800', letterSpacing: 2, textAlign: 'center', marginTop: Spacing.lg },
   legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: -Spacing.sm },

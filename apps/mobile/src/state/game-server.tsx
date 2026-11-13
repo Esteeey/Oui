@@ -50,6 +50,11 @@ interface GameServerState {
   forfeit: () => void;
   ackResult: (duelId: string) => void;
   viewResult: (duelId: string) => void;
+  /** Dernier duel rouvert pour revoir son résultat (pas d'indicateur de présence dans ce cas). */
+  reviewedDuelId: string | null;
+  /** Présence de l'adversaire sur son écran de fin, par duel (absent tant que le serveur n'a rien dit). */
+  opponentOnResults: Record<string, boolean>;
+  setResultsPresence: (duelId: string, on: boolean) => void;
   retry: () => void;
   /** Après une connexion ou une déconnexion : reconnexion avec le nouveau jeton. */
   switchAccount: () => void;
@@ -76,6 +81,8 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
   const invitePrefsRef = useRef(invitePrefs);
   const soundedInvitations = useRef(new Set<string>());
   const [duelChat, setDuelChat] = useState<Record<string, DuelChatMessage[]>>({});
+  const [reviewedDuelId, setReviewedDuelId] = useState<string | null>(null);
+  const [opponentOnResults, setOpponentOnResults] = useState<Record<string, boolean>>({});
   const connection = useRef<GameConnection | null>(null);
   /**
    * Réponse envoyée mais pas encore confirmée par le serveur. Un état parti du serveur juste avant
@@ -161,6 +168,9 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
             const seen = new Set(known.map(key));
             return { ...all, [m.duelId]: [...known, ...m.messages.filter((x) => !seen.has(key(x)))].slice(-30) };
           });
+          break;
+        case 'opponentPresence':
+          setOpponentOnResults((all) => ({ ...all, [m.duelId]: m.on }));
           break;
         case 'messages':
           // Nouveau message, réaction, lecture ou demande : les écrans de messagerie se rechargent.
@@ -259,7 +269,13 @@ export function GameServerProvider({ children }: { children: ReactNode }) {
     },
     forfeit: () => duel && send({ type: 'forfeit', duelId: duel.duelId }),
     ackResult: (duelId) => send({ type: 'ackResult', duelId }),
-    viewResult: (duelId) => send({ type: 'viewResult', duelId }),
+    viewResult: (duelId) => {
+      setReviewedDuelId(duelId);
+      send({ type: 'viewResult', duelId });
+    },
+    reviewedDuelId,
+    opponentOnResults,
+    setResultsPresence: (duelId, on) => send({ type: 'resultsPresence', duelId, on }),
     retry: () => connection.current?.reconnectNow(),
     switchAccount: () => {
       setDuel(null);

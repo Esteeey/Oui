@@ -133,7 +133,9 @@ export type ClientMessage =
   | { type: 'duelChat'; duelId: string; text?: string; stickerId?: string; gif?: DuelChatGif }
   | { type: 'duelChatHistory'; duelId: string }
   | { type: 'ackResult'; duelId: string }
-  | { type: 'viewResult'; duelId: string };
+  | { type: 'viewResult'; duelId: string }
+  /** Le joueur arrive sur (ou quitte) l'écran de fin d'un duel qu'il vient de jouer. */
+  | { type: 'resultsPresence'; duelId: string; on: boolean };
 
 export interface DuelChatGif {
   id: string;
@@ -161,6 +163,8 @@ export type ServerMessage =
   | { type: 'duelInvitation'; invitation: LiveInvitation }
   /** Messages du mini chat de fin de match (nouveaux, ou tous à la demande). */
   | { type: 'duelChat'; duelId: string; messages: DuelChatMessage[] }
+  /** L'adversaire est-il encore sur son écran de fin ? */
+  | { type: 'opponentPresence'; duelId: string; on: boolean }
   | { type: 'welcome'; playerId: string; token: string; profile: Profile }
   | { type: 'profile'; profile: Profile }
   | { type: 'queued'; themeId: string; since: number }

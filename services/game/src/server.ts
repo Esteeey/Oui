@@ -195,6 +195,8 @@ export async function startServer(port: number, options: ServerOptions): Promise
         }
         case 'duelChatHistory':
           return game.duelChatHistory(playerId, str(msg.duelId));
+        case 'resultsPresence':
+          return game.resultsPresence(playerId, str(msg.duelId), msg.on === true);
         case 'viewResult':
           return game.viewResult(playerId, str(msg.duelId));
         case 'ackResult':

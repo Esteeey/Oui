@@ -84,6 +84,8 @@ export class Game {
   private readonly writes = new Map<string, Promise<void>>();
   /** Mini chat de fin de match, gardé en mémoire (30 derniers messages par duel). */
   private readonly chats = new Map<string, DuelChatMessage[]>();
+  /** Joueurs présents sur l'écran de fin, par duel en mémoire. */
+  private readonly onResults = new Map<string, Set<string>>();
   /** Défis du jour (objectifs quotidiens). */
   readonly quests: Quests;
 
@@ -421,6 +423,25 @@ export class Game {
   }
 
   /** Rouvre les résultats d'un duel terminé (depuis une notification), réservé à ses participants. */
+  /**
+   * Présence sur l'écran de fin, juste après un duel en direct contre un joueur réel : prévient l'adversaire,
+   * et à l'arrivée renvoie au joueur l'état de l'adversaire. Sans effet une fois le duel retiré de la mémoire.
+   */
+  resultsPresence(playerId: string, duelId: string, on: boolean): void {
+    const duel = this.duels.get(duelId);
+    const me = duel ? duel.participantIndex(playerId) : -1;
+    if (!duel || me < 0) return;
+    const other = duel.state.participants[1 - me];
+    if (other.isBot || other.ghost) return;
+    const present = this.onResults.get(duelId) ?? new Set<string>();
+    if (on) present.add(playerId);
+    else present.delete(playerId);
+    if (present.size) this.onResults.set(duelId, present);
+    else this.onResults.delete(duelId);
+    this.send(other.playerId, { type: 'opponentPresence', duelId, on });
+    if (on) this.send(playerId, { type: 'opponentPresence', duelId, on: present.has(other.playerId) });
+  }
+
   async viewResult(playerId: string, duelId: string): Promise<void> {
     if (this.active.has(playerId)) return;
     const duel = this.duels.get(duelId) ?? (await this.loadFinished(duelId).catch(() => null));

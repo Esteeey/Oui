@@ -99,6 +99,23 @@ describe('historique de duel', () => {
     await db!.query('UPDATE media SET removed_by_moderation_at = now() WHERE id = $1', [mediaId]);
     expect(await opponentAvatar()).toBeNull();
   });
+
+  it('présence sur l’écran de fin : l’adversaire voit qu’on arrive puis qu’on part', async () => {
+    await boot();
+    const { a, b, duelId } = await startPvp();
+    await a.waitForDuel((s) => s.phase === 'reading', 4000, 0);
+    a.send({ type: 'forfeit', duelId });
+    await a.waitForDuel(finished, 4000, 0);
+    await b.waitForDuel(finished, 4000, 0);
+    const presence = (on: boolean) => (m: { type: string; duelId?: string; on?: boolean }) => m.type === 'opponentPresence' && m.duelId === duelId && m.on === on;
+    a.send({ type: 'resultsPresence', duelId, on: true });
+    await a.waitFor(presence(false), 4000, 0); // b n'est pas encore là
+    await b.waitFor(presence(true), 4000, 0);
+    b.send({ type: 'resultsPresence', duelId, on: true });
+    await a.waitFor(presence(true), 4000, 0);
+    a.send({ type: 'resultsPresence', duelId, on: false });
+    await b.waitFor(presence(false), 4000, 0);
+  });
 });
 
 describe('récompenses XP (calculées par le serveur)', () => {
