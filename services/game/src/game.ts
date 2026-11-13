@@ -358,7 +358,6 @@ export class Game {
     const me = duel.state.participants.findIndex((p) => p.playerId === playerId);
     if (me < 0) return null;
     const other = duel.state.participants[1 - me];
-    if (other.isBot) return null;
     const challenge = duel.state.challenge;
     if (other.ghost && !challenge) return null;
     return { key: challenge ? `challenge:${challenge.id}` : duelId, otherId: other.playerId, ghost: !!other.ghost };

@@ -85,7 +85,7 @@ export default function ResultsScreen() {
   }, [duel?.duelId, duel?.result]);
 
   // Présence sur l'écran de fin : seulement juste après un duel en direct contre un joueur réel, pas en revoyant un résultat.
-  const freshLive = !!duel && duel.phase === 'finished' && !duel.opponent.isBot && !duel.challenge && game.reviewedDuelId !== duel.duelId;
+  const freshLive = !!duel && duel.phase === 'finished' && !duel.challenge && game.reviewedDuelId !== duel.duelId;
   const liveDuelId = freshLive ? duel?.duelId : undefined;
   useEffect(() => {
     if (!liveDuelId) return;
@@ -212,33 +212,17 @@ export default function ResultsScreen() {
       <Animated.ScrollView ref={scroller} onScroll={onScroll} scrollEventThrottle={16} bounces={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }} showsVerticalScrollIndicator={false}>
         {/* Premier écran : tout tient dans la hauteur de l'appareil. */}
         <View style={{ minHeight: height }}>
-          <ThemeCover themeId={duel.themeId} height={coverHeight + insets.top} fadeTo={R.bg} dim={false}>
-            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-              <Tap accessibilityRole="button" accessibilityLabel="Retour" onPress={close} hitSlop={10} style={styles.headerButton}>
-                <Ionicons name="arrow-back" size={30} color={R.text} />
-              </Tap>
-              <View style={styles.headerCenter}>
-                <ThemeIcon themeId={duel.themeId} size={58} />
-                <View style={{ flexShrink: 1 }}>
-                  <AppText style={styles.title}>RÉSULTATS</AppText>
-                  <AppText style={styles.subtitle} numberOfLines={1}>{theme?.name}</AppText>
-                </View>
-              </View>
-              <Tap accessibilityRole="button" accessibilityLabel="Partager le résultat" onPress={share} hitSlop={10} style={styles.headerButton}>
-                <Ionicons name="share-social" size={28} color={R.text} />
-              </Tap>
-            </View>
-          </ThemeCover>
+          <View style={{ height: insets.top + Spacing.lg }} />
 
           <View style={styles.body}>
-            <Animated.View entering={reducedMotion ? undefined : ZoomIn.springify()} style={{ marginTop: -Math.round(contentWidth * 0.12) }}>
+            <Animated.View entering={reducedMotion ? undefined : ZoomIn.springify()} >
               <OutcomeBanner outcome={result.outcome} width={contentWidth + 20} />
             </Animated.View>
 
             {/* Le joueur connecté est TOUJOURS à gauche : le serveur l'envoie comme « me ». */}
             <Animated.View entering={reducedMotion ? undefined : FadeInDown.delay(120).springify()} style={styles.players}>
               <PlayerSlot player={meView} points={duel.me.points} state={result.outcome === 'win' ? 'win' : result.outcome === 'loss' ? 'loss' : 'draw'} />
-              <PlayerSlot player={oppView} points={duel.opponent.points} state={result.outcome === 'win' ? 'loss' : result.outcome === 'loss' ? 'win' : 'draw'} presence={freshLive ? game.opponentOnResults[duel.duelId] : undefined} />
+              <PlayerSlot player={oppView} points={duel.opponent.points} state={result.outcome === 'win' ? 'loss' : result.outcome === 'loss' ? 'win' : 'draw'} presence={freshLive ? (duel.opponent.isBot || game.opponentOnResults[duel.duelId]) : undefined} />
             </Animated.View>
 
             {!result.finished && !result.forfeited && (
@@ -274,7 +258,7 @@ export default function ResultsScreen() {
               )}
             </View>
 
-            {!duel.opponent.isBot && <DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
+            {<DuelChat duelId={duel.duelId} opponentName={duel.opponent.name} />}
 
             <Tap accessibilityRole="button" accessibilityLabel="Voir les statistiques et les questions" onPress={scrollToStats} hitSlop={16} style={styles.chevron}>
               <Ionicons name="chevron-down" size={44} color={RC.chevron} />
