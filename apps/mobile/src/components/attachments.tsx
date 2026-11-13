@@ -6,7 +6,7 @@ import { Modal, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-
 import { type Attachment, type GifView, type MediaView, type StickerId } from '@qu1z/shared';
 
 import { Sticker } from '@/components/sticker';
-import { StickerPicker } from '@/components/sticker-picker';
+import { StickerPicker, uploadSticker } from '@/components/sticker-picker';
 import { AppText } from '@/components/ui';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage } from '@/net/api';
@@ -75,6 +75,19 @@ export function AttachmentTray({
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState<{ available: boolean; provider?: string; gifs: GifView[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pickerKey, setPickerKey] = useState(0);
+  // Créer un sticker : on choisit une image, elle rejoint « Mes stickers » et part tout de suite.
+  const create = async () => {
+    setError(null);
+    try {
+      const id = await uploadSticker();
+      if (!id) return;
+      setPickerKey((k) => k + 1);
+      onSticker(id);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
 
   useEffect(() => {
     if (tab !== 'gifs') return;
@@ -95,11 +108,15 @@ export function AttachmentTray({
         {onPhoto && <TrayButton icon="images" label="Galerie" onPress={() => onPhoto('library')} />}
         {onPhoto && Platform.OS !== 'web' && <TrayButton icon="camera" label="Appareil photo" onPress={() => onPhoto('camera')} />}
         <TrayButton icon="happy" label="Stickers" active={tab === 'stickers'} onPress={() => setTab('stickers')} />
+        <TrayButton icon="add-circle" label="Créer un sticker" onPress={() => void create()} />
         <TrayButton icon="film" label="GIF" active={tab === 'gifs'} onPress={() => setTab('gifs')} />
       </View>
 
       {tab === 'stickers' ? (
-        <StickerPicker size={84} onPick={onSticker} />
+        <View style={{ gap: Spacing.xs }}>
+          {error && <AppText variant="caption" color={Colors.wrong}>{error}</AppText>}
+          <StickerPicker key={pickerKey} size={84} onPick={onSticker} />
+        </View>
       ) : gifs && !gifs.available ? (
         <AppText muted style={{ textAlign: 'center', padding: Spacing.md }}>
           Les GIF arrivent bientôt.
