@@ -8,6 +8,7 @@ import { attachmentLabel, type ConversationSummary, type GroupInvitationView, ty
 
 import { GroupAvatar } from '@/components/group';
 import { M } from '@/components/messages-theme';
+import { StickerPicker } from '@/components/sticker-picker';
 import { Tap } from '@/components/tap';
 import { AppText, Avatar, LoadingState } from '@/components/ui';
 import { MaxContentWidth } from '@/constants/theme';
@@ -26,6 +27,7 @@ export default function InboxScreen() {
   const [menu, setMenu] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [stickers, setStickers] = useState(false);
   const waiting = (requests.data?.requests ?? []).filter((r) => r.incoming).length + (groupInvites.data?.invitations.length ?? 0);
   const all = inbox.data?.conversations ?? [];
   const q = query.trim().toLowerCase();
@@ -52,6 +54,9 @@ export default function InboxScreen() {
           <Ionicons name="chevron-back" size={26} color={M.text} />
         </Tap>
         <AppText style={styles.title}>Messages</AppText>
+        <Tap accessibilityRole="button" accessibilityLabel="Mes stickers" accessibilityState={{ expanded: stickers }} onPress={() => setStickers((o) => !o)} style={[styles.round, { backgroundColor: stickers ? M.accent : M.raised }]}>
+          <Ionicons name="happy-outline" size={22} color={stickers ? '#FFFFFF' : M.text} />
+        </Tap>
         <Tap accessibilityRole="button" accessibilityLabel="Nouveau groupe" onPress={() => router.push('/messages/new-group')} style={[styles.round, { backgroundColor: M.raised }]}>
           <Ionicons name="people-outline" size={22} color={M.text} />
         </Tap>
@@ -64,6 +69,13 @@ export default function InboxScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={M.muted} />}
         keyboardShouldPersistTaps="handled">
+        {stickers && (
+          <View style={{ gap: 6 }}>
+            <AppText style={{ color: M.text, fontWeight: '700' }}>Mes stickers</AppText>
+            <AppText style={{ color: M.muted, fontSize: 12 }}>Touche « Importer » pour créer un sticker depuis une image. Appui long sur un des tiens pour le retirer.</AppText>
+            <StickerPicker size={64} onPick={() => {}} />
+          </View>
+        )}
         <View style={styles.search}>
           <Ionicons name="search" size={18} color={M.muted} />
           <TextInput
