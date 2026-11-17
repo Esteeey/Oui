@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { attachmentLabel, type ConversationSummary, type GroupInvitationView, type MessageRequestView } from '@qu1z/shared';
 
 import { GroupAvatar } from '@/components/group';
+import { useNavBarHeight } from '@/components/app-nav-bar';
 import { M } from '@/components/messages-theme';
 import { StickerPicker } from '@/components/sticker-picker';
 import { Tap } from '@/components/tap';
@@ -20,7 +21,12 @@ import { timeAgo } from '@/utils/time';
 /** Messagerie : amis en ligne, accès aux demandes, puis conversations (épinglées d'abord). */
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
-  const { playerId } = useGameServer();
+  // Ouvert depuis l'onglet du bas : la cloche des notifications remplace le retour.
+  const inTab = usePathname().startsWith('/inbox');
+  const navHeight = useNavBarHeight();
+  const { playerId, unreadNotifications } = useGameServer();
+  const follows = useApi<{ requests: unknown[] }>(inTab ? '/api/me/follow-requests' : null);
+  const bell = unreadNotifications + (follows.data?.requests.length ?? 0);
   const inbox = useApi<{ conversations: ConversationSummary[] }>('/api/messages');
   const requests = useApi<{ requests: MessageRequestView[] }>('/api/messages/requests');
   const groupInvites = useApi<{ invitations: GroupInvitationView[] }>('/api/groups/invitations');
@@ -50,10 +56,22 @@ export default function InboxScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Tap accessibilityRole="button" accessibilityLabel="Retour" onPress={() => router.back()} style={styles.back}>
-          <Ionicons name="chevron-back" size={26} color={M.text} />
-        </Tap>
+        {inTab ? null : (
+          <Tap accessibilityRole="button" accessibilityLabel="Retour" onPress={() => router.back()} style={styles.back}>
+            <Ionicons name="chevron-back" size={26} color={M.text} />
+          </Tap>
+        )}
         <AppText style={styles.title}>Messages</AppText>
+        {inTab && (
+          <Tap accessibilityRole="button" accessibilityLabel={bell ? `Notifications, ${bell} non lues` : 'Notifications'} onPress={() => router.push('/activity')} style={[styles.round, { backgroundColor: M.raised }]}>
+            <Ionicons name="notifications-outline" size={22} color={M.text} />
+            {bell > 0 && (
+              <View style={styles.bellBadge}>
+                <AppText style={styles.bellBadgeText}>{bell > 99 ? '99+' : bell}</AppText>
+              </View>
+            )}
+          </Tap>
+        )}
         <Tap accessibilityRole="button" accessibilityLabel="Mes stickers" accessibilityState={{ expanded: stickers }} onPress={() => setStickers((o) => !o)} style={[styles.round, { backgroundColor: stickers ? M.accent : M.raised }]}>
           <Ionicons name="happy-outline" size={22} color={stickers ? '#FFFFFF' : M.text} />
         </Tap>
@@ -66,7 +84,7 @@ export default function InboxScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: (inTab ? navHeight : insets.bottom) + 24 }]}
         refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={M.muted} />}
         keyboardShouldPersistTaps="handled">
         {stickers && (
@@ -246,4 +264,6 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   menu: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   menuButton: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: M.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  bellBadge: { position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: M.accent, alignItems: 'center', justifyContent: 'center' },
+  bellBadgeText: { color: '#FFFFFF', fontSize: 10, lineHeight: 12, fontWeight: '800' },
 });

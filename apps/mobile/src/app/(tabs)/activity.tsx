@@ -116,7 +116,6 @@ export default function ActivityScreen() {
       title="Activité"
       headerRight={
         <>
-          <HeaderButton icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/messages')} />
           <HeaderButton icon="settings-outline" label="Réglages des notifications" onPress={() => router.push('/settings/notifications')} />
         </>
       }>

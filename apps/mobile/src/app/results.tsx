@@ -16,6 +16,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { LiveInvitation } from '@qu1z/shared';
 import {
   formatSeconds,
   getTheme,
@@ -32,7 +33,7 @@ import { ThemeIcon } from '@/components/theme-icon';
 import { ThemeCover } from '@/components/theme-cover';
 import { AppText, Avatar } from '@/components/ui';
 import { ClassicColors as Colors, Spacing } from '@/constants/theme';
-import { api, errorMessage } from '@/net/api';
+import { api, ApiError, errorMessage } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { Tap } from '@/components/tap';
 import { haptic } from '@/utils/haptics';
@@ -59,6 +60,8 @@ export default function ResultsScreen() {
   const [reportedQuestion, setReportedQuestion] = useState<ReportedQuestion | null>(null);
   const [rematch, setRematch] = useState<string | null>(null);
   const [rematchBusy, setRematchBusy] = useState(false);
+  /** Demande de revanche en direct envoyée à l'adversaire, en attente de sa réponse. */
+  const [inviteId, setInviteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (duel?.phase === 'finished' && duel.result) game.ackResult(duel.duelId);
@@ -152,8 +155,48 @@ export default function ResultsScreen() {
     if (!next) return;
     router.replace({ pathname: '/duel/[themeId]', params: { themeId: next.id, mode: duel.opponent.isBot ? 'bot' : 'pvp' } });
   };
+  // Fin de la demande de revanche : acceptée, le duel s'ouvre tout seul ; sinon on dit pourquoi.
+  useEffect(() => {
+    if (!inviteId || game.liveInvitations.some((i) => i.id === inviteId)) return;
+    let live = true;
+    api<{ invitations: LiveInvitation[] }>('GET', '/api/live-invitations')
+      .then(({ invitations }) => {
+        const mine = invitations.find((i) => i.id === inviteId);
+        if (!live || !mine || mine.status === 'pending' || mine.status === 'accepted') return;
+        const name = mine.receiver.pseudo;
+        setRematch(
+          mine.status === 'declined' ? `${name} a refusé la revanche.` : mine.status === 'expired' ? `${name} n’a pas répondu à temps.` : mine.status === 'cancelled' ? 'Revanche annulée.' : `${name} n’est pas disponible pour le moment.`,
+        );
+        setInviteId(null);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [inviteId, game.liveInvitations]);
   const replay = async () => {
     if (rematchBusy) return;
+    if (!duel.challenge && !duel.opponent.isBot) {
+      // Revanche : même adversaire, même thème, il accepte ou refuse. Jamais de recherche aléatoire.
+      setRematchBusy(true);
+      setRematch(null);
+      try {
+        const invitation = await api<LiveInvitation>('POST', '/api/live-invitations', { userId: duel.opponent.id, themeId: duel.themeId });
+        setInviteId(invitation.id);
+        setRematch(`Revanche proposée à ${duel.opponent.name}, en attente de sa réponse…`);
+      } catch (e) {
+        setRematch(
+          e instanceof ApiError && e.code === 'not_connected_by_follow'
+            ? `La revanche n’est possible qu’entre joueurs qui se suivent. Abonne-toi à ${duel.opponent.name} pour la lui proposer.`
+            : e instanceof ApiError && e.code === 'invitation_pending'
+              ? `Une revanche est déjà proposée à ${duel.opponent.name}.`
+              : errorMessage(e),
+        );
+      } finally {
+        setRematchBusy(false);
+      }
+      return;
+    }
     if (!duel.challenge) {
       router.replace({ pathname: '/duel/[themeId]', params: { themeId: duel.themeId, mode: duel.opponent.isBot ? 'bot' : 'pvp' } });
       return;
@@ -239,10 +282,10 @@ export default function ResultsScreen() {
             <XpRing xpBefore={record.xpBefore} gained={result.rewards.total} animate={!reducedMotion} />
 
             <View style={styles.buttons}>
-              <Tap accessibilityRole="button" accessibilityLabel="Rejouer" disabled={rematchBusy} onPress={replay} style={[styles.bigButton, { backgroundColor: RC.pink }]}>
+              <Tap accessibilityRole="button" accessibilityLabel={duel.opponent.isBot || duel.challenge ? 'Rejouer' : 'Revanche'} disabled={rematchBusy || !!inviteId} onPress={replay} style={[styles.bigButton, { backgroundColor: RC.pink }]}>
                 <Ionicons name="play" size={26} color="#FFFFFF" style={styles.bigIcon} />
                 <View style={[styles.bigDivider, { backgroundColor: 'rgba(255,255,255,0.7)' }]} />
-                <AppText style={[styles.bigLabel, { color: '#FFFFFF' }]}>Rejouer</AppText>
+                <AppText style={[styles.bigLabel, { color: '#FFFFFF' }]}>{duel.opponent.isBot || duel.challenge ? 'Rejouer' : 'Revanche'}</AppText>
               </Tap>
               <Tap accessibilityRole="button" accessibilityLabel="Rejouer dans un autre thème" onPress={replayOther} style={[styles.bigButton, { backgroundColor: '#FFFFFF' }]}>
                 <Ionicons name="shuffle" size={26} color={RC.purpleIcon} style={styles.bigIcon} />

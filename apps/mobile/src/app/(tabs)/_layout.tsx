@@ -7,11 +7,11 @@ const TABS = [
   { name: 'index', title: 'Accueil' },
   { name: 'explore', title: 'Thèmes' },
   { name: 'play', title: 'VS' },
-  { name: 'activity', title: 'Notifications' },
+  { name: 'inbox', title: 'Messages' },
   { name: 'profile', title: 'Profil' },
 ];
 /** Ces écrans gardent leurs routes et leurs liens, mais n'occupent pas un des cinq boutons principaux. */
-const HIDDEN = ['people', 'leaderboard', 'search'];
+const HIDDEN = ['activity', 'people', 'leaderboard', 'search'];
 
 export default function TabsLayout() {
   return (

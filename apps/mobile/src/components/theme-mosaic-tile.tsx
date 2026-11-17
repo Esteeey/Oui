@@ -48,7 +48,7 @@ export function ThemeMosaicTile({ themeId, xp, big = false, badge }: { themeId: 
   const category = CATEGORIES.find((item) => item.id === theme.categoryId);
   const color = category?.color ?? '#7B2FFF';
   const motifs = MOTIFS[theme.categoryId] ?? ['sparkles', 'star', 'help'];
-  const level = levelFromXp(xp).level;
+  const { level, progress } = levelFromXp(xp);
   const played = xp > 0;
   return (
     <Animated.View style={[styles.outer, big && styles.big, pressStyle]}>
@@ -82,6 +82,10 @@ export function ThemeMosaicTile({ themeId, xp, big = false, badge }: { themeId: 
           </View>
         )}
       </View>
+      {/* Barre d'XP vers le niveau suivant, collée au bas de la case. */}
+      <View pointerEvents="none" style={styles.xpTrack} accessibilityElementsHidden>
+        <View style={[styles.xpFill, { width: `${Math.round(progress * 100)}%` }]} />
+      </View>
     </Pressable>
     </Animated.View>
   );
@@ -99,5 +103,7 @@ const styles = StyleSheet.create({
   name: { color: '#FFFFFF', fontSize: 14, lineHeight: 18, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.3)', textShadowRadius: 4 },
   nameBig: { fontSize: 20, lineHeight: 25 },
   level: { backgroundColor: 'rgba(14,15,43,0.35)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
+  xpTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 6, backgroundColor: 'rgba(14,15,43,0.28)' },
+  xpFill: { height: '100%', backgroundColor: '#FFD700', borderTopRightRadius: 3, borderBottomRightRadius: 3 },
   levelText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
 });

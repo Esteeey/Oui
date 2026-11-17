@@ -2,6 +2,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { Modal, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { type Attachment, type GifView, type MediaView, type StickerId } from '@qu1z/shared';
 
@@ -29,15 +32,71 @@ export function Photo({ media, maxWidth = 240, maxHeight = 300 }: { media: Pick<
       <Tap accessibilityRole="imagebutton" accessibilityLabel="Agrandir la photo" onPress={() => setOpen(true)}>
         <Image source={{ uri }} style={[size, { borderRadius: Radius.sm, backgroundColor: Colors.surfaceRaised }]} contentFit="cover" />
       </Tap>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Tap accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setOpen(false)} style={styles.viewer}>
-          <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
-          <View style={styles.viewerClose}>
-            <Ionicons name="close" size={26} color="#fff" />
-          </View>
-        </Tap>
+      <Modal visible={open} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setOpen(false)}>
+        <PhotoViewer uri={uri} onClose={() => setOpen(false)} />
       </Modal>
     </>
+  );
+}
+
+/** Visionneuse plein écran : proportions d'origine, pincer ou toucher deux fois pour zoomer, glisser une fois zoomé. */
+function PhotoViewer({ uri, onClose }: { uri: string; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const scale = useSharedValue(1);
+  const saved = useSharedValue(1);
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const sx = useSharedValue(0);
+  const sy = useSharedValue(0);
+  const reset = () => {
+    'worklet';
+    scale.value = withTiming(1);
+    saved.value = 1;
+    x.value = withTiming(0);
+    y.value = withTiming(0);
+    sx.value = 0;
+    sy.value = 0;
+  };
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = Math.min(5, Math.max(1, saved.value * e.scale));
+    })
+    .onEnd(() => {
+      if (scale.value <= 1.02) reset();
+      else saved.value = scale.value;
+    });
+  const pan = Gesture.Pan()
+    .averageTouches(true)
+    .onUpdate((e) => {
+      if (scale.value <= 1) return;
+      x.value = sx.value + e.translationX;
+      y.value = sy.value + e.translationY;
+    })
+    .onEnd(() => {
+      sx.value = x.value;
+      sy.value = y.value;
+    });
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1) reset();
+      else {
+        scale.value = withTiming(2.5);
+        saved.value = 2.5;
+      }
+    });
+  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }, { translateY: y.value }, { scale: scale.value }] }));
+  return (
+    <GestureHandlerRootView style={styles.viewer}>
+      <GestureDetector gesture={Gesture.Simultaneous(pinch, pan, doubleTap)}>
+        <Animated.View style={[StyleSheet.absoluteFill, zoomStyle]}>
+          <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="contain" accessibilityIgnoresInvertColors />
+        </Animated.View>
+      </GestureDetector>
+      <Tap accessibilityRole="button" accessibilityLabel="Fermer la photo" onPress={onClose} hitSlop={12} style={[styles.viewerClose, { top: insets.top + 12 }]}>
+        <Ionicons name="close" size={26} color="#fff" />
+      </Tap>
+    </GestureHandlerRootView>
   );
 }
 
@@ -160,7 +219,7 @@ function TrayButton({ icon, label, onPress, active }: { icon: keyof typeof Ionic
 }
 
 const styles = StyleSheet.create({
-  viewer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', padding: Spacing.md },
+  viewer: { flex: 1, backgroundColor: '#000000' },
   viewerClose: { position: 'absolute', top: 48, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   tray: { gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.sm },
   trayRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },

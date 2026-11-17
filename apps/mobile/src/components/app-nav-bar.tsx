@@ -14,12 +14,12 @@ import { useApi } from '@/net/api';
 import { useGameServer } from '@/state/game-server';
 import { navLift } from '@/state/nav-lift';
 
-type NavTab = 'home' | 'themes' | 'versus' | 'activity' | 'profile';
+type NavTab = 'home' | 'themes' | 'versus' | 'messages' | 'profile';
 
 const ITEMS: { key: Exclude<NavTab, 'versus'>; href: Href; label: string; icon: IconName; iconActive: IconName }[] = [
   { key: 'home', href: '/' as Href, label: 'Accueil', icon: 'home-outline', iconActive: 'home' },
   { key: 'themes', href: '/explore' as Href, label: 'Thèmes', icon: 'grid-outline', iconActive: 'grid' },
-  { key: 'activity', href: '/activity' as Href, label: 'Notifications', icon: 'notifications-outline', iconActive: 'notifications' },
+  { key: 'messages', href: '/inbox' as Href, label: 'Messages', icon: 'chatbubbles-outline', iconActive: 'chatbubbles' },
   { key: 'profile', href: '/profile' as Href, label: 'Profil', icon: 'person-outline', iconActive: 'person' },
 ];
 
@@ -43,7 +43,7 @@ function activeTab(pathname: string): NavTab | null {
   if (pathname === '/' || pathname.startsWith('/post')) return 'home';
   if (pathname.startsWith('/explore') || pathname.startsWith('/theme') || pathname.startsWith('/category')) return 'themes';
   if (pathname.startsWith('/play')) return 'versus';
-  if (pathname.startsWith('/activity')) return 'activity';
+  if (pathname.startsWith('/inbox') || pathname.startsWith('/messages') || pathname.startsWith('/activity')) return 'messages';
   if (pathname.startsWith('/profile') || pathname.startsWith('/player')) return 'profile';
   return null;
 }
@@ -67,9 +67,10 @@ export function useKeyboardVisible(): boolean {
 export function AppNavBar() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const { playerId, unreadNotifications } = useGameServer();
-  const requests = useApi<{ requests: unknown[] }>(playerId ? '/api/me/follow-requests' : null);
-  const badge = unreadNotifications + (requests.data?.requests.length ?? 0);
+  const { playerId } = useGameServer();
+  const inbox = useApi<{ conversations: { unread: number }[] }>(playerId ? '/api/messages' : null);
+  const requests = useApi<{ requests: { incoming: boolean }[] }>(playerId ? '/api/messages/requests' : null);
+  const badge = (inbox.data?.conversations ?? []).reduce((n, c) => n + c.unread, 0) + (requests.data?.requests ?? []).filter((r) => r.incoming).length;
   const keyboard = useKeyboardVisible();
   const active = activeTab(pathname);
   const { width } = useWindowDimensions();
@@ -82,7 +83,7 @@ export function AppNavBar() {
   const renderItem = (item: (typeof ITEMS)[number]) => {
     const focused = active === item.key;
     const color = focused ? Colors.accentInk : Colors.text;
-    const count = item.key === 'activity' ? badge : 0;
+    const count = item.key === 'messages' ? badge : 0;
     return (
       <Pressable
         key={item.key}
