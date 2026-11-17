@@ -23,10 +23,11 @@ function fit(width: number, height: number, maxWidth: number, maxHeight: number)
 }
 
 /** Photo touchable qui s'ouvre en plein écran. */
-export function Photo({ media, maxWidth = 240, maxHeight = 300 }: { media: Pick<MediaView, 'url' | 'width' | 'height'>; maxWidth?: number; maxHeight?: number }) {
+export function Photo({ media, maxWidth = 240, maxHeight = 300, zoomable = true }: { media: Pick<MediaView, 'url' | 'width' | 'height'>; maxWidth?: number; maxHeight?: number; zoomable?: boolean }) {
   const [open, setOpen] = useState(false);
   const size = fit(media.width, media.height, maxWidth, maxHeight);
   const uri = mediaUri(media.url)!;
+  if (!zoomable) return <Image source={{ uri }} style={[size, { borderRadius: Radius.sm, backgroundColor: Colors.surfaceRaised }]} contentFit="cover" />;
   return (
     <>
       <Tap accessibilityRole="imagebutton" accessibilityLabel="Agrandir la photo" onPress={() => setOpen(true)}>
@@ -40,7 +41,7 @@ export function Photo({ media, maxWidth = 240, maxHeight = 300 }: { media: Pick<
 }
 
 /** Visionneuse plein écran : proportions d'origine, pincer ou toucher deux fois pour zoomer, glisser une fois zoomé. */
-function PhotoViewer({ uri, onClose }: { uri: string; onClose: () => void }) {
+export function PhotoViewer({ uri, onClose }: { uri: string; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const scale = useSharedValue(1);
   const saved = useSharedValue(1);
@@ -101,10 +102,10 @@ function PhotoViewer({ uri, onClose }: { uri: string; onClose: () => void }) {
 }
 
 /** Contenu visuel d'un message : photo, GIF ou sticker. */
-export function AttachmentView({ attachment }: { attachment: Attachment }) {
+export function AttachmentView({ attachment, zoomable = true }: { attachment: Attachment; zoomable?: boolean }) {
   switch (attachment.kind) {
     case 'image':
-      return <Photo media={attachment.media} />;
+      return <Photo media={attachment.media} zoomable={zoomable} />;
     case 'gif': {
       const size = fit(attachment.gif.width, attachment.gif.height, 220, 220);
       return <Image source={{ uri: attachment.gif.url }} style={[size, { borderRadius: Radius.sm }]} contentFit="cover" accessibilityLabel="GIF" autoplay />;

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
@@ -19,14 +19,14 @@ import {
   type StickerId,
 } from '@qu1z/shared';
 
-import { AttachmentTray, AttachmentView } from '@/components/attachments';
+import { AttachmentTray, AttachmentView, PhotoViewer } from '@/components/attachments';
 import { GroupAvatar } from '@/components/group';
 import { ReportSheet, type ReportTarget } from '@/components/report-sheet';
 import { M } from '@/components/messages-theme';
 import { AppText, Avatar, LoadingState } from '@/components/ui';
 import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { api, errorMessage, useApi } from '@/net/api';
-import { pickImage, uploadImage, type PickedImage } from '@/net/media';
+import { mediaUri, pickImage, uploadImage, type PickedImage } from '@/net/media';
 import { useGameServer } from '@/state/game-server';
 import { avatarColor } from '@/utils/avatar';
 import { timeAgo } from '@/utils/time';
@@ -53,6 +53,8 @@ export default function ConversationScreen() {
   const [showPinned, setShowPinned] = useState(false);
   const [reporting, setReporting] = useState<ReportTarget | null>(null);
   const [photo, setPhoto] = useState<PickedImage | null>(null);
+  /** Photo de la conversation ouverte en plein écran. */
+  const [viewer, setViewer] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const positions = useRef(new Map<string, number>());
@@ -279,7 +281,7 @@ export default function ConversationScreen() {
                 accessibilityRole="button"
                 accessibilityHint="Répondre ou réagir"
                 // Photo : l'appui l'ouvre en plein écran, l'appui long garde répondre et réagir.
-                onPress={m.kind === 'image' ? undefined : () => setSelected(selected === m.id ? null : m.id)}
+                onPress={m.attachment?.kind === 'image' ? () => setViewer(mediaUri(m.attachment!.kind === 'image' ? m.attachment!.media.url : '') ?? null) : () => setSelected(selected === m.id ? null : m.id)}
                 onLongPress={() => setSelected(m.id)}
                 style={[
                   styles.bubble,
@@ -298,7 +300,7 @@ export default function ConversationScreen() {
                     </AppText>
                   </Tap>
                 )}
-                {m.attachment && <AttachmentView attachment={m.attachment} />}
+                {m.attachment && <AttachmentView attachment={m.attachment} zoomable={false} />}
                 {m.text ? <AppText style={{ color: mine && m.kind !== 'sticker' && m.kind !== 'gif' ? M.onAccent : M.text, fontSize: 15, lineHeight: 21 }}>{m.text}</AppText> : null}
                 <AppText variant="caption" style={{ alignSelf: 'flex-end', fontSize: 11, color: mine ? 'rgba(255,255,255,0.8)' : M.muted }}>
                   {new Date(m.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
@@ -437,6 +439,9 @@ export default function ConversationScreen() {
           </View>
         </View>
       )}
+      <Modal visible={!!viewer} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setViewer(null)}>
+        {viewer && <PhotoViewer uri={viewer} onClose={() => setViewer(null)} />}
+      </Modal>
     </SafeAreaView>
   );
 }
