@@ -278,7 +278,8 @@ export default function ConversationScreen() {
               <Tap
                 accessibilityRole="button"
                 accessibilityHint="Répondre ou réagir"
-                onPress={() => setSelected(selected === m.id ? null : m.id)}
+                // Photo : l'appui l'ouvre en plein écran, l'appui long garde répondre et réagir.
+                onPress={m.kind === 'image' ? undefined : () => setSelected(selected === m.id ? null : m.id)}
                 onLongPress={() => setSelected(m.id)}
                 style={[
                   styles.bubble,

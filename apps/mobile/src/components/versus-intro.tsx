@@ -161,7 +161,8 @@ export function VersusIntro({
           ) : (
             <ColdLandscape />
           )}
-          <View style={[styles.half, { bottom: height - middle + VS_GAP }]}>
+          {/* Placement de la capture de référence : toi vers 18 % de la hauteur, l'adversaire vers 73 %. */}
+          <View style={[styles.half, { top: Math.max(insets.top + 64, height * 0.18) }]}>
             <Player player={duel.me} profile={myProfile.data} size={size} color={Colors.player} bannerRank={myThemeRank} themeName={theme?.name} side="top" />
           </View>
         </Animated.View>
@@ -200,7 +201,7 @@ export function VersusIntro({
               )}
             </G>
           </Svg>
-          <View style={[styles.half, { top: middle + VS_GAP }]}>
+          <View style={[styles.half, { top: height * 0.73 }]}>
             <Player player={duel.opponent} profile={theirProfile.data} size={size} color={duel.opponent.color ?? Colors.opponent} bannerRank={theirThemeRank} themeName={theme?.name} side="bottom" />
           </View>
           <Animated.View entering={FadeIn.delay(CLASH_MS + 300)} style={[styles.theme, { paddingBottom: insets.bottom + 24 }]}>
