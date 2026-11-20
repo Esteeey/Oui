@@ -117,3 +117,7 @@ h2{font-size:20px;margin:6px 0 14px}
   .player-bottom{flex-wrap:wrap}
   #pSeek{order:-1;width:100%;flex-basis:100%}
 }
+
+/* Focus visible à la télécommande */
+.card:focus,.ch:focus,button:focus,input:focus,select:focus{outline:3px solid #fff;outline-offset:2px}
+.card:focus,.ch:focus{transform:scale(1.04)}

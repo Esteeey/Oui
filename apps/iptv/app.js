@@ -39,8 +39,9 @@ function pushHistory(it, pos = 0, dur = 0) {
 }
 
 /* ---------- Réseau ---------- */
+const px = (u) => (window.OUI_PROXY && /^https?:/i.test(u) ? '/proxy?url=' + encodeURIComponent(u) : u);
 async function getText(url) {
-  const r = await fetch(url);
+  const r = await fetch(px(url));
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.text();
 }
@@ -410,7 +411,7 @@ function play(it, list, startAt) {
   const isTs = /\.ts(\?|$)/i.test(url) || (live && !isHls && !/\.(mp4|mkv)/i.test(url));
   if (isHls && window.Hls?.isSupported()) {
     hls = new Hls({ lowLatencyMode: live, backBufferLength: 30, maxBufferLength: live ? 20 : 60 });
-    hls.loadSource(url); hls.attachMedia(V);
+    hls.loadSource(px(url)); hls.attachMedia(V);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { setupTracks(); V.play().catch(() => {}); });
     let recov = 0;
     hls.on(Hls.Events.ERROR, (_, d) => {
@@ -420,11 +421,11 @@ function play(it, list, startAt) {
       fail('Flux indisponible (' + d.details + ')');
     });
   } else if (isTs && window.mpegts?.isSupported()) {
-    mts = mpegts.createPlayer({ type: 'mpegts', isLive: live, url }, { enableWorker: true, liveBufferLatencyChasing: true });
+    mts = mpegts.createPlayer({ type: 'mpegts', isLive: live, url: px(url) }, { enableWorker: true, liveBufferLatencyChasing: true });
     mts.attachMediaElement(V); mts.load(); V.play().catch(() => {});
     mts.on(mpegts.Events.ERROR, (t, d) => fail(`${t} ${d}`));
   } else {
-    V.src = url; V.play().catch(() => {});
+    V.src = px(url); V.play().catch(() => {});
   }
   V.onloadedmetadata = () => { if (startAt > 10 && isFinite(V.duration)) V.currentTime = startAt; };
   V.onerror = () => { if (!hls && !mts) fail('Format non pris en charge par ce navigateur'); };
@@ -529,3 +530,43 @@ window.ouiBack = () => {
   return false;
 };
 window.ouiPlaying = () => !P.classList.contains('hidden') && !V.paused;
+
+/* ---------- Télécommande TV (navigation aux flèches) ---------- */
+const BACK_KEYS = new Set([8, 27, 461, 10009, 166]);
+const focusables = () => [...document.querySelectorAll('.screen:not(.hidden) button, .screen:not(.hidden) input, .screen:not(.hidden) select, .screen:not(.hidden) .ch')]
+  .filter((n) => n.offsetParent !== null && !n.disabled);
+function moveFocus(dir) {
+  const cur = document.activeElement, all = focusables();
+  if (!cur || cur === document.body || !all.includes(cur)) { all[0]?.focus(); return; }
+  const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let best = null, bestD = Infinity;
+  for (const n of all) {
+    if (n === cur) continue;
+    const b = n.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2;
+    const dx = bx - ax, dy = by - ay;
+    const ok = dir === 'left' ? dx < -2 : dir === 'right' ? dx > 2 : dir === 'up' ? dy < -2 : dy > 2;
+    if (!ok) continue;
+    const main = dir === 'left' || dir === 'right' ? Math.abs(dx) : Math.abs(dy);
+    const side = dir === 'left' || dir === 'right' ? Math.abs(dy) : Math.abs(dx);
+    const d = main + side * 3;
+    if (d < bestD) { bestD = d; best = n; }
+  }
+  if (best) { best.focus({ preventScroll: true }); best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
+}
+document.addEventListener('keydown', (e) => {
+  const inPlayer = !P.classList.contains('hidden');
+  if (inPlayer) {
+    if (BACK_KEYS.has(e.keyCode) && e.key !== 'Escape' && e.key !== 'Backspace') { e.preventDefault(); closePlayer(); }
+    if (e.keyCode === 427) zap(-1); if (e.keyCode === 428) zap(1); // CH+/CH- de certaines TV
+    return;
+  }
+  const t = e.target, typing = t.tagName === 'INPUT' && t.type !== 'file';
+  const dirs = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+  if (dirs[e.key]) {
+    if (typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && t.value) return;
+    e.preventDefault(); moveFocus(dirs[e.key]); return;
+  }
+  if (BACK_KEYS.has(e.keyCode) && !(typing && e.keyCode === 8)) { e.preventDefault(); window.ouiBack(); setTimeout(() => focusables()[0]?.focus(), 50); }
+});
+// Donne le focus au premier élément pour que la télécommande fonctionne dès l'ouverture
+setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) focusables()[0]?.focus(); }, 600);
