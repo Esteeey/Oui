@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Oui TV</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js"></script>
+</head>
+<body>
+<!-- Écran de connexion -->
+<section id="login" class="screen">
+  <div class="login-card">
+    <div class="logo">Oui<span>TV</span></div>
+    <p class="muted">Ajoutez votre propre abonnement IPTV.</p>
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-mode="xtream">Xtream Codes</button>
+      <button class="tab" data-mode="m3u">Lien M3U</button>
+      <button class="tab" data-mode="file">Fichier</button>
+    </div>
+    <form id="loginForm" autocomplete="on">
+      <input name="name" placeholder="Nom de la playlist" value="Ma playlist">
+      <div class="mode mode-xtream">
+        <input name="server" placeholder="http://serveur:port" inputmode="url">
+        <input name="username" placeholder="Utilisateur" autocomplete="username">
+        <input name="password" type="password" placeholder="Mot de passe" autocomplete="current-password">
+      </div>
+      <div class="mode mode-m3u hidden">
+        <input name="m3u" placeholder="https://…/playlist.m3u" inputmode="url">
+        <input name="epg" placeholder="Guide EPG XMLTV (optionnel)" inputmode="url">
+      </div>
+      <div class="mode mode-file hidden">
+        <input name="file" type="file" accept=".m3u,.m3u8,.txt">
+      </div>
+      <button class="primary" type="submit">Se connecter</button>
+      <p id="loginError" class="error"></p>
+    </form>
+    <div id="savedProfiles"></div>
+  </div>
+</section>
+
+<!-- Application -->
+<section id="app" class="screen hidden">
+  <header class="topbar">
+    <div class="logo small">Oui<span>TV</span></div>
+    <nav class="sections">
+      <button data-section="home" class="active">Accueil</button>
+      <button data-section="live">TV en direct</button>
+      <button data-section="movie">Films</button>
+      <button data-section="series">Séries</button>
+      <button data-section="fav">Favoris</button>
+    </nav>
+    <input id="search" type="search" placeholder="Rechercher…">
+    <button id="logout" class="ghost" title="Changer de playlist">⏏</button>
+  </header>
+  <div class="layout">
+    <aside id="categories"></aside>
+    <main id="content"></main>
+  </div>
+</section>
+
+<!-- Lecteur -->
+<section id="player" class="hidden">
+  <video id="video" playsinline></video>
+  <div class="player-ui">
+    <div class="player-top">
+      <button id="closePlayer" class="ghost">←</button>
+      <div><div id="pTitle" class="p-title"></div><div id="pSub" class="muted"></div></div>
+      <div class="spacer"></div>
+      <select id="audioTracks" class="hidden" title="Audio"></select>
+      <select id="quality" class="hidden" title="Qualité"></select>
+      <button id="pFav" class="ghost" title="Favori">☆</button>
+    </div>
+    <div id="pEpg" class="p-epg"></div>
+    <div id="pZap" class="p-zap"></div>
+    <div class="player-bottom">
+      <button id="pPlay" class="ghost">⏸</button>
+      <button id="pBack" class="ghost">-10</button>
+      <button id="pFwd" class="ghost">+30</button>
+      <span id="pTime" class="muted">0:00</span>
+      <input id="pSeek" type="range" min="0" max="1000" value="0">
+      <span id="pDur" class="muted">LIVE</span>
+      <button id="pMute" class="ghost">🔊</button>
+      <button id="pPip" class="ghost" title="Image dans l'image">⧉</button>
+      <button id="pFull" class="ghost" title="Plein écran">⛶</button>
+    </div>
+  </div>
+  <div id="pLoading" class="spinner"></div>
+  <div id="pError" class="p-error hidden"></div>
+</section>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
