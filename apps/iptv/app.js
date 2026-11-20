@@ -519,3 +519,13 @@ document.addEventListener('keydown', (e) => {
   if (p) try { await openProfile(p); } catch { /* reste sur l'écran de connexion */ }
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
+
+/* Pont Android : bouton Retour et image dans l'image */
+window.ouiBack = () => {
+  if (!P.classList.contains('hidden')) { closePlayer(); return true; }
+  if (S.view) { S.view = null; render(); return true; }
+  if (S.query) { $('#search').value = ''; S.query = ''; render(); return true; }
+  if (!$('#app').classList.contains('hidden') && S.section !== 'home') { go('home'); return true; }
+  return false;
+};
+window.ouiPlaying = () => !P.classList.contains('hidden') && !V.paused;
